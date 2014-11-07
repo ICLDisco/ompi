@@ -19,6 +19,8 @@
 #error "opal_config_top.h should only be included from opal_config.h"
 #endif
 
+#define OPAL_DATATYPE_CUDA
+
 /* The only purpose of this file is to undef the PACKAGE_<foo> macros
    that are put in by autoconf/automake projects.  Specifically, if
    you include a .h file from another project that defines these

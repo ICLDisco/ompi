@@ -27,6 +27,7 @@
 
 #include "opal/datatype/opal_convertor_internal.h"
 #include "opal/datatype/opal_datatype_internal.h"
+#include "opal/datatype/opal_datatype_gpu.h"
 
 #if OPAL_ENABLE_DEBUG
 #include "opal/util/output.h"
@@ -275,6 +276,13 @@ opal_generic_simple_unpack_function( opal_convertor_t* pConvertor,
     DO_DEBUG( opal_output( 0, "opal_convertor_generic_simple_unpack( %p, {%p, %lu}, %u )\n",
                            (void*)pConvertor, (void*)iov[0].iov_base, (unsigned long)iov[0].iov_len, *out_size ); );
 
+//  if (opal_generic_simple_unpack_function_cuda_p != NULL) {
+//      int32_t rvalue = (*opal_generic_simple_unpack_function_cuda_p)( pConvertor, iov, out_size, max_data);
+//      if (rvalue != -99) { /* -99 is DRY RUN, to verify the result with CPU packing*/
+//          return rvalue;
+//      }
+//  }                      
+
     description = pConvertor->use_desc->desc;
 
     /* For the first step we have to add both displacement to the source. After in the
@@ -379,8 +387,9 @@ opal_generic_simple_unpack_function( opal_convertor_t* pConvertor,
             if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
                 OPAL_PTRDIFF_TYPE local_disp = (OPAL_PTRDIFF_TYPE)conv_ptr;
                 if( pElem->loop.common.flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
-                    UNPACK_CONTIGUOUS_LOOP( pConvertor, pElem, count_desc,
-                                            iov_ptr, conv_ptr, iov_len_local );
+                //    UNPACK_CONTIGUOUS_LOOP( pConvertor, pElem, count_desc, 
+                //                            iov_ptr, conv_ptr, iov_len_local );
+                    (*unpack_contiguous_loop_cuda_p)(pElem, &count_desc, &iov_ptr, &conv_ptr, &iov_len_local);
                     if( 0 == count_desc ) {  /* completed */
                         pos_desc += pElem->loop.items + 1;
                         goto update_loop_description;

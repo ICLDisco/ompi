@@ -341,7 +341,7 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
 int main( int argc, char* argv[] )
 {
     ompi_datatype_t *pdt, *pdt1, *pdt2, *pdt3;
-    int rc, length = 500;
+    int rc, length = 500, i;
 
     opal_init_util(&argc, &argv);
     ompi_datatype_init();
@@ -350,7 +350,7 @@ int main( int argc, char* argv[] )
      * By default simulate homogeneous architectures.
      */
     remote_arch = opal_local_arch;
-    printf( "\n\n#\n * TEST INVERSED VECTOR\n #\n\n" );
+/*    printf( "\n\n#\n * TEST INVERSED VECTOR\n #\n\n" );
     pdt = create_inversed_vector( &ompi_mpi_int.dt, 10 );
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 100);
@@ -364,15 +364,17 @@ int main( int argc, char* argv[] )
         local_copy_with_convertor(pdt, 1, 956);
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
-
+*/    
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
-    pdt = upper_matrix(100);
+    pdt = upper_matrix(4000);
     if( outputFlags & CHECK_PACK_UNPACK ) {
-        local_copy_ddt_count(pdt, 1);
-        local_copy_with_convertor(pdt, 1, 48);
+        for (i = 1; i <= 4; i++) {
+//        local_copy_ddt_count(pdt, 1);
+    //    local_copy_with_convertor(pdt, 1, 1024*1024*200);
+        }
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
-
+  /*  
     mpich_typeub();
     mpich_typeub2();
     mpich_typeub3();
@@ -476,26 +478,104 @@ int main( int argc, char* argv[] )
         local_copy_with_convertor( pdt, 4500, 12 );
         local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 12 );
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
+    }*/
+    printf( ">>--------------------------------------------<<\n" );
+    printf( "Vector data-type (4000 times 512 double stride 640)\n" );
+#if 0
+    pdt = create_vector_type( MPI_DOUBLE, 4000, 512, 640 );
+    opal_datatype_resize(&pdt->super, 0, pdt->super.size+sizeof(MPI_DOUBLE));
+    ompi_datatype_create_contiguous( 1, pdt, &pdt1 );
+#else
+    pdt = create_vector_type( MPI_DOUBLE, 4000, 512, 640 );
+  //  opal_datatype_resize(&pdt->super, 0, pdt->super.size+sizeof(MPI_DOUBLE));
+  //  ompi_datatype_create_contiguous( 4000, pdt, &pdt1 );
+#endif
+//    ompi_datatype_dump( pdt );
+ //   ompi_datatype_commit(&pdt1);
+    if( outputFlags & CHECK_PACK_UNPACK ) {
+        for (i = 0; i < 10; i++) {
+            local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*1024*30 );
+        }
     }
     printf( ">>--------------------------------------------<<\n" );
-    printf( ">>--------------------------------------------<<\n" );
-    printf( "Vector data-type (450 times 10 double stride 11)\n" );
-    pdt = create_vector_type( MPI_DOUBLE, 450, 10, 11 );
-    ompi_datatype_dump( pdt );
+    printf( "Vector data-type (4000 times 384 double stride 512)\n" );
+    pdt = create_vector_type( MPI_DOUBLE, 4000, 384, 512 );
+    opal_datatype_resize(&pdt->super, 0, pdt->super.size+sizeof(MPI_DOUBLE));
+    ompi_datatype_create_contiguous( 1, pdt, &pdt1 );
+//    ompi_datatype_dump( pdt );
     if( outputFlags & CHECK_PACK_UNPACK ) {
-        local_copy_ddt_count(pdt, 1);
-        local_copy_with_convertor( pdt, 1, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
-        local_copy_with_convertor( pdt, 1, 82 );
-        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 82 );
-        local_copy_with_convertor( pdt, 1, 6000 );
-        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
-        local_copy_with_convertor( pdt, 1, 36000 );
-        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 36000 );
+        for (i = 0; i < 10; i++) {
+       // local_copy_ddt_count(pdt, 1);
+      //  local_copy_with_convertor( pdt, 1, 12 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
+      //  local_copy_with_convertor( pdt, 1, 82 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 82 );
+      //  local_copy_with_convertor( pdt, 1, 6000 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
+      //  local_copy_with_convertor( pdt, 1, 36000 );
+     //     local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*1024*20 );
+        }
     }
     printf( ">>--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
-
+    
+    printf( "Vector data-type (4000 times 256 double stride 384)\n" );
+    pdt = create_vector_type( MPI_DOUBLE, 4000, 256, 384 );
+//    ompi_datatype_dump( pdt );
+    if( outputFlags & CHECK_PACK_UNPACK ) {
+        for (i = 0; i < 10; i++) {
+       // local_copy_ddt_count(pdt, 1);
+      //  local_copy_with_convertor( pdt, 1, 12 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
+      //  local_copy_with_convertor( pdt, 1, 82 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 82 );
+      //  local_copy_with_convertor( pdt, 1, 6000 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
+      //  local_copy_with_convertor( pdt, 1, 36000 );
+  //        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*1024*10 );
+        }
+    }
+    printf( ">>--------------------------------------------<<\n" );
+    OBJ_RELEASE( pdt ); assert( pdt == NULL );
+    
+    printf( "Vector data-type (4000 times 128 double stride 256)\n" );
+    pdt = create_vector_type( MPI_DOUBLE, 4000, 128, 256 );
+//    ompi_datatype_dump( pdt );
+    if( outputFlags & CHECK_PACK_UNPACK ) {
+        for (i = 0; i < 10; i++) {
+       // local_copy_ddt_count(pdt, 1);
+      //  local_copy_with_convertor( pdt, 1, 12 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
+      //  local_copy_with_convertor( pdt, 1, 82 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 82 );
+      //  local_copy_with_convertor( pdt, 1, 6000 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
+      //  local_copy_with_convertor( pdt, 1, 36000 );
+   //       local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*1024*5 );
+        }
+    }
+    printf( ">>--------------------------------------------<<\n" );
+    OBJ_RELEASE( pdt ); assert( pdt == NULL );
+    
+    printf( "Vector data-type (2000 times 3 double stride 4)\n" );
+    pdt = create_vector_type( MPI_DOUBLE, 2000, 3, 4 );
+//    ompi_datatype_dump( pdt );
+    if( outputFlags & CHECK_PACK_UNPACK ) {
+        for (i = 0; i < 10; i++) {
+       // local_copy_ddt_count(pdt, 1);
+      //  local_copy_with_convertor( pdt, 1, 12 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
+      //  local_copy_with_convertor( pdt, 1, 82 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 82 );
+      //  local_copy_with_convertor( pdt, 1, 6000 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
+      //  local_copy_with_convertor( pdt, 1, 36000 );
+      //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*1024*4 );
+        }
+    }
+    printf( ">>--------------------------------------------<<\n" );
+    OBJ_RELEASE( pdt ); assert( pdt == NULL );
+    /*
     printf( ">>--------------------------------------------<<\n" );
     pdt = test_struct_char_double();
     if( outputFlags & CHECK_PACK_UNPACK ) {
@@ -541,7 +621,7 @@ int main( int argc, char* argv[] )
     printf( ">>--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt1 ); assert( pdt1 == NULL );
     OBJ_RELEASE( pdt2 ); assert( pdt2 == NULL );
-
+*/
     /* clean-ups all data allocations */
     ompi_datatype_finalize();
 
