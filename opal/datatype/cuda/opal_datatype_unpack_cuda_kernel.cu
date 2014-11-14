@@ -61,7 +61,7 @@ __device__ void unpack_contiguous_loop_cuda_kernel( dt_elem_desc_t* ELEM,
 
 __global__ void opal_generic_simple_unpack_cuda_kernel(ddt_cuda_desc_t* cuda_desc)
 {
-    dt_stack_t* pStack, *pStack_head;                /* pointer to the position on the stack */
+    dt_stack_t* pStack;                /* pointer to the position on the stack */
     uint32_t pos_desc;                 /* actual position in the description of the derived datatype */
     uint32_t count_desc;               /* the number of items already done in the actual pos_desc */
     size_t total_unpacked = 0;         /* total size unpacked this time */
@@ -80,23 +80,23 @@ __global__ void opal_generic_simple_unpack_cuda_kernel(ddt_cuda_desc_t* cuda_des
 
     tid = threadIdx.x + blockIdx.x * blockDim.x;
     
-    __shared__ ddt_cuda_desc_t cuda_desc_b;
-    
-    if (threadIdx.x == 0) {
-        memcpy(&cuda_desc_b, cuda_desc, sizeof(ddt_cuda_desc_t));
+ //   __shared__ ddt_cuda_desc_t cuda_desc_b;
+    __shared__ dt_stack_t shared_pStack[DT_STATIC_STACK_SIZE];
+
+    if (threadIdx.x < DT_STATIC_STACK_SIZE) {
+        shared_pStack[threadIdx.x] = cuda_desc->pStack[threadIdx.x];
     }
     __syncthreads();
     
     // load cuda descriptor from constant memory
-    iov = cuda_desc_b.iov;
-    pStack_head = cuda_desc_b.pStack;
-    pStack = pStack_head;
-    description = cuda_desc_b.description;
-    stack_pos = cuda_desc_b.stack_pos;
-    pBaseBuf = cuda_desc_b.pBaseBuf;
-    lb = cuda_desc_b.lb;
-    ub = cuda_desc_b.ub;
-    out_size = cuda_desc_b.out_size;
+    iov = cuda_desc->iov;
+    pStack = shared_pStack;
+    description = cuda_desc->description;
+    stack_pos = cuda_desc->stack_pos;
+    pBaseBuf = cuda_desc->pBaseBuf;
+    lb = cuda_desc->lb;
+    ub = cuda_desc->ub;
+    out_size = cuda_desc->out_size;
 
     /* For the first step we have to add both displacement to the source. After in the
      * main while loop we will set back the source_base to the correct value. This is
@@ -248,6 +248,43 @@ __global__ void opal_generic_simple_unpack_cuda_kernel(ddt_cuda_desc_t* cuda_des
     }
 }
 
+
+__global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist)
+{
+    uint32_t i, _copy_count;
+    unsigned char *src, *dst;
+    uint8_t alignment;
+    unsigned char *_source_tmp, *_destination_tmp;
+    
+    __shared__ uint32_t nb_tasks;
+    
+    if (threadIdx.x == 0) {
+        nb_tasks = cuda_iov_dist[blockIdx.x].nb_tasks;
+    }
+    __syncthreads();
+    
+    for (i = 0; i < nb_tasks; i++) {
+        src = cuda_iov_dist[blockIdx.x].src[i];
+        dst = cuda_iov_dist[blockIdx.x].dst[i];
+        _copy_count = cuda_iov_dist[blockIdx.x].nb_elements[i];
+        alignment = cuda_iov_dist[blockIdx.x].element_alignment[i];
+        
+        if (threadIdx.x < _copy_count) {
+            _source_tmp = src + threadIdx.x * alignment;
+            _destination_tmp = dst + threadIdx.x * alignment;
+#if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
+                if (alignment == ALIGNMENT_DOUBLE) {
+                    *((double *)_destination_tmp) = *((double *)_source_tmp);
+                } else if (alignment == ALIGNMENT_FLOAT) {
+                    *((float *)_destination_tmp) = *((float *)_source_tmp);
+                } else {
+                    * _destination_tmp = *_source_tmp;
+                }
+        //   printf("src %p, %1.f | dst %p, %1.f\n", _source_tmp, *_source_tmp, _destination_tmp, *_destination_tmp);
+#endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
+        }
+    }
+}
 __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
                                                            size_t size,
                                                            OPAL_PTRDIFF_TYPE extent,

@@ -358,14 +358,20 @@ ompi_datatype_t* upper_matrix( unsigned int mat_size )
 
     disp = (int*)malloc( sizeof(int) * mat_size );
     blocklen = (int*)malloc( sizeof(int) * mat_size );
-
+    
     for( i = 0; i < mat_size; i++ ) {
         disp[i] = i * mat_size + i;
         blocklen[i] = mat_size - i;
     }
-
+#if defined (TEST_DOUBLE)
     ompi_datatype_create_indexed( mat_size, blocklen, disp, &ompi_mpi_double.dt,
                              &upper );
+#elif defined (TEST_FLOAT)
+    ompi_datatype_create_indexed( mat_size, blocklen, disp, &ompi_mpi_float.dt, &upper );
+#elif defined (TEST_CHAR)
+    ompi_datatype_create_indexed( mat_size, blocklen, disp, &ompi_mpi_char.dt, &upper );
+#else
+#endif
     ompi_datatype_commit( &upper );
     if( outputFlags & DUMP_DATA_AFTER_COMMIT ) {
         ompi_datatype_dump( upper );
@@ -684,5 +690,28 @@ ompi_datatype_t* create_vector_type( const ompi_datatype_t* data, int count, int
     ompi_datatype_create_vector( count, length, stride, data, &vector );
     ompi_datatype_commit( &vector );
     return vector;
+}
+
+ompi_datatype_t* create_struct_type(int count)
+{
+    ompi_datatype_t* dt_struct;
+    ompi_datatype_t* dt_struct_vector;
+    ompi_datatype_t* oldtypes[2];
+    MPI_Aint offsets[2], extent, lb;
+    int blockcounts[2];
+    
+    offsets[0] = 0; 
+    oldtypes[0] = MPI_FLOAT; 
+    blockcounts[0] = 4; 
+    
+    ompi_datatype_get_extent(MPI_FLOAT, &lb, &extent);
+    offsets[1] = 4 * extent; 
+    oldtypes[1] = MPI_DOUBLE; 
+    blockcounts[1] = 2;
+    
+    ompi_datatype_create_struct( 2, blockcounts, offsets, oldtypes, &dt_struct );
+    dt_struct_vector = create_vector_type( dt_struct, 10, 2, 4 );
+    ompi_datatype_commit( &dt_struct_vector );
+    return dt_struct_vector;
 }
 

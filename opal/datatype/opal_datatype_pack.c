@@ -44,11 +44,13 @@
 #define opal_pack_homogeneous_contig_with_gaps_function opal_pack_homogeneous_contig_with_gaps_checksum
 #define opal_generic_simple_pack_function               opal_generic_simple_pack_checksum
 #define opal_pack_general_function                      opal_pack_general_checksum
+#define opal_generic_simple_pack_cuda_function          opal_generic_simple_pack_cuda_checksum
 #else
 #define opal_pack_homogeneous_contig_function           opal_pack_homogeneous_contig
 #define opal_pack_homogeneous_contig_with_gaps_function opal_pack_homogeneous_contig_with_gaps
 #define opal_generic_simple_pack_function               opal_generic_simple_pack
 #define opal_pack_general_function                      opal_pack_general
+#define opal_generic_simple_pack_cuda_function          opal_generic_simple_pack_cuda
 #endif  /* defined(CHECKSUM) */
 
 
@@ -290,13 +292,7 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
                            (void*)pConvertor, (void*)pConvertor->pBaseBuf,
                            (void*)iov[0].iov_base, (unsigned long)iov[0].iov_len, *out_size ); );
 
-   if (opal_generic_simple_pack_function_cuda_p != NULL) {
-       int32_t rvalue = (*opal_generic_simple_pack_function_cuda_p)( pConvertor, iov, out_size, max_data);
-       if (rvalue != -99) { /* -99 is DRY RUN, to verify the result with CPU packing*/
-           return rvalue;
-       }
-   }
-
+    printf("I am in simple pack, max_data %lu, iov_len %lu\n", *max_data, iov[0].iov_len);
     description = pConvertor->use_desc->desc;
 
     /* For the first step we have to add both displacement to the source. After in the
@@ -322,9 +318,9 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
         while( 1 ) {
             while( pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA ) {
                 /* now here we have a basic datatype */
-                (*pack_predefined_data_cuda_p)(pElem, &count_desc, &conv_ptr, &iov_ptr, &iov_len_local);
-                // PACK_PREDEFINED_DATATYPE( pConvertor, pElem, count_desc,
-                //                           conv_ptr, iov_ptr, iov_len_local );
+//                (*pack_predefined_data_cuda_p)(pElem, &count_desc, &conv_ptr, &iov_ptr, &iov_len_local);
+                PACK_PREDEFINED_DATATYPE( pConvertor, pElem, count_desc,
+                                        conv_ptr, iov_ptr, iov_len_local );
                 if( 0 == count_desc ) {  /* completed */
                     conv_ptr = pConvertor->pBaseBuf + pStack->disp;
                     pos_desc++;  /* advance to the next data */
@@ -365,9 +361,9 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
             if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
                 OPAL_PTRDIFF_TYPE local_disp = (OPAL_PTRDIFF_TYPE)conv_ptr;
                 if( pElem->loop.common.flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
-                    (*pack_contiguous_loop_cuda_p)(pElem, &count_desc, &conv_ptr, &iov_ptr, &iov_len_local);
-                    //PACK_CONTIGUOUS_LOOP( pConvertor, pElem, count_desc,
-                    //                      conv_ptr, iov_ptr, iov_len_local );
+                    //(*pack_contiguous_loop_cuda_p)(pElem, &count_desc, &conv_ptr, &iov_ptr, &iov_len_local);
+                    PACK_CONTIGUOUS_LOOP( pConvertor, pElem, count_desc,
+                                          conv_ptr, iov_ptr, iov_len_local );
                     if( 0 == count_desc ) {  /* completed */
                         pos_desc += pElem->loop.items + 1;
                         goto update_loop_description;
@@ -388,12 +384,18 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
         iov[iov_count].iov_len -= iov_len_local;  /* update the amount of valid data */
         total_packed += iov[iov_count].iov_len;
     }
-    (*opal_cuda_sync_device_p)();
     *max_data = total_packed;
     pConvertor->bConverted += total_packed;  /* update the already converted bytes */
     *out_size = iov_count;
     if( pConvertor->bConverted == pConvertor->local_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
+        printf("total packed %lu\n", pConvertor->bConverted);
+        // double *vtmp = (double *)iov[0].iov_base;
+        // for (uint32_t i = 0; i < total_packed/8; i++) {
+        //     printf(" %1.f ", *vtmp);
+        //     vtmp ++;
+        // }
+        // printf("\n");
         return 1;
     }
     /* Save the global position for the next round */
@@ -594,5 +596,19 @@ opal_pack_general_function( opal_convertor_t* pConvertor,
                 conv_ptr - pConvertor->pBaseBuf );
     DO_DEBUG( opal_output( 0, "pack save stack stack_pos %d pos_desc %d count_desc %d disp %ld\n",
                            pConvertor->stack_pos, pStack->index, (int)pStack->count, (long)pStack->disp ); );
+    return 0;
+}
+
+int32_t
+opal_generic_simple_pack_cuda_function( opal_convertor_t* pConvertor,
+                                        struct iovec* iov, uint32_t* out_size,
+                                        size_t* max_data )
+{
+#if defined (OPAL_DATATYPE_CUDA_IOV)
+    if (opal_generic_simple_pack_function_cuda_iov_p != NULL) {
+        return (*opal_generic_simple_pack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
+
+    }
+#endif
     return 0;
 }

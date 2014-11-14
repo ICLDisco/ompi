@@ -5,7 +5,7 @@ ARCHFLAGS	= cr
 RANLIB		= ranlib
 STLIB		?= opal_datatype_cuda.a
 DYLIB		?= opal_datatype_cuda.so
-CFLAGS		= -g -G -O0
+CFLAGS		= -g -G -O0 
 EXTLIB		= -L/home/wwu12/ompi/ompi-cuda/opal/datatype/.libs -ldatatype
 INC			=
 

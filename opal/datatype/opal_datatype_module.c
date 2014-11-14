@@ -226,12 +226,6 @@ int32_t opal_datatype_init( void )
         datatype->desc.desc[1].end_loop.first_elem_disp = datatype->desc.desc[0].elem.disp;
         datatype->desc.desc[1].end_loop.size            = datatype->size;
     }
-    
-#if defined (OPAL_DATATYPE_CUDA)
-    if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
-        opal_datatype_gpu_fini();
-    }
-#endif /* defined OPAL_DATATYPE_CUDA */
 
     return OPAL_SUCCESS;
 }

@@ -180,6 +180,7 @@ static void opal_cuda_support_init(void)
     }
 
     initialized = true;
+    
 }
 
 /**
