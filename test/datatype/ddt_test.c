@@ -36,6 +36,7 @@
 #include <cuda_runtime_api.h>
 #include "opal/mca/common/cuda/common_cuda.h"
 #include "opal/runtime/opal_params.h"
+#define CONVERTOR_CUDA             0x00400000
 #endif
 
 /* Compile with:
@@ -684,12 +685,18 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
 #endif
 
     send_convertor = opal_convertor_create( remote_arch, 0 );
+#if defined (DDT_TEST_CUDA)
+    send_convertor->flags |= CONVERTOR_CUDA;
+#endif
     if( OPAL_SUCCESS != opal_convertor_prepare_for_send( send_convertor, &(pdt->super), count, psrc ) ) {
         printf( "Unable to create the send convertor. Is the datatype committed ?\n" );
         goto clean_and_return;
     }
 
     recv_convertor = opal_convertor_create( remote_arch, 0 );
+#if defined (DDT_TEST_CUDA)
+    recv_convertor->flags |= CONVERTOR_CUDA;
+#endif
     if( OPAL_SUCCESS != opal_convertor_prepare_for_recv( recv_convertor, &(pdt->super), count, pdst ) ) {
         printf( "Unable to create the recv convertor. Is the datatype committed ?\n" );
         goto clean_and_return;
@@ -775,7 +782,7 @@ int main( int argc, char* argv[] )
 #endif
     opal_init_util(&argc, &argv);
 #if defined (DDT_TEST_CUDA)
-    mca_common_cuda_stage_one_init();
+   // mca_common_cuda_stage_one_init();
 #endif
     ompi_datatype_init();
 
@@ -807,11 +814,11 @@ int main( int argc, char* argv[] )
     }
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
-    pdt = upper_matrix(1000);
+    pdt = upper_matrix(4000);
     if( outputFlags & CHECK_PACK_UNPACK ) {
         for (i = 1; i <= 3; i++) {
 //        local_copy_ddt_count(pdt, 1);
-            local_copy_with_convertor(pdt, 1, 1024*1024*200, 1000);
+            local_copy_with_convertor(pdt, 1, 1024*1024*100, 4000);
         }
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );

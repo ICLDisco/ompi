@@ -645,8 +645,11 @@ void mca_pml_ob1_recv_request_progress_rget( mca_pml_ob1_recv_request_t* recvreq
         if (mca_pml_ob1_cuda_need_buffers(recvreq, btl))
 #endif /* OPAL_CUDA_SUPPORT */
         {
-            mca_pml_ob1_recv_request_ack(recvreq, &hdr->hdr_rndv, 0);
-            return;
+            /* need more careful check here */
+            if (! (recvreq->req_recv.req_base.req_convertor.flags & CONVERTOR_CUDA)) {
+                mca_pml_ob1_recv_request_ack(recvreq, &hdr->hdr_rndv, 0);
+                return;    
+            }
         }
     }
 

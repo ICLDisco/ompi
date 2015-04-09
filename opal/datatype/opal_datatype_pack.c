@@ -604,11 +604,9 @@ opal_generic_simple_pack_cuda_function( opal_convertor_t* pConvertor,
                                         struct iovec* iov, uint32_t* out_size,
                                         size_t* max_data )
 {
-#if defined (OPAL_DATATYPE_CUDA_IOV)
     if (opal_generic_simple_pack_function_cuda_iov_p != NULL) {
         return (*opal_generic_simple_pack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
 
     }
-#endif
     return 0;
 }

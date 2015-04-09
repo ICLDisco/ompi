@@ -668,10 +668,26 @@ int mca_pml_ob1_send_request_start_rdma( mca_pml_ob1_send_request_t* sendreq,
                                                     MCA_PML_OB1_HDR_FLAGS_PIN);
     }
 
+#if OPAL_CUDA_SUPPORT
+    if ( (sendreq->req_send.req_base.req_convertor.flags & CONVERTOR_CUDA)) {
+        sendreq->req_send.req_base.req_convertor.flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(&sendreq->req_send.req_base.req_convertor) == true) {
+            data_ptr = sendreq->req_send.req_base.req_convertor.gpu_buffer_ptr_source;
+            printf("START RMDA data_ptr %p\n", data_ptr);
+        } else {
+            opal_convertor_get_current_pointer (&sendreq->req_send.req_base.req_convertor, &data_ptr);
+        }
+        /* Set flag back */
+        sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
+    } else {
+        opal_convertor_get_current_pointer (&sendreq->req_send.req_base.req_convertor, &data_ptr);
+    }
+#else
     /* at this time ob1 does not support non-contiguous gets. the convertor represents a
      * contiguous block of memory */
     opal_convertor_get_current_pointer (&sendreq->req_send.req_base.req_convertor, &data_ptr);
-
+#endif
+    
     local_handle = sendreq->req_rdma[0].btl_reg;
 
     /* allocate an rdma fragment to keep track of the request size for use in the fin message */

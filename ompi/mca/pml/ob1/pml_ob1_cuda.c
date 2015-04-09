@@ -38,11 +38,21 @@
 #include "ompi/mca/bml/base/base.h"
 #include "ompi/memchecker.h"
 
+#include "opal/datatype/opal_datatype_gpu.h"
+#include "opal/mca/common/cuda/common_cuda.h"
+
+#define CUDA_DDT_WITH_RDMA 1
+
 size_t mca_pml_ob1_rdma_cuda_btls(
     mca_bml_base_endpoint_t* bml_endpoint,
     unsigned char* base,
     size_t size,
     mca_pml_ob1_com_btl_t* rdma_btls);
+    
+int mca_pml_ob1_rdma_cuda_btl_register_events(
+    mca_pml_ob1_com_btl_t* rdma_btls, 
+    uint32_t num_btls_used, 
+    struct opal_convertor_t* convertor);
 
 int mca_pml_ob1_cuda_need_buffers(void * rreq,
                                   mca_btl_base_module_t* btl);
@@ -93,7 +103,45 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
         /* Do not send anything with first rendezvous message as copying GPU
          * memory into RNDV message is expensive. */
         sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
-        rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+        mca_bml_base_btl_t* bml_endpoint_btl = mca_bml_base_btl_array_get_index(&(sendreq->req_endpoint->btl_send), 0);
+        if ((bml_endpoint_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET) && CUDA_DDT_WITH_RDMA) {
+            printf("GPU data ready for GET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+            unsigned char *base;
+            struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
+            base = opal_datatype_get_gpu_buffer();
+            sendreq->req_send.req_bytes_packed = convertor->local_size;
+            printf("GPU BUFFER %p, local %lu, remote %lu\n", base, convertor->local_size, convertor->remote_size);
+            if( 0 != (sendreq->req_rdma_cnt = (uint32_t)mca_pml_ob1_rdma_cuda_btls(
+                                                                           sendreq->req_endpoint,
+                                                                           base,
+                                                                           sendreq->req_send.req_bytes_packed,
+                                                                           sendreq->req_rdma))) {
+                
+                mca_pml_ob1_rdma_cuda_btl_register_events(sendreq->req_rdma, sendreq->req_rdma_cnt, convertor);
+                struct iovec iov;
+                int rc_dt = 0;
+                uint32_t iov_count = 1;
+                iov.iov_base = NULL;
+                iov.iov_len = 0;
+                size_t max_data = 0;
+                rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
+              //  mca_common_cuda_record_event(&convertor->pipeline_event[0]);
+           //      uint64_t event, *ep;
+           //      ep = &event;
+           //      mca_common_cuda_create_event((uint64_t**)ep);
+           // //     mca_common_cuda_record_event(ep);
+           //      printf("success record event %d\n", event);
+                rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
+                                                         sendreq->req_send.req_bytes_packed);
+                if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
+                    mca_pml_ob1_free_rdma_resources(sendreq);
+                }
+            } else {
+                rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+            }
+        } else {
+            rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+        }
     }
     return rc;
 }
@@ -151,6 +199,30 @@ size_t mca_pml_ob1_rdma_cuda_btls(
                                      weight_total);
 
     return num_btls_used;
+}
+
+int mca_pml_ob1_rdma_cuda_btl_register_events(
+    mca_pml_ob1_com_btl_t* rdma_btls, 
+    uint32_t num_btls_used, 
+    struct opal_convertor_t* convertor)
+{
+    // uint32_t i, j;
+    // for (i = 0; i < num_btls_used; i++) {
+    //     mca_btl_base_registration_handle_t *handle = rdma_btls[i].btl_reg;
+    //     mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t *)
+    //             ((intptr_t) handle - offsetof (mca_mpool_common_cuda_reg_t, data));
+    //     printf("base %p\n", cuda_reg->base.base);
+    //     for (j = 0; j < MAX_IPC_EVENT_HANDLE; j++) {
+    //         uint64_t *event = &convertor->pipeline_event[j];
+    //         convertor->pipeline_event[j] = 0;
+    //         mca_common_cuda_geteventhandle(&event, j, (mca_mpool_base_registration_t *)cuda_reg);
+    //         convertor->pipeline_event[j] = *event;
+    //   //      printf("event %lu, j %d\n", convertor->pipeline_event[j], j);
+    //     }
+    //     cuda_reg->data.pipeline_size = 1000;
+    //
+    // }
+    return 0;
 }
 
 int mca_pml_ob1_cuda_need_buffers(void * rreq,

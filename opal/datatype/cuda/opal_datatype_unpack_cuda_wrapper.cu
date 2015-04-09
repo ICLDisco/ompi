@@ -162,8 +162,12 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     // printf("\n");
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start);
-#endif    
-    cudaMemcpy(source, iov[0].iov_base, iov[0].iov_len, cudaMemcpyHostToDevice);
+#endif
+    if (opal_cuda_is_gpu_buffer(iov[0].iov_base)) {
+        source = (unsigned char*)iov[0].iov_base;
+    } else {    
+        cudaMemcpy(source, iov[0].iov_base, iov[0].iov_len, cudaMemcpyHostToDevice);
+    }
 #if defined(OPAL_DATATYPE_CUDA_TIMING) 
     GET_TIME( end );
     total_time = ELAPSED_TIME( start, end );
@@ -190,7 +194,7 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
 #endif
     
     dst_offset = 0;
-    thread_per_block = CUDA_WARP_SIZE * 4;
+    thread_per_block = CUDA_WARP_SIZE * 5;
     nb_blocks = 256;
     
     while (cuda_iov_count > 0) {
@@ -312,7 +316,6 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     iov[0].iov_len = total_unpacked;
     *max_data = total_unpacked;
     *out_size = 1;
-    
     DT_CUDA_DEBUG ( opal_cuda_output(0, "total unpacked %d\n", total_unpacked); );
     
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    

@@ -47,6 +47,10 @@ void pack_predefined_data_cuda( dt_elem_desc_t* ELEM,
                                 size_t* SPACE );
 
 void opal_cuda_sync_device(void);
+
+int32_t opal_cuda_is_gpu_buffer(const void *ptr);
+
+unsigned char* opal_cuda_get_gpu_pack_buffer();
 }
                             
 #endif  /* OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED */

@@ -1,6 +1,7 @@
 #include "opal_datatype_cuda_internal.cuh"
 #include "opal_datatype_cuda.cuh"
 #include <cuda_runtime_api.h>
+#include <cuda.h>
 #include <stdio.h>
 #include <stdarg.h> 
 
@@ -163,6 +164,39 @@ void opal_cuda_sync_device(void)
     cuda_desc_h->iov[0].iov_base = (void*)gpu_dest_const;
 }
 
+int32_t opal_cuda_is_gpu_buffer(const void *ptr)
+{
+    int res;
+    CUmemorytype memType;
+    CUdeviceptr dbuf = (CUdeviceptr)ptr;
+    res = cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, dbuf);
+    if (res != CUDA_SUCCESS) {
+        /* If we cannot determine it is device pointer,
+         * just assume it is not. */
+        printf("!!!!!!!is gpu buffer error\n");
+        return 0;
+    } 
+    if (memType == CU_MEMORYTYPE_DEVICE) {
+        return 1;
+    } else if (memType == CU_MEMORYTYPE_HOST){
+        return 0;
+    } else if (memType == 0) {
+        return 0;
+    } else {
+        return 0;
+    }
+}
+
+unsigned char* opal_cuda_get_gpu_pack_buffer()
+{
+    if (ddt_cuda_pack_buffer != NULL) {
+        return ddt_cuda_pack_buffer;
+    } else {
+        return NULL;
+    }
+}
+
+/* from internal.h*/
 void opal_cuda_output(int output_id, const char *format, ...)
 {
     if (output_id >= 0 && output_id <= OPAL_DATATYPE_CUDA_DEBUG_LEVEL) {

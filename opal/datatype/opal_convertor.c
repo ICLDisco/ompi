@@ -554,11 +554,11 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
     convertor->flags |= CONVERTOR_RECV;
 #if OPAL_CUDA_SUPPORT
     mca_cuda_convertor_init(convertor, pUserBuf);
-#if defined (OPAL_DATATYPE_CUDA)
+#if OPAL_DATATYPE_CUDA_KERNEL
     if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
         opal_datatype_gpu_fini();
     }
-#endif /* defined OPAL_DATATYPE_CUDA */
+#endif /* defined OPAL_DATATYPE_CUDA_KERNEL */
 #endif
 
     OPAL_CONVERTOR_PREPARE( convertor, datatype, count, pUserBuf );
@@ -580,7 +580,7 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
             if( convertor->pDesc->flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
                 convertor->fAdvance = opal_unpack_homogeneous_contig;
             } else {
-                if (convertor->flags & CONVERTOR_CUDA ) {
+                if ((convertor->flags & CONVERTOR_CUDA) && OPAL_DATATYPE_CUDA_KERNEL) {
                     convertor->fAdvance = opal_generic_simple_unpack_cuda;
                 } else {
                     convertor->fAdvance = opal_generic_simple_unpack;
@@ -600,11 +600,11 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
     convertor->flags |= CONVERTOR_SEND;
 #if OPAL_CUDA_SUPPORT
     mca_cuda_convertor_init(convertor, pUserBuf);
-#if defined (OPAL_DATATYPE_CUDA)
+#if OPAL_DATATYPE_CUDA_KERNEL
     if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
         opal_datatype_gpu_fini();
     }
-#endif /* defined OPAL_DATATYPE_CUDA */
+#endif /* defined OPAL_DATATYPE_CUDA_KERNEL */
 #endif
 
     OPAL_CONVERTOR_PREPARE( convertor, datatype, count, pUserBuf );
@@ -634,7 +634,7 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
                 else
                     convertor->fAdvance = opal_pack_homogeneous_contig_with_gaps;
             } else {
-                if (convertor->flags & CONVERTOR_CUDA ) {
+                if ((convertor->flags & CONVERTOR_CUDA) && OPAL_DATATYPE_CUDA_KERNEL ) {
                     convertor->fAdvance = opal_generic_simple_pack_cuda;
                 } else {
                     convertor->fAdvance = opal_generic_simple_pack;

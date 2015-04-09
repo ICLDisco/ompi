@@ -24,6 +24,10 @@
 #ifndef OPAL_CONFIG_H
 #define OPAL_CONFIG_H
 
+//#include "opal_config_top.h"
+
+
+
 /* Define if building universal (internal helper macro) */
 /* #undef AC_APPLE_UNIVERSAL_BUILD */
 
@@ -51,6 +55,9 @@
 /* Define to 1 if you have the <aio.h> header file. */
 #define HAVE_AIO_H 1
 
+/* Define to 1 if the linker supports alias attribute. */
+/* #undef HAVE_ALIAS_ATTRIBUTE */
+
 /* Define to 1 if you have the <alloca.h> header file. */
 #define HAVE_ALLOCA_H 1
 
@@ -62,6 +69,9 @@
 
 /* Define to 1 if you have the `asprintf' function. */
 #define HAVE_ASPRINTF 1
+
+/* Set to use c11 atomic functions */
+/* #undef HAVE_ATOMICS */
 
 /* Define to 1 if the system has the type `CACHE_DESCRIPTOR'. */
 /* #undef HAVE_CACHE_DESCRIPTOR */
@@ -92,6 +102,9 @@
 
 /* Define to 1 if you have the <crt_externs.h> header file. */
 /* #undef HAVE_CRT_EXTERNS_H */
+
+/* Define to 1 if you have the <ctype.h> header file. */
+#define HAVE_CTYPE_H 1
 
 /* Define to 1 if we have -lcuda */
 /* #undef HAVE_CUDA */
@@ -153,17 +166,13 @@
    don't. */
 /* #undef HAVE_DECL_IBV_ACCESS_SO */
 
+/* Define to 1 if you have the declaration of `IBV_ATOMIC_HCA', and to 0 if
+   you don't. */
+/* #undef HAVE_DECL_IBV_ATOMIC_HCA */
+
 /* Define to 1 if you have the declaration of `IBV_EVENT_CLIENT_REREGISTER',
    and to 0 if you don't. */
 /* #undef HAVE_DECL_IBV_EVENT_CLIENT_REREGISTER */
-
-/* Define to 1 if you have the declaration of `IBV_EVENT_GID_CHANGE', and to 0
-   if you don't. */
-/* #undef HAVE_DECL_IBV_EVENT_GID_CHANGE */
-
-/* Define to 1 if you have the declaration of `ibv_event_type_str', and to 0
-   if you don't. */
-/* #undef HAVE_DECL_IBV_EVENT_TYPE_STR */
 
 /* Define to 1 if you have the declaration of `IBV_EXP_ACCESS_ALLOCATE_MR',
    and to 0 if you don't. */
@@ -177,17 +186,9 @@
    to 0 if you don't. */
 /* #undef HAVE_DECL_IBV_LINK_LAYER_ETHERNET */
 
-/* Define to 1 if you have the declaration of `IBV_NODE_USNIC', and to 0 if
-   you don't. */
-/* #undef HAVE_DECL_IBV_NODE_USNIC */
-
-/* Define to 1 if you have the declaration of `IBV_TRANSPORT_USNIC', and to 0
-   if you don't. */
-/* #undef HAVE_DECL_IBV_TRANSPORT_USNIC */
-
-/* Define to 1 if you have the declaration of `IBV_TRANSPORT_USNIC_UDP', and
-   to 0 if you don't. */
-/* #undef HAVE_DECL_IBV_TRANSPORT_USNIC_UDP */
+/* Define to 1 if you have the declaration of `IBV_SRQT_XRC', and to 0 if you
+   don't. */
+/* #undef HAVE_DECL_IBV_SRQT_XRC */
 
 /* Define to 1 if you have the declaration of
    `nvmlDeviceGetMaxPcieLinkGeneration', and to 0 if you don't. */
@@ -359,6 +360,9 @@
 /* Define to 1 if you have the <hwloc.h> header file. */
 /* #undef HAVE_HWLOC_H */
 
+/* Define to 1 if you have the `ibv_cmd_open_xrcd' function. */
+/* #undef HAVE_IBV_CMD_OPEN_XRCD */
+
 /* Define to 1 if you have the `ibv_create_xrc_rcv_qp' function. */
 /* #undef HAVE_IBV_CREATE_XRC_RCV_QP */
 
@@ -437,8 +441,20 @@
 /* Define to 1 if we have -llgrp */
 /* #undef HAVE_LIBLGRP */
 
+/* set to 1 if should use libnl v3, set to 0 for libnl v11 */
+#define HAVE_LIBNL3 0
+
 /* Define to 1 if you have the `pci' library (-lpci). */
 /* #undef HAVE_LIBPCI */
+
+/* Define to 1 if you have the `psm_infinipath' library (-lpsm_infinipath). */
+/* #undef HAVE_LIBPSM_INFINIPATH */
+
+/* Define to 1 if you have the `pthread' library (-lpthread). */
+#define HAVE_LIBPTHREAD 1
+
+/* Define to 1 if you have the `rt' library (-lrt). */
+#define HAVE_LIBRT 1
 
 /* Define to 1 if you have the <libutil.h> header file. */
 /* #undef HAVE_LIBUTIL_H */
@@ -494,11 +510,17 @@
 /* Define to 1 if you have the `mmap' function. */
 #define HAVE_MMAP 1
 
+/* Define to 1 if you have the <mntent.h> header file. */
+#define HAVE_MNTENT_H 1
+
 /* Define to 1 if the system has the type `mode_t'. */
 #define HAVE_MODE_T 1
 
 /* Define to 1 if you have the <mtcp.h> header file. */
 /* #undef HAVE_MTCP_H */
+
+/* Define to 1 if you have the <munge.h> header file. */
+/* #undef HAVE_MUNGE_H */
 
 /* Define to 1 if you have the <mxm/api/mxm_api.h> header file. */
 /* #undef HAVE_MXM_API_MXM_API_H */
@@ -514,9 +536,6 @@
 
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
 #define HAVE_NETINET_TCP_H 1
-
-/* Define to 1 if you have the <netlink/netlink.h> header file. */
-/* #undef HAVE_NETLINK_NETLINK_H */
 
 /* Define to 1 if you have the <net/if.h> header file. */
 #define HAVE_NET_IF_H 1
@@ -544,6 +563,9 @@
 
 /* Define to 1 if you have the `openpty' function. */
 #define HAVE_OPENPTY 1
+
+/* Define to 1 if you have the <paths.h> header file. */
+#define HAVE_PATHS_H 1
 
 /* Define to 1 if you have the <pci/pci.h> header file. */
 /* #undef HAVE_PCI_PCI_H */
@@ -591,6 +613,12 @@
    */
 /* #undef HAVE_PSAPI_WORKING_SET_EX_INFORMATION */
 
+/* libfabric: whether to build the PSM provider or not */
+/* #undef HAVE_PSM */
+
+/* libfabric: do not build PSM provider as a DL */
+/* #undef HAVE_PSM_DL */
+
 /* Define to 1 if you have the <psm.h> header file. */
 /* #undef HAVE_PSM_H */
 
@@ -623,6 +651,9 @@
 
 /* Define to 1 if you have the <pwd.h> header file. */
 #define HAVE_PWD_H 1
+
+/* Define to 1 if you have the <rdma/fabric.h> header file. */
+/* #undef HAVE_RDMA_FABRIC_H */
 
 /* Define to 1 if you have the <rdma/rdma_cma.h> header file. */
 /* #undef HAVE_RDMA_RDMA_CMA_H */
@@ -678,11 +709,14 @@
 /* Define to 1 if you have the `snprintf' function. */
 #define HAVE_SNPRINTF 1
 
-/* Define to 1 if you have the <sn/xpmem.h> header file. */
-/* #undef HAVE_SN_XPMEM_H */
-
 /* Define to 1 if you have the `socketpair' function. */
 #define HAVE_SOCKETPAIR 1
+
+/* libfabric: do not build sockets provider */
+/* #undef HAVE_SOCKETS */
+
+/* libfabric: do not build sockets provider */
+/* #undef HAVE_SOCKETS_DL */
 
 /* Define to 1 if the system has the type `socklen_t'. */
 #define HAVE_SOCKLEN_T 1
@@ -902,6 +936,9 @@
 /* Define to 1 if you have the <tm.h> header file. */
 /* #undef HAVE_TM_H */
 
+/* Define to 1 if you have the <tm_tree.h> header file. */
+/* #undef HAVE_TM_TREE_H */
+
 /* Define to 1 if you have the <ucontext.h> header file. */
 #define HAVE_UCONTEXT_H 1
 
@@ -939,6 +976,12 @@
 /* Define to 1 if you have the `usleep' function. */
 #define HAVE_USLEEP 1
 
+/* libfabric: whether to build the usnic provider or not */
+/* #undef HAVE_USNIC */
+
+/* libfabric: do not build usnic provider as a DL */
+/* #undef HAVE_USNIC_DL */
+
 /* Define to 1 if you have the <util.h> header file. */
 /* #undef HAVE_UTIL_H */
 
@@ -950,6 +993,12 @@
 
 /* Define to 1 if you have the `vasprintf' function. */
 #define HAVE_VASPRINTF 1
+
+/* libfabric: do not build verbs provider */
+/* #undef HAVE_VERBS */
+
+/* libfabric: do not build verbs provider */
+/* #undef HAVE_VERBS_DL */
 
 /* Define to 1 if you have the `vsnprintf' function. */
 #define HAVE_VSNPRINTF 1
@@ -977,6 +1026,9 @@
 
 /* Define to 1 if the system has the type `__float128'. */
 #define HAVE___FLOAT128 1
+
+/* Define to 1 if the system has the type `__int128'. */
+/* #undef HAVE___INT128 */
 
 /* Define to 1 if you have the `__mmap' function. */
 /* #undef HAVE___MMAP */
@@ -1188,7 +1240,7 @@
 /* #undef HWLOC_HPUX_SYS */
 
 /* Version of hwloc */
-#define HWLOC_HWLOC191_HWLOC_VERSION "internal v1.9.1"
+#define HWLOC_HWLOC191_HWLOC_VERSION "internal v1.9.2"
 
 /* Define to 1 on Irix */
 /* #undef HWLOC_IRIX_SYS */
@@ -1237,7 +1289,7 @@
 #define LT_OBJDIR ".libs/"
 
 /* Header to include for event implementation */
-#define MCA_event_IMPLEMENTATION_HEADER "opal/mca/event/libevent2021/libevent2021.h"
+#define MCA_event_IMPLEMENTATION_HEADER "opal/mca/event/libevent2022/libevent2022.h"
 
 /* Header to include for hwloc implementation */
 #define MCA_hwloc_IMPLEMENTATION_HEADER "opal/mca/hwloc/hwloc191/hwloc191.h"
@@ -1249,7 +1301,7 @@
 /* #undef MCA_hwloc_external_openfabrics_header */
 
 /* Complete set of command line arguments given to ROMIOs configure script */
-#define MCA_io_romio_COMPLETE_CONFIGURE_FLAGS " FROM_OMPI=yes CC='gcc -std=gnu99' CFLAGS='-g -Wall -Wundef -Wno-long-long -Wsign-compare -Wmissing-prototypes -Wstrict-prototypes -Wcomment -pedantic -Werror-implicit-function-declaration -finline-functions -fno-strict-aliasing -pthread' CPPFLAGS='  -I/home/wwu12/ompi/ompi-cuda/opal/mca/hwloc/hwloc191/hwloc/include -I/home/wwu12/ompi/ompi-cuda/opal/mca/event/libevent2021/libevent -I/home/wwu12/ompi/ompi-cuda/opal/mca/event/libevent2021/libevent/include' FFLAGS='' LDFLAGS='  ' --enable-shared --disable-static  --prefix=/home/wwu12/ompi/build-cuda --disable-aio"
+#define MCA_io_romio_COMPLETE_CONFIGURE_FLAGS " FROM_OMPI=yes CC='gcc -std=gnu99' CFLAGS='-g -Wall -Wundef -Wno-long-long -Wsign-compare -Wmissing-prototypes -Wstrict-prototypes -Wcomment -pedantic -Werror-implicit-function-declaration -finline-functions -fno-strict-aliasing -pthread -D__EXTENSIONS__' CPPFLAGS='  -I/home/wwu12/ompi/ompi-gpu/opal/mca/hwloc/hwloc191/hwloc/include -I/home/wwu12/ompi/ompi-gpu/opal/mca/event/libevent2022/libevent -I/home/wwu12/ompi/ompi-gpu/opal/mca/event/libevent2022/libevent/include' FFLAGS='' LDFLAGS='  ' --enable-shared --disable-static  --prefix=/home/wwu12/ompi/build-gpu --disable-aio --disable-weak-symbols --enable-strict"
 
 /* Set of user-defined configure flags given to ROMIOs configure script via
    --with-io-romio-flags */
@@ -1436,9 +1488,6 @@
 /* Enable contributed software package libompitrace */
 #define OMPI_ENABLE_CONTRIB_libompitrace 1
 
-/* Enable contributed software package vt */
-#define OMPI_ENABLE_CONTRIB_vt 1
-
 /* Whether we want MPI profiling or not */
 #define OMPI_ENABLE_MPI_PROFILING 1
 
@@ -1489,6 +1538,10 @@
 /* For ompi_info: Whether the compiler supports TYPE, BIND(C, NAME="name") or
    not */
 #define OMPI_FORTRAN_HAVE_BIND_C_TYPE_NAME 0
+
+/* For ompi/mpi/fortran/use-mpi-f08/blah.F90 and blah.h and ompi_info: whether
+   the compiler supports c_funloc or not */
+#define OMPI_FORTRAN_HAVE_C_FUNLOC 0
 
 /* For ompi_info: Whether the Fortran compiler supports the Fortran 2008
    "assumed rank" syntax or not */
@@ -1717,7 +1770,7 @@
 #define OMPI_MPI_AINT_TYPE ptrdiff_t
 
 /* Contributed software packages built with Open MPI */
-#define OMPI_MPI_CONTRIBS "vt, libompitrace"
+#define OMPI_MPI_CONTRIBS "libompitrace"
 
 /* Size of the MPI_Count datatype */
 #define OMPI_MPI_COUNT_SIZE 8
@@ -1769,7 +1822,7 @@
 #define OMPI_RELEASE_VERSION 0
 
 /* The repository version Open MPI */
-#define OMPI_REPO_REV "dev-267-g51b4521"
+#define OMPI_REPO_REV "dev-1510-g40fe521"
 
 /* Defined to 1 if the OMPI runtime component is ORTE */
 #define OMPI_RTE_ORTE 1
@@ -1977,6 +2030,9 @@
 /* Format of assembly file */
 #define OPAL_ASSEMBLY_FORMAT "default-.text-.globl-:--.L-@-1-0-1-1-1"
 
+/* Whether we have support for RDTSCP instruction */
+#define OPAL_ASSEMBLY_SUPPORTS_RDTSCP 0
+
 /* Enable flow control for Portals4 BTL */
 #define OPAL_BTL_PORTALS4_FLOW_CONTROL 0
 
@@ -1985,6 +2041,9 @@
 
 /* If knem support can be enabled */
 #define OPAL_BTL_SM_HAVE_KNEM 0
+
+/* Path by which to include fi_ext_usnic.h */
+/* #undef OPAL_BTL_USNIC_FI_EXT_USNIC_H */
 
 /* define to 1 if usnic BTL unit tests are enabled, 0 otherwise */
 #define OPAL_BTL_USNIC_UNIT_TESTS 0
@@ -2032,7 +2091,7 @@
 #define OPAL_CUDA_GDR_SUPPORT 1
 
 /* Whether we have CUDA cuPointerGetAttributes function available */
-#define OPAL_CUDA_GET_ATTRIBUTES 0
+#define OPAL_CUDA_GET_ATTRIBUTES 1
 
 /* Whether we want cuda device pointer support */
 #define OPAL_CUDA_SUPPORT 1
@@ -2078,6 +2137,9 @@
 
 /* Whether C compiler supports XLC style inline assembly */
 #define OPAL_C_XLC_INLINE_ASSEMBLY 0
+
+/* Whether we have lt_dladvise or not */
+#define OPAL_DL_LIBLTDL_HAVE_LT_DLADVISE 0
 
 /* Whether we want checkpoint/restart enabled debugging functionality or not
    */
@@ -2218,14 +2280,26 @@
 /* whether ceil is found and available */
 #define OPAL_HAVE_CEIL 1
 
+/* whether clock_gettime is found and available */
+#define OPAL_HAVE_CLOCK_GETTIME 1
+
+/* Whether the processor supports the cmpxchg16b instruction */
+#define OPAL_HAVE_CMPXCHG16B 1
+
 /* Enable features required for ConnectX XRC support */
 #define OPAL_HAVE_CONNECTX_XRC 0
+
+/* Enable features required for XRC domains support */
+#define OPAL_HAVE_CONNECTX_XRC_DOMAINS 0
 
 /* whether crs_blcr is found and available */
 /* #undef OPAL_HAVE_CRS_BLCR */
 
 /* whether dirname is found and available */
 #define OPAL_HAVE_DIRNAME 1
+
+/* Whether the OPAL DL framework is functional or not */
+#define OPAL_HAVE_DL_SUPPORT 1
 
 /* whether fbtl_posix is found and available */
 #define OPAL_HAVE_FBTL_POSIX 1
@@ -2243,14 +2317,8 @@
    long'. */
 #define OPAL_HAVE_LONG_LONG 1
 
-/* Whether libltdl appears to have the lt_dladvise interface */
-#define OPAL_HAVE_LTDL_ADVISE 0
-
 /* whether openpty is found and available */
 #define OPAL_HAVE_OPENPTY 1
-
-/* Do we have POSIX threads */
-#define OPAL_HAVE_POSIX_THREADS 1
 
 /* If PTHREADS implementation supports PTHREAD_MUTEX_ERRORCHECK */
 #define OPAL_HAVE_PTHREAD_MUTEX_ERRORCHECK 1
@@ -2278,6 +2346,10 @@
 
 /* Whether or not we have solaris */
 #define OPAL_HAVE_SOLARIS 0
+
+/* Whether the __sync builtin atomic compare and swap supports 128-bit values
+   */
+/* #undef OPAL_HAVE_SYNC_BUILTIN_CSWAP_INT128 */
 
 /* Do not use outside of mpi.h. Define to 1 if you have the <sys/synch.h>
    header file. */
@@ -2315,9 +2387,6 @@
 
 /* ident string for Open MPI */
 #define OPAL_IDENT_STRING "1.9.0a1"
-
-/* Whether we are using the internal libltdl or not */
-#define OPAL_LIBLTDL_INTERNAL 1
 
 /* Major release number of Open Portable Access Layer */
 #define OPAL_MAJOR_VERSION 1
@@ -2386,7 +2455,7 @@
 #define OPAL_RELEASE_VERSION 0
 
 /* The repository version Open Portable Access Layer */
-#define OPAL_REPO_REV "dev-267-g51b4521"
+#define OPAL_REPO_REV "dev-1510-g40fe521"
 
 /* Whether we have shared memory support for mmap or not */
 #define OPAL_SHMEM_MMAP 1
@@ -2412,9 +2481,6 @@
 
 /* Enable per-user config files */
 #define OPAL_WANT_HOME_CONFIG_FILES 1
-
-/* Whether to include support for libltdl or not */
-#define OPAL_WANT_LIBLTDL 1
 
 /* if the memory and buffer checking should be enabled */
 #define OPAL_WANT_MEMCHECKER 0
@@ -2448,7 +2514,7 @@
 #define ORTE_RELEASE_VERSION 0
 
 /* The repository version Open MPI Run-Time Environment */
-#define ORTE_REPO_REV "dev-267-g51b4521"
+#define ORTE_REPO_REV "dev-1510-g40fe521"
 
 /* Tarball filename version string of Open MPI Run-Time Environment */
 #define ORTE_TARBALL_VERSION "gitclone"
@@ -2481,7 +2547,7 @@
 #define OSHMEM_RELEASE_VERSION 0
 
 /* The repository version Open SHMEM */
-#define OSHMEM_REPO_REV "dev-267-g51b4521"
+#define OSHMEM_REPO_REV "dev-1510-g40fe521"
 
 /* Whether user wants OSHMEM in compatibility mode or not */
 #define OSHMEM_SPEC_COMPAT 1
@@ -2521,6 +2587,9 @@
 
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "gitclone"
+
+/* Define PT_LOCK_SPIN to 1 if available. */
+/* #undef PT_LOCK_SPIN */
 
 /* The size of `bool', as computed by sizeof. */
 #define SIZEOF_BOOL 1
@@ -2656,7 +2725,7 @@
 #define WRAPPER_EXTRA_LDFLAGS "    -Wl,-rpath -Wl,@{libdir} -Wl,--enable-new-dtags"
 
 /* Additional LIBS to pass through the wrapper compilers */
-#define WRAPPER_EXTRA_LIBS "-lm -ldl -lutil "
+#define WRAPPER_EXTRA_LIBS "-lm -ldl -lutil -lrt "
 
 /* Whether the wrapper compilers add rpath flags by default */
 #define WRAPPER_RPATH_SUPPORT "runpath"
@@ -2788,5 +2857,7 @@
 # define __restrict__
 #endif
 
+
+//#include "opal_config_bottom.h"
 #endif /* OPAL_CONFIG_H */
 

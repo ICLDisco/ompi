@@ -249,9 +249,9 @@ int32_t opal_datatype_finalize( void )
     /* clear all master convertors */
     opal_convertor_destroy_masters();
 
-#if defined (OPAL_DATATYPE_CUDA)  
+#if OPAL_DATATYPE_CUDA_KERNEL
     opal_datatype_gpu_fini();
-#endif /* defined OPAL_DATATYPE_CUDA */
+#endif /* defined OPAL_DATATYPE_CUDA_KERNEL */
 
     return OPAL_SUCCESS;
 }

@@ -79,6 +79,8 @@ typedef struct dt_stack_t dt_stack_t;
  */
 #define DT_STATIC_STACK_SIZE   5                /**< This should be sufficient for most applications */
 
+#define MAX_IPC_EVENT_HANDLE   10
+
 struct opal_convertor_t {
     opal_object_t                 super;          /**< basic superclass */
     uint32_t                      remoteArch;     /**< the remote architecture */
@@ -109,6 +111,10 @@ struct opal_convertor_t {
 #if OPAL_CUDA_SUPPORT
     memcpy_fct_t                  cbmemcpy;       /**< memcpy or cuMemcpy */
     void *                        stream;         /**< CUstream for async copy */
+
+    unsigned char *               gpu_buffer_ptr; /**< GPU buffer used for pack/unpack */
+    unsigned char *               gpu_buffer_ptr_source; /**< source address of GPU buffer start to pack, update in packing function */
+    uint64_t *                    pipeline_event[MAX_IPC_EVENT_HANDLE]; /**< cuda event for pipeline */
 #endif
     /* size: 248, cachelines: 4, members: 20 */
     /* last cacheline: 56 bytes */

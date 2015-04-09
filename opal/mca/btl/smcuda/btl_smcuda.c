@@ -74,6 +74,9 @@
 #include "btl_smcuda_frag.h"
 #include "btl_smcuda_fifo.h"
 
+#include "ompi/mca/pml/ob1/pml_ob1_recvreq.h"
+#include "ompi/mca/pml/ob1/pml_ob1_rdmafrag.h"
+
 #if OPAL_CUDA_SUPPORT
 static struct mca_btl_base_registration_handle_t *mca_btl_smcuda_register_mem (
     struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t *endpoint, void *base,
@@ -1147,6 +1150,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     offset = (size_t) ((intptr_t) remote_address - (intptr_t) reg_ptr->base.base);
     remote_memory_address = (unsigned char *)reg_ptr->base.alloc_base + offset;
     if (0 != offset) {
+        printf("!!!!!!offset %d, ra %p, base %p\n", offset, (void*)remote_address, (void*)reg_ptr->base.base);
         opal_output(-1, "OFFSET=%d", (int)offset);
     }
 
@@ -1156,17 +1160,47 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
      * on the IPC event that we received.  Note that we pull it from
      * rget_reg, not reg_ptr, as we do not cache the event. */
     mca_common_wait_stream_synchronize(&rget_reg);
-
-    rc = mca_common_cuda_memcpy(local_address, remote_memory_address, size,
-                                "mca_btl_smcuda_get", (mca_btl_base_descriptor_t *)frag,
-                                &done);
-    if (OPAL_SUCCESS != rc) {
-        /* Out of resources can be handled by upper layers. */
-        if (OPAL_ERR_OUT_OF_RESOURCE != rc) {
-            opal_output(0, "Failed to cuMemcpy GPU memory, rc=%d", rc);
+    
+    /* datatype RDMA */
+    mca_pml_ob1_rdma_frag_t *frag_ob1 = cbdata;
+    mca_pml_ob1_recv_request_t *recvreq = (mca_pml_ob1_recv_request_t *) frag_ob1->rdma_req;
+    mca_bml_base_btl_t *bml_btl = frag_ob1->rdma_bml;
+    
+    if ((recvreq->req_recv.req_base.req_convertor.flags & CONVERTOR_CUDA) &&
+        (bml_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET)) {
+        recvreq->req_recv.req_base.req_convertor.flags &= ~CONVERTOR_CUDA;
+        if(opal_convertor_need_buffers(&recvreq->req_recv.req_base.req_convertor) == true) {
+            recvreq->req_recv.req_base.req_convertor.flags |= CONVERTOR_CUDA;
+            printf("RGET NOT IMPLEMENT YET!!!!!!!!!!!!!!\n");
+            struct iovec iov;
+            uint32_t iov_count = 1;
+            iov.iov_base = remote_memory_address;
+            iov.iov_len = size;
+            int rc;
+            size_t max_data = size;
+            struct opal_convertor_t *convertor = &(recvreq->req_recv.req_base.req_convertor);   
+        //    uint64_t *event = &convertor->pipeline_event[0];
+            // mca_common_cuda_openeventhandle(&event, 0, (mca_mpool_common_cuda_reg_data_t*)remote_handle);
+            // if (mca_common_cuda_query_event(event) == OPAL_SUCCESS){
+            //     printf("get event\n");
+                rc = opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
+                done = 1;
+            // }
+        } else {
+            recvreq->req_recv.req_base.req_convertor.flags |= CONVERTOR_CUDA;
+            rc = mca_common_cuda_memcpy(local_address, remote_memory_address, size,
+        				"mca_btl_smcuda_get", (mca_btl_base_descriptor_t *)frag,
+        				&done);
+            if (OPAL_SUCCESS != rc) {
+                /* Out of resources can be handled by upper layers. */
+                if (OPAL_ERR_OUT_OF_RESOURCE != rc) {
+                    opal_output(0, "Failed to cuMemcpy GPU memory, rc=%d", rc);
+                }
+                return rc;
+            }
         }
-        return rc;
     }
+
 
     if (OPAL_UNLIKELY(1 == done)) {
         cbfunc (btl, ep, local_address, local_handle, cbcontext, cbdata, OPAL_SUCCESS);

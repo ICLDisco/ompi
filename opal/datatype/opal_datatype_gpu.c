@@ -83,10 +83,12 @@ void (*pack_predefined_data_cuda_p)( dt_elem_desc_t* ELEM,
 
 void (*opal_cuda_sync_device_p)(void) = NULL;
 
+unsigned char* (*opal_cuda_get_gpu_pack_buffer_p)(void) = NULL;
+
 int32_t opal_datatype_gpu_init(void)
 {
     char *error;
-    char *lib = "/home/wwu12/ompi/ompi-cuda/opal/datatype/cuda/opal_datatype_cuda.so";
+    char *lib = "/home/wwu12/ompi/ompi-gpu/opal/datatype/cuda/opal_datatype_cuda.so";
     
     if (opal_datatype_cuda_handle ==  NULL) {
         opal_datatype_cuda_handle = dlopen(lib, RTLD_LAZY);
@@ -166,11 +168,19 @@ int32_t opal_datatype_gpu_init(void)
             return OPAL_ERROR;
         }
         
+        *(void **)(&opal_cuda_get_gpu_pack_buffer_p) = dlsym(opal_datatype_cuda_handle, "opal_cuda_get_gpu_pack_buffer");
+        if ((error = dlerror()) != NULL)  {
+            fprintf(stderr, "opal_cuda_get_gpu_pack_buffer error: %s\n", error);
+            opal_cuda_get_gpu_pack_buffer_p = NULL;
+            return OPAL_ERROR;
+        }
+        
         (*opal_datatype_cuda_init_p)();
         printf("cuda init done\n");   
     }
     return OPAL_SUCCESS;
 }
+
 int32_t opal_datatype_gpu_fini(void)
 {
     if (opal_datatype_cuda_handle != NULL) {
@@ -187,7 +197,22 @@ int32_t opal_datatype_gpu_fini(void)
         unpack_contiguous_loop_cuda_p = NULL;
         pack_predefined_data_cuda_p = NULL;
         opal_cuda_sync_device_p = NULL;
+        opal_cuda_get_gpu_pack_buffer_p = NULL;
         printf("cuda fini done\n");
     }
     return OPAL_SUCCESS;
+}
+
+unsigned char* opal_datatype_get_gpu_buffer(void)
+{
+#if OPAL_DATATYPE_CUDA_KERNEL
+    if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
+        opal_datatype_gpu_fini();
+        return NULL;
+    }
+    return (*opal_cuda_get_gpu_pack_buffer_p)();
+#else
+    return NULL;
+#endif /* defined OPAL_DATATYPE_CUDA_KERNEL */
+    
 }

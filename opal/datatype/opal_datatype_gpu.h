@@ -1,10 +1,11 @@
 #ifndef OPAL_DATATYPE_GPU_H_HAS_BEEN_INCLUDED
 #define OPAL_DATATYPE_GPU_H_HAS_BEEN_INCLUDED
 
-#define OPAL_DATATYPE_CUDA_IOV
+#define OPAL_DATATYPE_CUDA_KERNEL   1
 
 int32_t opal_datatype_gpu_init(void);
 int32_t opal_datatype_gpu_fini(void);
+unsigned char* opal_datatype_get_gpu_buffer(void);
 
 extern void (*opal_datatype_cuda_init_p)(void);
 
@@ -49,4 +50,6 @@ extern void (*pack_predefined_data_cuda_p)( dt_elem_desc_t* ELEM,
                                             size_t* SPACE );
                                             
 extern void (*opal_cuda_sync_device_p)(void);
+
+extern unsigned char* (*opal_cuda_get_gpu_pack_buffer_p)(void);
 #endif /* OPAL_DATATYPE_GPU_H_HAS_BEEN_INCLUDED */

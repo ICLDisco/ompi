@@ -1046,6 +1046,7 @@ int cuda_getmemhandle(void *base, size_t size, mca_rcache_base_registration_t *n
                             "CUDA: cuMemGetAddressRange passed: addr=%p, size=%d, pbase=%p, psize=%d ",
                             base, (int)size, (void *)pbase, (int)psize);
     }
+    printf("sizeof memhandle %lu, CUipcMemHandle %lu, cuEvent %lu, char %lu\n", sizeof(memHandle), sizeof(CUipcMemHandle), sizeof(CUevent), sizeof(char));
 
     /* Store all the information in the registration */
     cuda_reg->base.base = (void *)pbase;
@@ -1636,6 +1637,69 @@ int progress_one_cuda_htod_event(struct mca_btl_base_descriptor_t **frag) {
     }
     OPAL_THREAD_UNLOCK(&common_cuda_htod_lock);
     return OPAL_ERR_RESOURCE_BUSY;
+}
+
+int mca_common_cuda_geteventhandle(uint64_t **event, int n, mca_mpool_base_registration_t *newreg) 
+{
+    // CUipcEventHandle evtHandle;
+    // mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t*)newreg;
+    // mca_common_cuda_construct_event_and_handle(event, (void**)&evtHandle);
+    // memcpy(&cuda_reg->data.pipeline_evtHandle[n], &evtHandle, sizeof(evtHandle));
+    return OPAL_SUCCESS;
+}
+
+int mca_common_cuda_create_event(uint64_t **event)
+{
+    CUresult result;
+
+    result = cuFunc.cuEventCreate((CUevent *)event, CU_EVENT_INTERPROCESS | CU_EVENT_DISABLE_TIMING);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+        opal_show_help("help-mpi-common-cuda.txt", "cuEventCreate failed",
+                       true, OPAL_PROC_MY_HOSTNAME, result);
+        return OPAL_ERROR;
+    }
+    return OPAL_SUCCESS;
+}
+
+int mca_common_cuda_record_event(uint64_t *event)
+{
+    CUresult result;
+    result = cuFunc.cuEventRecord((CUevent)event,0);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+        printf("record event error %d\n", result);
+        return OPAL_ERROR;
+    } else {
+        return OPAL_SUCCESS;
+    }
+}
+
+int mca_common_cuda_query_event(uint64_t *event)
+{
+    CUresult result;
+    result = cuFunc.cuEventQuery((CUevent)event);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS == result)) {
+        return OPAL_SUCCESS;
+    } else if (OPAL_UNLIKELY(CUDA_ERROR_NOT_READY == result)) {
+        return OPAL_ERROR;
+    } else {
+        printf("query event error %d\n", result);
+        return OPAL_ERROR;
+    }
+}
+
+int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_mpool_common_cuda_reg_data_t *handle)
+{
+    // CUipcEventHandle evtHandle;
+    // CUresult result;
+    // mca_mpool_common_cuda_reg_data_t *cuda_handle = (mca_mpool_common_cuda_reg_data_t*)handle;
+    // memcpy(&evtHandle, cuda_handle->pipeline_evtHandle[n], sizeof(evtHandle));
+    // result = cuFunc.cuIpcOpenEventHandle((CUevent *)event, evtHandle);
+    // if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+    //     opal_show_help("help-mpi-common-cuda.txt", "cuIpcOpenEventHandle failed",
+    //                        true, result);
+    //     return OPAL_ERROR;
+    // }
+    return OPAL_SUCCESS;
 }
 
 

@@ -6,7 +6,7 @@ RANLIB		= ranlib
 STLIB		?= opal_datatype_cuda.a
 DYLIB		?= opal_datatype_cuda.so
 CFLAGS		= -g -G -O0 
-EXTLIB		= -L/home/wwu12/ompi/ompi-cuda/opal/datatype/.libs -ldatatype
+EXTLIB		= -L/home/wwu12/ompi/ompi-gpu/opal/datatype/.libs -ldatatype -L/usr/lib64 -lcuda
 INC			=
 
 SRC	:= \
