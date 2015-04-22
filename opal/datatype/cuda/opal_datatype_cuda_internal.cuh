@@ -18,6 +18,7 @@
 
 #define IOV_ARRAY_SIZE          1
 #define DT_CUDA_BUFFER_SIZE    1024*1024*200
+#define DT_CUDA_FREE_LIST_SIZE  50
 
 #define THREAD_PER_BLOCK    32
 #define CUDA_WARP_SIZE      32
@@ -76,6 +77,30 @@ typedef struct {
     uint32_t nb_tasks;
 } ddt_cuda_iov_dist_t;
 
+typedef struct ddt_cuda_buffer{
+    unsigned char* gpu_addr;
+    size_t size;
+    struct ddt_cuda_buffer *next;
+    struct ddt_cuda_buffer *prev;
+} ddt_cuda_buffer_t;
+
+typedef struct {
+    ddt_cuda_buffer_t *head;
+    ddt_cuda_buffer_t *tail;
+    size_t nb_elements;
+} ddt_cuda_list_t;
+
+typedef struct {
+    int device_id;
+    unsigned char* gpu_buffer;
+    ddt_cuda_list_t buffer_free;
+    ddt_cuda_list_t buffer_used;
+    size_t buffer_free_size;
+    size_t buffer_used_size;
+} ddt_cuda_device_t;
+
+extern ddt_cuda_list_t *cuda_free_list;
+extern ddt_cuda_device_t *cuda_device;
 extern ddt_cuda_desc_t *cuda_desc_d, *cuda_desc_h;
 extern unsigned char* pBaseBuf_GPU;
 extern unsigned char *ddt_cuda_pack_buffer, *ddt_cuda_unpack_buffer;

@@ -1171,21 +1171,15 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
         recvreq->req_recv.req_base.req_convertor.flags &= ~CONVERTOR_CUDA;
         if(opal_convertor_need_buffers(&recvreq->req_recv.req_base.req_convertor) == true) {
             recvreq->req_recv.req_base.req_convertor.flags |= CONVERTOR_CUDA;
-            printf("RGET NOT IMPLEMENT YET!!!!!!!!!!!!!!\n");
-            struct iovec iov;
-            uint32_t iov_count = 1;
-            iov.iov_base = remote_memory_address;
-            iov.iov_len = size;
-            int rc;
-            size_t max_data = size;
+            printf("RECEIVE REGT!!!!!!!!!!!\n");
+            
             struct opal_convertor_t *convertor = &(recvreq->req_recv.req_base.req_convertor);   
-        //    uint64_t *event = &convertor->pipeline_event[0];
-            // mca_common_cuda_openeventhandle(&event, 0, (mca_mpool_common_cuda_reg_data_t*)remote_handle);
-            // if (mca_common_cuda_query_event(event) == OPAL_SUCCESS){
-            //     printf("get event\n");
-                rc = opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
-                done = 1;
-            // }
+            size_t pipeline_size = remote_handle->reg_data.pipeline_size;
+            uint32_t lindex = remote_handle->reg_data.lindex;
+            printf("i receive pipeline %ld, lindex %d\n", pipeline_size, lindex);
+            convertor->gpu_buffer_ptr = remote_memory_address;
+            mca_btl_smcuda_cuda_dt_clone(convertor, ep, local_address, local_handle, (mca_btl_base_completion_fn_t)cbfunc, cbcontext, cbdata, pipeline_size, lindex);
+            done = 0;
         } else {
             recvreq->req_recv.req_base.req_convertor.flags |= CONVERTOR_CUDA;
             rc = mca_common_cuda_memcpy(local_address, remote_memory_address, size,
@@ -1289,6 +1283,90 @@ static void mca_btl_smcuda_send_cuda_ipc_request(struct mca_btl_base_module_t* b
                               endpoint->peer_smp_rank, (void *) VIRTUAL2RELATIVE(frag->hdr), false, true, rc);
     return;
 
+}
+
+int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
+                                           struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq)
+{
+    mca_btl_smcuda_frag_t* frag;
+    int rc;
+    cuda_dt_hdr_t cuda_dt_hdr;
+    
+    /* allocate a fragment, giving up if we can't get one */
+    MCA_BTL_SMCUDA_FRAG_ALLOC_EAGER(frag);
+    if( OPAL_UNLIKELY(NULL == frag) ) {
+        return OPAL_ERR_OUT_OF_RESOURCE;;
+    }
+
+    /* Fill in fragment fields. */
+    frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
+    cuda_dt_hdr.seq = seq;
+    cuda_dt_hdr.lindex = lindex;
+    memcpy(frag->segment.seg_addr.pval, &cuda_dt_hdr, sizeof(cuda_dt_hdr_t));
+    
+    rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
+    return rc;
+}
+
+int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl,
+                                      struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq)
+{
+    mca_btl_smcuda_frag_t* frag;
+    int rc;
+    cuda_dt_hdr_t cuda_dt_hdr;
+    
+    /* allocate a fragment, giving up if we can't get one */
+    MCA_BTL_SMCUDA_FRAG_ALLOC_EAGER(frag);
+    if( OPAL_UNLIKELY(NULL == frag) ) {
+        return OPAL_ERR_OUT_OF_RESOURCE;;
+    }
+
+    /* Fill in fragment fields. */
+    frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
+    cuda_dt_hdr.seq = seq;
+    cuda_dt_hdr.lindex = lindex;
+    memcpy(frag->segment.seg_addr.pval, &cuda_dt_hdr, sizeof(cuda_dt_hdr_t));
+    
+    rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
+    return rc;
+}
+
+int mca_btl_smcuda_alloc_cuda_dt_clone(void)
+{
+    int i;
+    for (i = 0; i < SMCUDA_DT_CLONE_SIZE; i++) {
+        if (smcuda_dt_clone[i].lindex == -1) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void mca_btl_smcuda_free_cuda_dt_clone(int lindex)
+{
+    assert(smcuda_dt_clone[lindex].lindex == lindex);
+    smcuda_dt_clone[lindex].lindex = -1;
+}
+
+void mca_btl_smcuda_cuda_dt_clone(struct opal_convertor_t *convertor,
+                                  struct mca_btl_base_endpoint_t *endpoint,
+                                  void *local_address,
+                                  struct mca_btl_base_registration_handle_t *local_handle,
+                                  mca_btl_base_completion_fn_t cbfunc,
+                                  void *cbcontext,
+                                  void *cbdata,
+                                  size_t pipeline_size,
+                                  int lindex)
+{
+    smcuda_dt_clone[lindex].convertor = convertor;
+    smcuda_dt_clone[lindex].endpoint = endpoint;
+    smcuda_dt_clone[lindex].local_address = local_address;
+    smcuda_dt_clone[lindex].local_handle = local_handle;
+    smcuda_dt_clone[lindex].cbfunc = cbfunc;
+    smcuda_dt_clone[lindex].cbcontext = cbcontext;
+    smcuda_dt_clone[lindex].cbdata = cbdata;
+    smcuda_dt_clone[lindex].pipeline_size = pipeline_size;
+    smcuda_dt_clone[lindex].lindex = lindex;
 }
 
 #endif /* OPAL_CUDA_SUPPORT */

@@ -113,7 +113,6 @@ struct opal_convertor_t {
     void *                        stream;         /**< CUstream for async copy */
 
     unsigned char *               gpu_buffer_ptr; /**< GPU buffer used for pack/unpack */
-    unsigned char *               gpu_buffer_ptr_source; /**< source address of GPU buffer start to pack, update in packing function */
     uint64_t *                    pipeline_event[MAX_IPC_EVENT_HANDLE]; /**< cuda event for pipeline */
 #endif
     /* size: 248, cachelines: 4, members: 20 */

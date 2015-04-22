@@ -606,9 +606,24 @@ opal_generic_simple_unpack_cuda_function( opal_convertor_t* pConvertor,
                                           struct iovec* iov, uint32_t* out_size,
                                           size_t* max_data )
 {
-    if (opal_generic_simple_unpack_function_cuda_iov_p != NULL) {
-        return (*opal_generic_simple_unpack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
-
+    dt_stack_t* pStack;
+    uint32_t pos_desc;
+    dt_elem_desc_t* description;
+    dt_elem_desc_t* pElem;
+    
+    description = pConvertor->use_desc->desc;
+    pStack = pConvertor->pStack + pConvertor->stack_pos;
+    pos_desc   = pStack->index;
+    pElem = &(description[pos_desc]);
+    
+    if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
+        if (opal_generic_simple_unpack_function_cuda_vector_p != NULL) {
+            return (*opal_generic_simple_unpack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
+        }
+    } else {
+        if (opal_generic_simple_unpack_function_cuda_iov_p != NULL) {
+            return (*opal_generic_simple_unpack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
+        }
     }
     return 0;
 }

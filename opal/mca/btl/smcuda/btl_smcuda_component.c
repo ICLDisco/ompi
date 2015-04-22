@@ -54,6 +54,7 @@
 
 #if OPAL_CUDA_SUPPORT
 #include "opal/mca/common/cuda/common_cuda.h"
+#include "opal/datatype/opal_datatype_gpu.h"
 #endif /* OPAL_CUDA_SUPPORT */
 #if OPAL_ENABLE_FT_CR    == 1
 #include "opal/runtime/opal_cr.h"
@@ -821,6 +822,62 @@ static void btl_smcuda_control(mca_btl_base_module_t* btl,
     }
 }
 
+cuda_dt_clone_t smcuda_dt_clone[SMCUDA_DT_CLONE_SIZE];
+
+static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
+                                       mca_btl_base_tag_t tag,
+                                       mca_btl_base_descriptor_t* des, void* cbdata)
+{   
+    cuda_dt_hdr_t cuda_dt_hdr;
+    mca_btl_base_segment_t* segments = des->des_segments;
+    memcpy(&cuda_dt_hdr, segments->seg_addr.pval, sizeof(cuda_dt_hdr_t));
+    int seq = cuda_dt_hdr.seq;
+    int lindex = cuda_dt_hdr.lindex;
+    cuda_dt_clone_t *my_cuda_dt_clone = &smcuda_dt_clone[lindex];
+    
+    assert(my_cuda_dt_clone->lindex == lindex);
+    
+    printf("$$$$$$$$$$$$$$hello, rank %d in smcuda unpack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
+    
+    if (seq == -2) {
+        mca_btl_base_rdma_completion_fn_t cbfunc = (mca_btl_base_rdma_completion_fn_t)my_cuda_dt_clone->cbfunc;
+        cbfunc(btl, my_cuda_dt_clone->endpoint, my_cuda_dt_clone->local_address, my_cuda_dt_clone->local_handle, my_cuda_dt_clone->cbcontext, my_cuda_dt_clone->cbdata, OPAL_SUCCESS);
+        mca_btl_smcuda_free_cuda_dt_clone(lindex);
+    } else if (seq == -1) {
+        mca_btl_smcuda_send_cuda_pack_sig(btl, my_cuda_dt_clone->endpoint, lindex, -1);
+    } else {
+        struct iovec iov;
+        uint32_t iov_count = 1;
+        size_t max_data;
+        struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;   
+        iov.iov_base = convertor->gpu_buffer_ptr + seq * my_cuda_dt_clone->pipeline_size;
+        max_data = my_cuda_dt_clone->pipeline_size;
+        iov.iov_len = my_cuda_dt_clone->pipeline_size;
+        opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
+    }
+    
+}
+
+static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
+                                     mca_btl_base_tag_t tag,
+                                     mca_btl_base_descriptor_t* des, void* cbdata)
+{
+    cuda_dt_hdr_t cuda_dt_hdr;
+    mca_btl_base_segment_t* segments = des->des_segments;
+    memcpy(&cuda_dt_hdr, segments->seg_addr.pval, sizeof(cuda_dt_hdr_t));
+    int seq = cuda_dt_hdr.seq;
+    int lindex = cuda_dt_hdr.lindex;
+    cuda_dt_clone_t *my_cuda_dt_clone = &smcuda_dt_clone[lindex];
+    
+    printf("$$$$$$$$$$$$$$hello, rank %d in smcuda pack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
+    
+    if (seq == -1) {
+        mca_btl_smcuda_send_cuda_unpack_sig(btl, my_cuda_dt_clone->endpoint, lindex, -2);
+        opal_cuda_free_gpu_buffer_p(my_cuda_dt_clone->convertor->gpu_buffer_ptr, 0);
+        mca_btl_smcuda_free_cuda_dt_clone(lindex);
+    }
+}
+
 #endif /* OPAL_CUDA_SUPPORT */
 
 /*
@@ -935,6 +992,14 @@ mca_btl_smcuda_component_init(int *num_btls,
     /* Register a smcuda control function to help setup IPC support */
     mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA].cbfunc = btl_smcuda_control;
     mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA].cbdata = NULL;
+    mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK].cbfunc = btl_smcuda_datatype_unpack;
+    mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK].cbdata = NULL;
+    mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA_DATATYPE_PACK].cbfunc = btl_smcuda_datatype_pack;
+    mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA_DATATYPE_PACK].cbdata = NULL;
+    
+    for (int i = 0; i < SMCUDA_DT_CLONE_SIZE; i++) {
+        smcuda_dt_clone[i].lindex = -1;
+    }
 #endif /* OPAL_CUDA_SUPPORT */
 
     return btls;

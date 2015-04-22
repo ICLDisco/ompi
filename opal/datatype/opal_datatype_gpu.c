@@ -62,6 +62,16 @@ int32_t (*opal_generic_simple_unpack_function_cuda_iov_p)( opal_convertor_t* pCo
                                                         struct iovec* iov, 
                                                         uint32_t* out_size,
                                                         size_t* max_data ) = NULL;
+                                                        
+int32_t (*opal_generic_simple_pack_function_cuda_vector_p)( opal_convertor_t* pConvertor,
+                                                            struct iovec* iov, 
+                                                            uint32_t* out_size,
+                                                            size_t* max_data ) = NULL;
+
+int32_t (*opal_generic_simple_unpack_function_cuda_vector_p)( opal_convertor_t* pConvertor,
+                                                              struct iovec* iov, 
+                                                              uint32_t* out_size,
+                                                              size_t* max_data ) = NULL;
                                                        
 void (*pack_contiguous_loop_cuda_p)( dt_elem_desc_t* ELEM,
                                      uint32_t* COUNT,
@@ -84,6 +94,10 @@ void (*pack_predefined_data_cuda_p)( dt_elem_desc_t* ELEM,
 void (*opal_cuda_sync_device_p)(void) = NULL;
 
 unsigned char* (*opal_cuda_get_gpu_pack_buffer_p)(void) = NULL;
+
+void (*opal_cuda_free_gpu_buffer_p)(void *addr, int gpu_id) = NULL;
+
+void* (*opal_cuda_malloc_gpu_buffer_p)(size_t size, int gpu_id) = NULL;
 
 int32_t opal_datatype_gpu_init(void)
 {
@@ -140,6 +154,20 @@ int32_t opal_datatype_gpu_init(void)
             return OPAL_ERROR;
         }
         
+        *(void **)(&opal_generic_simple_pack_function_cuda_vector_p) = dlsym(opal_datatype_cuda_handle, "opal_generic_simple_pack_function_cuda_vector");
+        if ((error = dlerror()) != NULL)  {
+            fprintf(stderr, "opal_generic_simple_pack_function_cuda_vector error: %s\n", error);
+            opal_generic_simple_pack_function_cuda_vector_p = NULL;
+            return OPAL_ERROR;
+        }
+        
+        *(void **)(&opal_generic_simple_unpack_function_cuda_vector_p) = dlsym(opal_datatype_cuda_handle, "opal_generic_simple_unpack_function_cuda_vector");
+        if ((error = dlerror()) != NULL)  {
+            fprintf(stderr, "opal_generic_simple_unpack_function_cuda_vector error: %s\n", error);
+            opal_generic_simple_unpack_function_cuda_vector_p = NULL;
+            return OPAL_ERROR;
+        }
+        
         *(void **)(&pack_contiguous_loop_cuda_p) = dlsym(opal_datatype_cuda_handle, "pack_contiguous_loop_cuda");
         if ((error = dlerror()) != NULL)  {
             fprintf(stderr, "pack_contiguous_loop_cuda error: %s\n", error);
@@ -175,6 +203,20 @@ int32_t opal_datatype_gpu_init(void)
             return OPAL_ERROR;
         }
         
+        *(void **)(&opal_cuda_free_gpu_buffer_p) = dlsym(opal_datatype_cuda_handle, "opal_cuda_free_gpu_buffer");
+        if ((error = dlerror()) != NULL)  {
+            fprintf(stderr, "opal_cuda_free_gpu_buffer error: %s\n", error);
+            opal_cuda_free_gpu_buffer_p = NULL;
+            return OPAL_ERROR;
+        }
+        
+        *(void **)(&opal_cuda_malloc_gpu_buffer_p) = dlsym(opal_datatype_cuda_handle, "opal_cuda_malloc_gpu_buffer");
+        if ((error = dlerror()) != NULL)  {
+            fprintf(stderr, "opal_cuda_malloc_gpu_buffer error: %s\n", error);
+            opal_cuda_malloc_gpu_buffer_p = NULL;
+            return OPAL_ERROR;
+        }
+        
         (*opal_datatype_cuda_init_p)();
         printf("cuda init done\n");   
     }
@@ -193,11 +235,15 @@ int32_t opal_datatype_gpu_fini(void)
         opal_generic_simple_unpack_function_cuda_p = NULL;
         opal_generic_simple_pack_function_cuda_iov_p = NULL;
         opal_generic_simple_unpack_function_cuda_iov_p = NULL;
+        opal_generic_simple_pack_function_cuda_vector_p = NULL;
+        opal_generic_simple_unpack_function_cuda_vector_p = NULL;
         pack_contiguous_loop_cuda_p = NULL;
         unpack_contiguous_loop_cuda_p = NULL;
         pack_predefined_data_cuda_p = NULL;
         opal_cuda_sync_device_p = NULL;
         opal_cuda_get_gpu_pack_buffer_p = NULL;
+        opal_cuda_free_gpu_buffer_p = NULL;
+        opal_cuda_malloc_gpu_buffer_p = NULL;
         printf("cuda fini done\n");
     }
     return OPAL_SUCCESS;

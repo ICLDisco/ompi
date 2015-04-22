@@ -326,7 +326,6 @@ struct opal_convertor_t {
     void *                        stream;         /**< CUstream for async copy */
 
     unsigned char *               gpu_buffer_ptr; /**< GPU buffer used for pack/unpack */
-    unsigned char *               gpu_buffer_ptr_source; /**< source address of GPU buffer start to pack, update in packing function */
     uint64_t *                    pipeline_event[MAX_IPC_EVENT_HANDLE]; /**< cuda event for pipeline */
 #endif
     /* size: 248, cachelines: 4, members: 20 */
@@ -531,13 +530,10 @@ do { \
 
 #define PUSH_STACK( PSTACK, STACK_POS, INDEX, TYPE, COUNT, DISP) \
 do { \
-   dt_stack_t* pTempStack = (PSTACK) + 1; \
-   if (threadIdx.x == 0) {  \
-       SAVE_STACK( pTempStack, (INDEX), (TYPE), (COUNT), (DISP) );  \
-   }    \
-   __syncthreads(); \
-   (STACK_POS)++; \
-   (PSTACK) = pTempStack; \
+    dt_stack_t* pTempStack = (PSTACK) + 1; \
+    SAVE_STACK( pTempStack, (INDEX), (TYPE), (COUNT), (DISP) );  \
+    (STACK_POS)++; \
+    (PSTACK) = pTempStack; \
 } while(0)
 
 #define UPDATE_INTERNAL_COUNTERS( DESCRIPTION, POSITION, ELEMENT, COUNTER ) \

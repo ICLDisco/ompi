@@ -1641,10 +1641,11 @@ int progress_one_cuda_htod_event(struct mca_btl_base_descriptor_t **frag) {
 
 int mca_common_cuda_geteventhandle(uint64_t **event, int n, mca_mpool_base_registration_t *newreg) 
 {
-    // CUipcEventHandle evtHandle;
-    // mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t*)newreg;
-    // mca_common_cuda_construct_event_and_handle(event, (void**)&evtHandle);
-    // memcpy(&cuda_reg->data.pipeline_evtHandle[n], &evtHandle, sizeof(evtHandle));
+    CUipcEventHandle evtHandle;
+    mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t*)newreg;
+ //   mca_common_cuda_construct_event_and_handle(event, (void**)&evtHandle);
+//    printf("0 %p, 1 %p\n",&cuda_reg->data.pipeline_evtHandle[0], &cuda_reg->data.pipeline_evtHandle[EVTHANDLE_SIZE]);
+ //   memcpy(&cuda_reg->data.pipeline_evtHandle[n*EVTHANDLE_SIZE], &evtHandle, sizeof(evtHandle));
     return OPAL_SUCCESS;
 }
 
@@ -1692,7 +1693,7 @@ int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_mpool_common_cu
     // CUipcEventHandle evtHandle;
     // CUresult result;
     // mca_mpool_common_cuda_reg_data_t *cuda_handle = (mca_mpool_common_cuda_reg_data_t*)handle;
-    // memcpy(&evtHandle, cuda_handle->pipeline_evtHandle[n], sizeof(evtHandle));
+    // memcpy(&evtHandle, &cuda_handle->pipeline_evtHandle[n*EVTHANDLE_SIZE], sizeof(evtHandle));
     // result = cuFunc.cuIpcOpenEventHandle((CUevent *)event, evtHandle);
     // if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
     //     opal_show_help("help-mpi-common-cuda.txt", "cuIpcOpenEventHandle failed",

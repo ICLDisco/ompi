@@ -26,10 +26,20 @@ extern int32_t (*opal_generic_simple_pack_function_cuda_iov_p)( opal_convertor_t
                                                                 uint32_t* out_size,
                                                                 size_t* max_data );
                                                                 
+extern int32_t (*opal_generic_simple_pack_function_cuda_vector_p)( opal_convertor_t* pConvertor,
+                                                                   struct iovec* iov, 
+                                                                   uint32_t* out_size,
+                                                                   size_t* max_data );
+                                                                
 extern int32_t (*opal_generic_simple_unpack_function_cuda_iov_p)( opal_convertor_t* pConvertor,
-                                                                struct iovec* iov, 
-                                                                uint32_t* out_size,
-                                                                size_t* max_data );
+                                                                  struct iovec* iov, 
+                                                                  uint32_t* out_size,
+                                                                  size_t* max_data );
+                                                                  
+extern int32_t (*opal_generic_simple_unpack_function_cuda_vector_p)( opal_convertor_t* pConvertor,
+                                                                     struct iovec* iov, 
+                                                                     uint32_t* out_size,
+                                                                     size_t* max_data );
                                                               
 extern void (*pack_contiguous_loop_cuda_p)( dt_elem_desc_t* ELEM,
                                             uint32_t* COUNT,
@@ -52,4 +62,8 @@ extern void (*pack_predefined_data_cuda_p)( dt_elem_desc_t* ELEM,
 extern void (*opal_cuda_sync_device_p)(void);
 
 extern unsigned char* (*opal_cuda_get_gpu_pack_buffer_p)(void);
+
+extern void (*opal_cuda_free_gpu_buffer_p)(void *addr, int gpu_id);
+
+extern void* (*opal_cuda_malloc_gpu_buffer_p)(size_t size, int gpu_id);
 #endif /* OPAL_DATATYPE_GPU_H_HAS_BEEN_INCLUDED */

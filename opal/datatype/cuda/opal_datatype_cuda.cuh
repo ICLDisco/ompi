@@ -13,6 +13,11 @@ int32_t opal_generic_simple_pack_function_cuda( opal_convertor_t* pConvertor,
                                                 uint32_t* out_size,
                                                 size_t* max_data );
                                                 
+int32_t opal_generic_simple_pack_function_cuda_vector( opal_convertor_t* pConvertor,
+                                                       struct iovec* iov, 
+                                                       uint32_t* out_size,
+                                                       size_t* max_data );
+                                                
 int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor,
                                                     struct iovec* iov, 
                                                     uint32_t* out_size,
@@ -27,6 +32,11 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
                                                   struct iovec* iov, 
                                                   uint32_t* out_size,
                                                   size_t* max_data );  
+                                                
+int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConvertor,
+                                                         struct iovec* iov, 
+                                                         uint32_t* out_size,
+                                                         size_t* max_data );
 
 void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
                                 uint32_t* COUNT,
@@ -49,6 +59,12 @@ void pack_predefined_data_cuda( dt_elem_desc_t* ELEM,
 void opal_cuda_sync_device(void);
 
 int32_t opal_cuda_is_gpu_buffer(const void *ptr);
+
+void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id);
+
+void opal_cuda_free_gpu_buffer(void *addr, int gpu_id);
+
+void opal_dump_cuda_list(ddt_cuda_list_t *list);
 
 unsigned char* opal_cuda_get_gpu_pack_buffer();
 }

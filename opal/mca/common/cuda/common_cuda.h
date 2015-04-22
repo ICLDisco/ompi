@@ -34,8 +34,9 @@ struct mca_rcache_common_cuda_reg_data_t {
     uint64_t event;
     opal_ptr_t memh_seg_addr;
     size_t memh_seg_len;
-//    cuIPCHandle pipeline_evtHandle[MAX_IPC_EVENT_HANDLE];
-    uint32_t pipeline_size;
+    // uint64_t pipeline_evtHandle[MAX_IPC_EVENT_HANDLE*EVTHANDLE_SIZE];
+    size_t pipeline_size;
+    uint32_t lindex;
 };
 typedef struct mca_rcache_common_cuda_reg_data_t mca_rcache_common_cuda_reg_data_t;
 

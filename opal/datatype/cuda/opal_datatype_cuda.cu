@@ -3,6 +3,7 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <stdio.h>
+#include <assert.h>
 #include <stdarg.h> 
 
 /*
@@ -39,6 +40,9 @@ OPAL_DECLSPEC const size_t opal_datatype_basicDatatypesSize[OPAL_DATATYPE_MAX_PR
 
 /***** my variables ********/
 
+
+ddt_cuda_list_t *cuda_free_list;
+ddt_cuda_device_t *cuda_device;
 ddt_cuda_desc_t *cuda_desc_d, *cuda_desc_h;
 unsigned char *pBaseBuf_GPU, *gpu_src_const, *gpu_dest_const;
 unsigned char *ddt_cuda_pack_buffer, *ddt_cuda_unpack_buffer;
@@ -54,12 +58,178 @@ uint8_t opal_datatype_cuda_debug;
 
 //uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
+
+static inline ddt_cuda_buffer_t* obj_ddt_cuda_buffer_new()
+{
+    ddt_cuda_buffer_t *p = (ddt_cuda_buffer_t *)malloc(sizeof(ddt_cuda_buffer_t));
+    p->next = NULL;
+    p->prev = NULL;
+    p->size = 0;
+    p->gpu_addr = NULL;
+    return p; 
+}
+
+static inline void obj_ddt_cuda_buffer_chop(ddt_cuda_buffer_t *p)
+{
+    p->next = NULL;
+    p->prev = NULL;
+}
+
+static inline void obj_ddt_cuda_buffer_reset(ddt_cuda_buffer_t *p)
+{
+    p->size = 0;
+    p->gpu_addr = NULL;
+}
+
+static ddt_cuda_list_t* init_cuda_free_list()
+{
+    ddt_cuda_list_t *list = NULL;
+    ddt_cuda_buffer_t *p, *prev;
+    int i;
+    list = (ddt_cuda_list_t *)malloc(sizeof(ddt_cuda_list_t));
+    p = obj_ddt_cuda_buffer_new();
+    list->head = p;
+    prev = p;
+    for (i = 1; i < DT_CUDA_FREE_LIST_SIZE; i++) {
+        p = obj_ddt_cuda_buffer_new();
+        prev->next = p;
+        p->prev = prev;
+        prev = p;
+    }
+    list->tail = p;
+    list->nb_elements = DT_CUDA_FREE_LIST_SIZE;
+    return list;
+} 
+
+static inline ddt_cuda_buffer_t* cuda_list_pop_tail(ddt_cuda_list_t *list)
+{
+    ddt_cuda_buffer_t *p = NULL;
+    p = list->tail;
+    if (p == NULL) {
+        return p;
+    } else {
+        list->nb_elements --;
+        if (list->head == p) {
+            list->head = NULL;
+            list->tail = NULL;
+        } else {
+            list->tail = p->prev;
+            p->prev->next = NULL;
+            obj_ddt_cuda_buffer_chop(p);
+        }
+        return p;
+    }
+}
+
+static inline void cuda_list_push_head(ddt_cuda_list_t *list, ddt_cuda_buffer_t *item)
+{
+    ddt_cuda_buffer_t * orig_head = list->head;
+    assert(item->next == NULL && item->prev == NULL);
+    list->head = item;
+    item->next = orig_head;
+    if (orig_head == NULL) {
+        list->tail = item;
+    } else {
+        orig_head->prev = item;
+    }
+    list->nb_elements ++;
+}
+
+static inline void cuda_list_push_tail(ddt_cuda_list_t *list, ddt_cuda_buffer_t *item)
+{
+    ddt_cuda_buffer_t * orig_tail = list->tail;
+    assert(item->next == NULL && item->prev == NULL);
+    list->tail = item;
+    item->prev = orig_tail;
+    if (orig_tail == NULL) {
+        list->head = item;
+    } else {
+        orig_tail->next = item;
+    }
+    list->nb_elements ++;
+}
+
+static inline void cuda_list_delete(ddt_cuda_list_t *list, ddt_cuda_buffer_t *item)
+{
+    if (item->prev == NULL && item->next == NULL) {
+        list->head = NULL;
+        list->tail = NULL;
+    }else if (item->prev == NULL && item->next != NULL) {
+        list->head = item->next;
+        item->next->prev = NULL;
+    } else if (item->next == NULL && item->prev != NULL) {
+        list->tail = item->prev;
+        item->prev->next = NULL;
+    } else {
+        item->prev->next = item->next;
+        item->next->prev = item->prev;
+    }
+    list->nb_elements --;
+    obj_ddt_cuda_buffer_chop(item);
+}
+
+static inline void cuda_list_insert_before(ddt_cuda_list_t *list, ddt_cuda_buffer_t *item, ddt_cuda_buffer_t *next)
+{
+    assert(item->next == NULL && item->prev == NULL);
+    item->next = next;
+    item->prev = next->prev;
+    next->prev = item;
+    if (list->head == next) {
+        list->head = item;
+    }
+    list->nb_elements ++;
+}
+
+static inline void cuda_list_item_merge_by_addr(ddt_cuda_list_t *list)
+{
+    ddt_cuda_buffer_t *ptr = NULL;
+    ddt_cuda_buffer_t *next = NULL;
+    ptr = list->head;
+    while(ptr != NULL) {
+        next = ptr->next;
+        if (next == NULL) {
+            break;
+        } else if ((ptr->gpu_addr + ptr->size) == next->gpu_addr) {
+            ptr->size += next->size;
+            cuda_list_delete(list, next);
+        } else {
+            ptr = ptr->next;
+        }
+    }
+}
+
 void opal_datatype_cuda_init(void)
 {
     uint32_t i;
     
-    int cuda_device = OPAL_GPU_INDEX;
-    cudaSetDevice(cuda_device);
+    int device = OPAL_GPU_INDEX;
+    cudaSetDevice(device);
+    
+    cuda_free_list = init_cuda_free_list();
+    
+    /* init device */
+    cuda_device = (ddt_cuda_device_t *)malloc(sizeof(ddt_cuda_device_t)*1);
+    for (i = 0; i < 1; i++) {
+        unsigned char *gpu_ptr = NULL;
+        if (cudaMalloc((void **)(&gpu_ptr), sizeof(char)*DT_CUDA_BUFFER_SIZE) != cudaSuccess) {
+            DT_CUDA_DEBUG( opal_cuda_output( 0, "cudaMalloc is failed in GPU %d\n", i); );
+        }
+        cudaMemset(gpu_ptr, 0, sizeof(char)*DT_CUDA_BUFFER_SIZE);
+        cuda_device[i].gpu_buffer = gpu_ptr;
+        
+        cuda_device[i].buffer_free_size = DT_CUDA_BUFFER_SIZE;
+        ddt_cuda_buffer_t *p = obj_ddt_cuda_buffer_new();
+        p->size = DT_CUDA_BUFFER_SIZE;
+        p->gpu_addr = gpu_ptr;
+        cuda_device[i].buffer_free.head = p;
+        cuda_device[i].buffer_free.tail = cuda_device[i].buffer_free.head;
+        cuda_device[i].buffer_free.nb_elements = 1;
+        
+        cuda_device[i].buffer_used.head = NULL;
+        cuda_device[i].buffer_used.tail = NULL;
+        cuda_device[i].buffer_used_size = 0;
+        cuda_device[i].buffer_used.nb_elements = 0;
+    }
     
     cudaMalloc((void **)&cuda_desc_d, sizeof(ddt_cuda_desc_t));
     cudaMallocHost((void **)&cuda_desc_h, sizeof(ddt_cuda_desc_t));
@@ -72,11 +242,12 @@ void opal_datatype_cuda_init(void)
     //     cuda_desc_h->iov[i].iov_base = iov_base;
     //     cuda_desc_h->iov[i].iov_len = IOV_LEN;
     // }
-    printf("malloc cuda packing buffer\n");
+    
     cudaMalloc((void **)(&ddt_cuda_pack_buffer), sizeof(char)*DT_CUDA_BUFFER_SIZE);
+    printf("malloc cuda packing buffer, %p\n", ddt_cuda_pack_buffer);
     cudaMemset(ddt_cuda_pack_buffer, 0, sizeof(char)*DT_CUDA_BUFFER_SIZE);
-    printf("malloc cuda unpacking buffer\n");
     cudaMalloc((void **)(&ddt_cuda_unpack_buffer), sizeof(char)*DT_CUDA_BUFFER_SIZE);
+    printf("malloc cuda unpacking buffer, %p\n", ddt_cuda_unpack_buffer);
     cudaMemset(ddt_cuda_unpack_buffer, 0, sizeof(char)*DT_CUDA_BUFFER_SIZE);
 
     cuda_desc_h->iov[0].iov_base = ddt_cuda_pack_buffer;
@@ -193,6 +364,93 @@ unsigned char* opal_cuda_get_gpu_pack_buffer()
         return ddt_cuda_pack_buffer;
     } else {
         return NULL;
+    }
+}
+
+void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
+{
+    ddt_cuda_device_t *device = &cuda_device[gpu_id];
+    if (device->buffer_free_size < size) {
+        return NULL;
+    }
+    ddt_cuda_buffer_t *ptr = NULL;
+    void *addr = NULL;
+    ptr = device->buffer_free.head;
+    while (ptr != NULL) {
+        if (ptr->size >= size) {
+            addr = ptr->gpu_addr;
+            ptr->size -= size;
+            if (ptr->size == 0) {
+                cuda_list_delete(&device->buffer_free, ptr);
+                obj_ddt_cuda_buffer_reset(ptr);
+                cuda_list_push_head(cuda_free_list, ptr);
+            } else {
+                ptr->gpu_addr += size;
+            }
+            break;
+        }
+        ptr = ptr->next;
+    }
+    
+    if (ptr == NULL) {
+        return NULL;
+    } else {    
+        ddt_cuda_buffer_t *p = cuda_list_pop_tail(cuda_free_list);
+        if (p == NULL) {
+            p = obj_ddt_cuda_buffer_new();
+        }
+        p->size = size;
+        p->gpu_addr = (unsigned char*)addr;
+        cuda_list_push_head(&device->buffer_used, p);
+        device->buffer_used_size += size;
+        device->buffer_free_size -= size;
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "Malloc GPU buffer %p.\n", addr); );
+        return addr;
+    }
+}
+
+void opal_cuda_free_gpu_buffer(void *addr, int gpu_id)
+{
+    ddt_cuda_device_t *device = &cuda_device[gpu_id];
+    ddt_cuda_buffer_t *ptr = NULL;
+    ddt_cuda_buffer_t *ptr_next = NULL;
+    ptr = device->buffer_used.head;
+    while (ptr != NULL) {
+        if (ptr->gpu_addr == addr) {
+            cuda_list_delete(&device->buffer_used, ptr);
+            ptr_next = device->buffer_free.head;
+            while (ptr_next != NULL) {
+                if (ptr_next->gpu_addr > addr) {
+                    break;
+                }
+                ptr_next = ptr_next->next;
+            }
+            if (ptr_next == NULL) {
+                /* buffer_free is empty, or insert to last one */
+                cuda_list_push_tail(&device->buffer_free, ptr);
+            } else {
+                cuda_list_insert_before(&device->buffer_free, ptr, ptr_next);
+            }
+            cuda_list_item_merge_by_addr(&device->buffer_free);
+            device->buffer_free_size += ptr->size;
+            break;
+        }
+        ptr = ptr->next;
+    }
+    if (ptr == NULL) {
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "addr %p is not managed.\n", addr); );
+    }
+    DT_CUDA_DEBUG( opal_cuda_output( 0, "Free GPU buffer %p.\n", addr); );
+}
+
+void opal_dump_cuda_list(ddt_cuda_list_t *list)
+{
+    ddt_cuda_buffer_t *ptr = NULL;
+    ptr = list->head;
+    DT_CUDA_DEBUG( opal_cuda_output( 0, "DUMP cuda list %p, nb_elements %d\n", list, list->nb_elements); );
+    while (ptr != NULL) {
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "\titem addr %p, size %ld.\n", ptr->gpu_addr, ptr->size); );
+        ptr = ptr->next;
     }
 }
 

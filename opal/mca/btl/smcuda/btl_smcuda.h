@@ -510,6 +510,42 @@ enum ipcState {
     IPC_BAD
 };
 
+/* cuda datatype control message */
+typedef struct {
+    int seq;
+    int lindex;
+} cuda_dt_hdr_t;
+
+/* package save pack/unpack convertor and cbfunc */
+typedef struct {
+    struct opal_convertor_t *convertor;
+    struct mca_btl_base_endpoint_t *endpoint;
+    void *local_address;
+    struct mca_btl_base_registration_handle_t *local_handle;
+    mca_btl_base_completion_fn_t cbfunc;
+    void *cbcontext;
+    void *cbdata;
+    size_t pipeline_size;
+    int lindex;
+} cuda_dt_clone_t;
+
+#define SMCUDA_DT_CLONE_SIZE 20
+extern cuda_dt_clone_t smcuda_dt_clone[SMCUDA_DT_CLONE_SIZE];
+
+int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq);
+int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq);
+int mca_btl_smcuda_alloc_cuda_dt_clone(void);
+void mca_btl_smcuda_free_cuda_dt_clone(int lindex);
+void mca_btl_smcuda_cuda_dt_clone(struct opal_convertor_t *convertor,
+                                  struct mca_btl_base_endpoint_t *endpoint,
+                                  void *local_address,
+                                  struct mca_btl_base_registration_handle_t *local_handle,
+                                  mca_btl_base_completion_fn_t cbfunc,
+                                  void *cbcontext,
+                                  void *cbdata,
+                                  size_t pipeline_size,
+                                  int lindex);
+
 #endif /* OPAL_CUDA_SUPPORT */
 
 

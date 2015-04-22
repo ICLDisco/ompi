@@ -308,10 +308,10 @@ __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
     for (_i = tid; _i < copy_loops*nb_elements; _i+=num_threads) {
         _destination_tmp = _dst_disp_tmp + tid + _i/num_threads*num_threads + _i/nb_elements * gap;
 #if defined (OPAL_DATATYPE_CUDA_DEBUG)
-        if (_i % nb_elements == 0 ) {
-            DBGPRINT("tid %d, pack 3. memcpy( %p, %p, %lu ) => _i %d, actual _i %d\n",
-                                            tid, _destination_tmp, _source_tmp, (unsigned long)size,  _i/nb_elements, _i );
-        }
+        // if (_i % nb_elements == 0 ) {
+        //     DBGPRINT("tid %d, pack 3. memcpy( %p, %p, %lu ) => _i %d, actual _i %d\n",
+        //                                     tid, _destination_tmp, _source_tmp, (unsigned long)size,  _i/nb_elements, _i );
+        // }
         // if (_i / nb_elements ==1 && tid == 0 ) {
         //     DBGPRINT("tid %d, pack 3. memcpy( %p, %p, %lu ) => space %lu, _i %d, actual _i %d\n",
         //                                     tid, _destination_tmp, _source_tmp, (unsigned long)_end_loop->size, (unsigned long)(*(SPACE) - _i/nb_elements * _end_loop->size), _i/nb_elements, _i );

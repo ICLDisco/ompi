@@ -672,7 +672,7 @@ int mca_pml_ob1_send_request_start_rdma( mca_pml_ob1_send_request_t* sendreq,
     if ( (sendreq->req_send.req_base.req_convertor.flags & CONVERTOR_CUDA)) {
         sendreq->req_send.req_base.req_convertor.flags &= ~CONVERTOR_CUDA;
         if (opal_convertor_need_buffers(&sendreq->req_send.req_base.req_convertor) == true) {
-            data_ptr = sendreq->req_send.req_base.req_convertor.gpu_buffer_ptr_source;
+            data_ptr = sendreq->req_send.req_base.req_convertor.gpu_buffer_ptr;
             printf("START RMDA data_ptr %p\n", data_ptr);
         } else {
             opal_convertor_get_current_pointer (&sendreq->req_send.req_base.req_convertor, &data_ptr);
