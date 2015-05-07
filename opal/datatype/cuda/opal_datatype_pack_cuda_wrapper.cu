@@ -462,7 +462,7 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
     
     DT_CUDA_DEBUG ( opal_cuda_output(0, "Pack GPU base %p, pack to buffer %p\n", pConvertor->pBaseBuf, destination););
 
-    cuda_iov_count = 1000;
+    cuda_iov_count = CUDA_NB_IOV;
     total_packed = 0;
     total_converted = pConvertor->bConverted;
     cuda_streams->current_stream_id = 0;

@@ -80,9 +80,8 @@ bool opal_cuda_check_bufs(char *dest, char *src)
 
     if (ftable.gpu_is_gpu_buffer(dest, NULL) || ftable.gpu_is_gpu_buffer(src, NULL)) {
         return true;
-    } else {
-        return false;
     }
+    return false;
 }
 
 /*
@@ -109,9 +108,8 @@ void *opal_cuda_memcpy(void *dest, const void *src, size_t size, opal_convertor_
         opal_output(0, "CUDA: Error in cuMemcpy: res=%d, dest=%p, src=%p, size=%d",
                     res, dest, src, (int)size);
         abort();
-    } else {
-        return dest;
     }
+    return dest;
 }
 
 /*
@@ -127,9 +125,8 @@ void *opal_cuda_memcpy_sync(void *dest, const void *src, size_t size)
         opal_output(0, "CUDA: Error in cuMemcpy: res=%d, dest=%p, src=%p, size=%d",
                     res, dest, src, (int)size);
         abort();
-    } else {
-        return dest;
     }
+    return dest;
 }
 
 /*

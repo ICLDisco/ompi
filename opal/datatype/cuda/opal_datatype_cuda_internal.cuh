@@ -23,7 +23,6 @@
 #define THREAD_PER_BLOCK    32
 #define CUDA_WARP_SIZE      32
 #define TASK_PER_THREAD     2
-#define OPAL_GPU_INDEX      0
 #define NB_STREAMS          4
 #define CUDA_NB_IOV         4096
 #define CUDA_IOV_LEN        1024*1204

@@ -201,10 +201,15 @@ static inline void cuda_list_item_merge_by_addr(ddt_cuda_list_t *list)
 void opal_datatype_cuda_init(void)
 {
     uint32_t i;
-    
-    int device = OPAL_GPU_INDEX;
-    cudaSetDevice(device);
-    
+    int device;
+    cudaError res;
+
+    res = cudaGetDevice(&device);
+    if( cudaSuccess != res ) {
+        opal_cuda_output(0, "Cannot retrieve the device being used. Drop CUDA support!\n");
+        return;
+    }    
+
     cuda_free_list = init_cuda_free_list();
     
     /* init device */
@@ -245,10 +250,8 @@ void opal_datatype_cuda_init(void)
     
     cudaMalloc((void **)(&ddt_cuda_pack_buffer), sizeof(char)*DT_CUDA_BUFFER_SIZE);
     printf("malloc cuda packing buffer, %p\n", ddt_cuda_pack_buffer);
-    cudaMemset(ddt_cuda_pack_buffer, 0, sizeof(char)*DT_CUDA_BUFFER_SIZE);
     cudaMalloc((void **)(&ddt_cuda_unpack_buffer), sizeof(char)*DT_CUDA_BUFFER_SIZE);
     printf("malloc cuda unpacking buffer, %p\n", ddt_cuda_unpack_buffer);
-    cudaMemset(ddt_cuda_unpack_buffer, 0, sizeof(char)*DT_CUDA_BUFFER_SIZE);
 
     cuda_desc_h->iov[0].iov_base = ddt_cuda_pack_buffer;
     cuda_desc_h->iov[0].iov_len = DT_CUDA_BUFFER_SIZE;
@@ -285,8 +288,6 @@ void opal_datatype_cuda_init(void)
     // ALIGNMENT_DOUBLE = sizeof(double);
     // ALIGNMENT_FLOAT = sizeof(float);
     // ALIGNMENT_CHAR = sizeof(char);
-    
-    
 }
 
 void opal_datatype_cuda_fini(void)
@@ -344,18 +345,11 @@ int32_t opal_cuda_is_gpu_buffer(const void *ptr)
     if (res != CUDA_SUCCESS) {
         /* If we cannot determine it is device pointer,
          * just assume it is not. */
-        printf("!!!!!!!is gpu buffer error\n");
-        return 0;
-    } 
-    if (memType == CU_MEMORYTYPE_DEVICE) {
-        return 1;
-    } else if (memType == CU_MEMORYTYPE_HOST){
-        return 0;
-    } else if (memType == 0) {
-        return 0;
-    } else {
+        printf("!!!!!!! %p is not a gpu buffer. Take no-CUDA path!\n", ptr);
         return 0;
     }
+    /* Anything but CU_MEMORYTYPE_DEVICE is not a GPU memory */
+    return (memType == CU_MEMORYTYPE_DEVICE) ? 1 : 0;
 }
 
 unsigned char* opal_cuda_get_gpu_pack_buffer()
