@@ -822,29 +822,32 @@ static void btl_smcuda_control(mca_btl_base_module_t* btl,
     }
 }
 
-cuda_dt_clone_t smcuda_dt_clone[SMCUDA_DT_CLONE_SIZE];
-
 static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
                                        mca_btl_base_tag_t tag,
                                        mca_btl_base_descriptor_t* des, void* cbdata)
 {   
+    struct mca_btl_base_endpoint_t *endpoint;
     cuda_dt_hdr_t cuda_dt_hdr;
     mca_btl_base_segment_t* segments = des->des_segments;
     memcpy(&cuda_dt_hdr, segments->seg_addr.pval, sizeof(cuda_dt_hdr_t));
     int seq = cuda_dt_hdr.seq;
     int lindex = cuda_dt_hdr.lindex;
-    cuda_dt_clone_t *my_cuda_dt_clone = &smcuda_dt_clone[lindex];
-    
+    mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
+    cuda_dt_clone_t *my_cuda_dt_clone;
+
+    /* We can find the endoint back from the rank embedded in the header */
+    endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
+    my_cuda_dt_clone = &endpoint->smcuda_dt_unpack_clone[lindex];
     assert(my_cuda_dt_clone->lindex == lindex);
     
     printf("$$$$$$$$$$$$$$hello, rank %d in smcuda unpack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
     
     if (seq == -2) {
         mca_btl_base_rdma_completion_fn_t cbfunc = (mca_btl_base_rdma_completion_fn_t)my_cuda_dt_clone->cbfunc;
-        cbfunc(btl, my_cuda_dt_clone->endpoint, my_cuda_dt_clone->local_address, my_cuda_dt_clone->local_handle, my_cuda_dt_clone->cbcontext, my_cuda_dt_clone->cbdata, OPAL_SUCCESS);
-        mca_btl_smcuda_free_cuda_dt_clone(lindex);
+        cbfunc(btl, endpoint, my_cuda_dt_clone->local_address, my_cuda_dt_clone->local_handle, my_cuda_dt_clone->cbcontext, my_cuda_dt_clone->cbdata, OPAL_SUCCESS);
+        mca_btl_smcuda_free_cuda_dt_unpack_clone(endpoint, lindex);
     } else if (seq == -1) {
-        mca_btl_smcuda_send_cuda_pack_sig(btl, my_cuda_dt_clone->endpoint, lindex, -1);
+        mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, lindex, -1);
     } else {
         struct iovec iov;
         uint32_t iov_count = 1;
@@ -862,19 +865,25 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
                                      mca_btl_base_tag_t tag,
                                      mca_btl_base_descriptor_t* des, void* cbdata)
 {
+    struct mca_btl_base_endpoint_t *endpoint;
     cuda_dt_hdr_t cuda_dt_hdr;
     mca_btl_base_segment_t* segments = des->des_segments;
     memcpy(&cuda_dt_hdr, segments->seg_addr.pval, sizeof(cuda_dt_hdr_t));
     int seq = cuda_dt_hdr.seq;
     int lindex = cuda_dt_hdr.lindex;
-    cuda_dt_clone_t *my_cuda_dt_clone = &smcuda_dt_clone[lindex];
+    mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
+    cuda_dt_clone_t *my_cuda_dt_clone;
+
+    /* We can find the endoint back from the rank embedded in the header */
+    endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
+    my_cuda_dt_clone = &endpoint->smcuda_dt_pack_clone[lindex];
     
     printf("$$$$$$$$$$$$$$hello, rank %d in smcuda pack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
     
     if (seq == -1) {
         mca_btl_smcuda_send_cuda_unpack_sig(btl, my_cuda_dt_clone->endpoint, lindex, -2);
         opal_cuda_free_gpu_buffer_p(my_cuda_dt_clone->convertor->gpu_buffer_ptr, 0);
-        mca_btl_smcuda_free_cuda_dt_clone(lindex);
+        mca_btl_smcuda_free_cuda_dt_pack_clone(my_cuda_dt_clone->endpoint, lindex);
     }
 }
 
@@ -996,10 +1005,7 @@ mca_btl_smcuda_component_init(int *num_btls,
     mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK].cbdata = NULL;
     mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA_DATATYPE_PACK].cbfunc = btl_smcuda_datatype_pack;
     mca_btl_base_active_message_trigger[MCA_BTL_TAG_SMCUDA_DATATYPE_PACK].cbdata = NULL;
-    
-    for (int i = 0; i < SMCUDA_DT_CLONE_SIZE; i++) {
-        smcuda_dt_clone[i].lindex = -1;
-    }
+
 #endif /* OPAL_CUDA_SUPPORT */
 
     return btls;

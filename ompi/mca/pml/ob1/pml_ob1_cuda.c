@@ -131,10 +131,10 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                 /* because pack may not use the whole pipeline size */
                 rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
                 pipeline_size = max_data;
-                int lindex = mca_btl_smcuda_alloc_cuda_dt_clone();
+                int lindex = mca_btl_smcuda_alloc_cuda_dt_pack_clone(bml_btl->btl_endpoint);
                 assert(lindex >= 0);
                 mca_pml_ob1_rdma_cuda_btl_register_events(sendreq->req_rdma, sendreq->req_rdma_cnt, convertor, pipeline_size, lindex); 
-                mca_btl_smcuda_cuda_dt_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, NULL, NULL, NULL, pipeline_size, lindex);
+                mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, NULL, NULL, NULL, pipeline_size, lindex);
                 
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                          sendreq->req_send.req_bytes_packed);
