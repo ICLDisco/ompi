@@ -33,6 +33,7 @@
 #include "opal/align.h"
 #include "opal/datatype/opal_convertor.h"
 #include "opal/datatype/opal_datatype_cuda.h"
+#include "opal/datatype/opal_datatype_gpu.h"
 #include "opal/util/output.h"
 #include "opal/util/show_help.h"
 #include "opal/util/proc.h"

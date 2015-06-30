@@ -1,3 +1,6 @@
+#include "opal/datatype/opal_convertor_internal.h"
+#include "opal/datatype/opal_datatype_internal.h"
+
 #include "opal_datatype_cuda_internal.cuh"
 #include "opal_datatype_cuda.cuh"
 #include <cuda_runtime_api.h>
@@ -10,6 +13,7 @@
  * NOTE: The order of this array *MUST* match what is listed in datatype.h
  * (use of designated initializers should relax this restrictions some)
  */
+/*
 OPAL_DECLSPEC const size_t opal_datatype_basicDatatypesSize[OPAL_DATATYPE_MAX_PREDEFINED] = {
     OPAL_DATATYPE_LOOP_SIZE,
     OPAL_DATATYPE_END_LOOP_SIZE,
@@ -19,12 +23,12 @@ OPAL_DECLSPEC const size_t opal_datatype_basicDatatypesSize[OPAL_DATATYPE_MAX_PR
     OPAL_DATATYPE_INT2_SIZE,
     OPAL_DATATYPE_INT4_SIZE,
     OPAL_DATATYPE_INT8_SIZE,
-    OPAL_DATATYPE_INT16_SIZE,       /* Yes, double-machine word integers are available */
+    OPAL_DATATYPE_INT16_SIZE,   
     OPAL_DATATYPE_UINT1_SIZE,
     OPAL_DATATYPE_UINT2_SIZE,
     OPAL_DATATYPE_UINT4_SIZE,
     OPAL_DATATYPE_UINT8_SIZE,
-    OPAL_DATATYPE_UINT16_SIZE,      /* Yes, double-machine word integers are available */
+    OPAL_DATATYPE_UINT16_SIZE,  
     OPAL_DATATYPE_FLOAT2_SIZE,
     OPAL_DATATYPE_FLOAT4_SIZE,
     OPAL_DATATYPE_FLOAT8_SIZE,
@@ -37,7 +41,7 @@ OPAL_DECLSPEC const size_t opal_datatype_basicDatatypesSize[OPAL_DATATYPE_MAX_PR
     OPAL_DATATYPE_WCHAR_SIZE,
     OPAL_DATATYPE_UNAVAILABLE_SIZE,
 };
-
+*/
 /***** my variables ********/
 
 
@@ -434,6 +438,8 @@ void opal_cuda_free_gpu_buffer(void *addr, int gpu_id)
     if (ptr == NULL) {
         DT_CUDA_DEBUG( opal_cuda_output( 0, "addr %p is not managed.\n", addr); );
     }
+    cuda_list_item_merge_by_addr(&device->buffer_free, ptr);
+    device->buffer_free_size += ptr->size;
     DT_CUDA_DEBUG( opal_cuda_output( 0, "Free GPU buffer %p.\n", addr); );
 }
 

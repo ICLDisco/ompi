@@ -830,7 +830,7 @@ int main( int argc, char* argv[] )
     if( outputFlags & CHECK_PACK_UNPACK ) {
         for (i = 1; i <= 1; i++) {
 //        local_copy_ddt_count(pdt, 1);
-    //        local_copy_with_convertor(pdt, 1, 1024*1024*10, 4000);
+            local_copy_with_convertor(pdt, 1, 1024*1024*10, 4000);
         }
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );

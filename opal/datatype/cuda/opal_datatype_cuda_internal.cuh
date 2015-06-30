@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <sys/time.h>
 
-#include "opal_datatype_orig_internal.h"
+//#include "opal_datatype_orig_internal.h"
 
 
 /* OPAL_CUDA */
@@ -13,7 +13,7 @@
 #define OPAL_DATATYPE_CUDA_DEBUG
 //#define OPAL_DATATYPE_CUDA_KERNEL_TIME
 #define OPAL_DATATYPE_CUDA_DEBUG_LEVEL  0
-#define OPAL_DATATYPE_CUDA_TIMING
+//#define OPAL_DATATYPE_CUDA_TIMING
 
 
 #define IOV_ARRAY_SIZE          1

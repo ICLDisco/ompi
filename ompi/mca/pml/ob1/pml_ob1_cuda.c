@@ -106,53 +106,103 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
         sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
         mca_bml_base_btl_t* bml_endpoint_btl = mca_bml_base_btl_array_get_index(&(sendreq->req_endpoint->btl_send), 0);
         if ((bml_endpoint_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET) && CUDA_DDT_WITH_RDMA) {
-            printf("GPU data ready for GET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+            
+            int seq = 0;
+            int rc_dt = 0;
+            int rc_sig = 0;
             unsigned char *base;
+            struct iovec iov;
+            size_t pipeline_size = 0;
+            uint32_t iov_count = 1;
+            size_t max_data = 0;
             struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
-            base = opal_cuda_malloc_gpu_buffer_p(convertor->local_size, 0);
-            convertor->gpu_buffer_ptr = base;
-            sendreq->req_send.req_bytes_packed = convertor->local_size;
-            printf("GPU BUFFER %p, local %lu, remote %lu\n", base, convertor->local_size, convertor->remote_size);
-            if( 0 != (sendreq->req_rdma_cnt = (uint32_t)mca_pml_ob1_rdma_cuda_btls(
-                                                                           sendreq->req_endpoint,
-                                                                           base,
-                                                                           sendreq->req_send.req_bytes_packed,
-                                                                           sendreq->req_rdma))) {
+            int lindex = mca_btl_smcuda_check_cuda_dt_pack_clone_exist(bml_btl->btl_endpoint, convertor); 
+            if (lindex == -1) {
+                /* this is the first time for this convertor */
+                printf("GPU data ready for GET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+                base = opal_cuda_malloc_gpu_buffer_p(convertor->local_size, 0);
+                convertor->gpu_buffer_ptr = base;
+                sendreq->req_send.req_bytes_packed = convertor->local_size;
+                printf("GPU BUFFER %p, local %lu, remote %lu\n", base, convertor->local_size, convertor->remote_size);
+                if( 0 != (sendreq->req_rdma_cnt = (uint32_t)mca_pml_ob1_rdma_cuda_btls(
+                                                                               sendreq->req_endpoint,
+                                                                               base,
+                                                                               sendreq->req_send.req_bytes_packed,
+                                                                               sendreq->req_rdma))) {
                 
-                size_t pipeline_size = convertor->local_size;
-                struct iovec iov;
-                int rc_dt = 0;
-                uint32_t iov_count = 1;
-                iov.iov_base = base;
-                iov.iov_len = pipeline_size;
-                size_t max_data = 0;
-                int seq = 0;
-                /* the first pack here is used to get the correct size of pipeline_size */
-                /* because pack may not use the whole pipeline size */
-                rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
-                pipeline_size = max_data;
-                int lindex = mca_btl_smcuda_alloc_cuda_dt_pack_clone(bml_btl->btl_endpoint);
-                assert(lindex >= 0);
-                mca_pml_ob1_rdma_cuda_btl_register_events(sendreq->req_rdma, sendreq->req_rdma_cnt, convertor, pipeline_size, lindex); 
-                mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, NULL, NULL, NULL, pipeline_size, lindex);
-                
-                rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
-                                                         sendreq->req_send.req_bytes_packed);
-                
-                mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, seq);
-                while (rc_dt != 1) {
-                    iov.iov_base += pipeline_size;
-                    seq ++;
+                    pipeline_size = 1024*1024;
+                    iov.iov_base = base;
+                    iov.iov_len = pipeline_size;
+                    max_data = 0;
+                    /* the first pack here is used to get the correct size of pipeline_size */
+                    /* because pack may not use the whole pipeline size */
                     rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
-                    mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, seq);
+                    pipeline_size = max_data;
+                    lindex = mca_btl_smcuda_alloc_cuda_dt_pack_clone(bml_btl->btl_endpoint);
+                    assert(lindex >= 0);
+                    mca_pml_ob1_rdma_cuda_btl_register_events(sendreq->req_rdma, sendreq->req_rdma_cnt, convertor, pipeline_size, lindex); 
+                    mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, NULL, NULL, NULL, pipeline_size, lindex);
+                
+                    rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
+                                                             sendreq->req_send.req_bytes_packed);
+                
+                    rc_sig = mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, seq);
+                    if (rc_sig == OPAL_ERR_OUT_OF_RESOURCE) {
+                        mca_btl_smcuda_set_cuda_dt_pack_seq(bml_btl->btl_endpoint, lindex, seq);
+                        return rc_sig;
+                    }
+                    while (rc_dt != 1) {
+                        iov.iov_base += pipeline_size;
+                        seq ++;
+                        rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
+                        rc_sig = mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, seq);
+                        if (rc_sig == OPAL_ERR_OUT_OF_RESOURCE) {
+                            mca_btl_smcuda_set_cuda_dt_pack_seq(bml_btl->btl_endpoint, lindex, seq);
+                            return rc_sig;
+                        }
+                    }
+                    rc_sig = mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, -1);
+                    if (rc_sig == OPAL_ERR_OUT_OF_RESOURCE) {
+                        mca_btl_smcuda_set_cuda_dt_pack_seq(bml_btl->btl_endpoint, lindex, -1);
+                        return rc_sig;
+                    }
+                    if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
+                        mca_pml_ob1_free_rdma_resources(sendreq);
+                    }
+                } else {
+                    rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
                 }
-                mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, -1);
-                if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
-                    mca_pml_ob1_free_rdma_resources(sendreq);
+            } else { /* RMDA has been started before, but no resource (frag) last time, so back to re-schedule */
+                seq = mca_btl_smcuda_get_cuda_dt_pack_seq(bml_btl->btl_endpoint, lindex);
+                pipeline_size = mca_btl_smcuda_get_cuda_dt_pack_pipeline_size(bml_btl->btl_endpoint, lindex);
+                printf("*****************I resent seq %d, pipeline %lu\n", seq, pipeline_size);
+                rc_dt = 0;
+                rc_sig = mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, seq);
+                if (rc_sig == OPAL_ERR_OUT_OF_RESOURCE) {
+                    mca_btl_smcuda_set_cuda_dt_pack_seq(bml_btl->btl_endpoint, lindex, seq);
+                    return rc_sig;
                 }
-            } else {
-                rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+                if (seq != -1) {
+                    
+                    while (rc_dt != 1) {
+                        seq ++;
+                        iov.iov_base = convertor->gpu_buffer_ptr + pipeline_size * seq;
+                        iov.iov_len = pipeline_size;
+                        rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &pipeline_size );     
+                        rc_sig = mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, seq);
+                        if (rc_sig == OPAL_ERR_OUT_OF_RESOURCE) {
+                            mca_btl_smcuda_set_cuda_dt_pack_seq(bml_btl->btl_endpoint, lindex, seq);
+                            return rc_sig;
+                        }
+                    }
+                    rc_sig = mca_btl_smcuda_send_cuda_unpack_sig(bml_btl->btl, bml_btl->btl_endpoint, lindex, -1);
+                    if (rc_sig == OPAL_ERR_OUT_OF_RESOURCE) {
+                        mca_btl_smcuda_set_cuda_dt_pack_seq(bml_btl->btl_endpoint, lindex, -1);
+                        return rc_sig;
+                    }
+                }
             }
+            
         } else {
             rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
         }

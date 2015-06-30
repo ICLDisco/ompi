@@ -30,7 +30,7 @@ unpack_ooo_LDADD = \
 
 ddt_test_SOURCES = ddt_test.c ddt_lib.c ddt_lib.h
 ddt_test_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)
-ddt_test_CFLAGS = -I/mnt/sw/cuda/include -g 
+ddt_test_CFLAGS = -I/mnt/sw/cuda/include -g -O0
 ddt_test_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/cuda/libmca_common_cuda.la -L/mnt/sw/cuda/lib64 -lcudart
 
 #ddt_test_old_SOURCES = ddt_test_old.c ddt_lib.c ddt_lib.h

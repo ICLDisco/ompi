@@ -1,4 +1,7 @@
- #include "opal_datatype_cuda_internal.cuh"
+#include "opal/datatype/opal_convertor_internal.h"
+#include "opal/datatype/opal_datatype_internal.h"
+
+#include "opal_datatype_cuda_internal.cuh"
 #include <stdio.h> 
 #include <time.h>
 

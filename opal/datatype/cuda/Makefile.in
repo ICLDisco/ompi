@@ -15,7 +15,7 @@ EXTLIB     = -L$(top_builddir)/opal/datatype/.libs -ldatatype -L$(top_builddir)/
 subdir     = opal/datatype/cuda
 
 CC = nvcc
-CFLAGS  = -I$(top_builddir)/opal/include -I$(top_srcdir)/opal/include -gencode arch=compute_35,code=sm_35 --compiler-options '-fPIC @CFLAGS@'
+CFLAGS  = -I$(top_builddir)/opal/include -I$(top_srcdir)/opal/include -I$(top_builddir) -I$(top_srcdir) -gencode arch=compute_35,code=sm_35 --compiler-options '-fPIC @CFLAGS@'
 LDFLAGS = -shared --compiler-options '-fPIC @LDFLAGS@'
 
 SRC := \
