@@ -1180,9 +1180,11 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
             struct opal_convertor_t *convertor = &(recvreq->req_recv.req_base.req_convertor);   
             size_t pipeline_size = remote_handle->reg_data.pipeline_size;
             uint32_t lindex = remote_handle->reg_data.lindex;
-            printf("i receive pipeline %ld, lindex %d\n", pipeline_size, lindex);
+            uint8_t pack_required = remote_handle->reg_data.pack_required;
+            printf("i receive pipeline %ld, lindex %d, pack_required %d\n", pipeline_size, lindex, pack_required);
             convertor->gpu_buffer_ptr = remote_memory_address;
             mca_btl_smcuda_cuda_dt_unpack_clone(convertor, ep, local_address, local_handle, (mca_btl_base_completion_fn_t)cbfunc, cbcontext, cbdata, pipeline_size, lindex);
+            mca_btl_smcuda_send_cuda_pack_sig(btl, ep, lindex, 0, 0);
             done = 0;
             mca_btl_smcuda_free(btl, (mca_btl_base_descriptor_t *)frag);
         } else {
@@ -1291,7 +1293,8 @@ static void mca_btl_smcuda_send_cuda_ipc_request(struct mca_btl_base_module_t* b
 }
 
 int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
-                                           struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq)
+                                           struct mca_btl_base_endpoint_t* endpoint, 
+                                           int lindex, int pipeline_size, int seq)
 {
     mca_btl_smcuda_frag_t* frag;
     int rc;
@@ -1308,6 +1311,7 @@ int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
     frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
     cuda_dt_hdr.seq = seq;
     cuda_dt_hdr.lindex = lindex;
+    cuda_dt_hdr.pipeline_size = pipeline_size;
     memcpy(frag->segment.seg_addr.pval, &cuda_dt_hdr, sizeof(cuda_dt_hdr_t));
     
     rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
@@ -1316,7 +1320,8 @@ int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
 }
 
 int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl,
-                                      struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq)
+                                      struct mca_btl_base_endpoint_t* endpoint, 
+                                      int lindex, int pipeline_size, int seq)
 {
     mca_btl_smcuda_frag_t* frag;
     int rc;
@@ -1332,6 +1337,7 @@ int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl,
     frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
     cuda_dt_hdr.seq = seq;
     cuda_dt_hdr.lindex = lindex;
+    cuda_dt_hdr.pipeline_size = pipeline_size;
     memcpy(frag->segment.seg_addr.pval, &cuda_dt_hdr, sizeof(cuda_dt_hdr_t));
     
     rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
