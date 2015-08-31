@@ -644,6 +644,8 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     dt_length = compute_buffer_length(pdt, count);
     printf("length %lu\n", dt_length);
 
+    cudaSetDevice(1);
+
 #if defined (DDT_TEST_CUDA)
     cudaError_t error = cudaMalloc((void **)&psrc, dt_length);
     if ( error != cudaSuccess) {
@@ -828,9 +830,9 @@ int main( int argc, char* argv[] )
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
     pdt = upper_matrix(4000);
     if( outputFlags & CHECK_PACK_UNPACK ) {
-        for (i = 1; i <= 1; i++) {
+        for (i = 1; i <= 4; i++) {
 //        local_copy_ddt_count(pdt, 1);
-            local_copy_with_convertor(pdt, 1, 1024*1024*10, 4000);
+            local_copy_with_convertor(pdt, 1, 1024*1024*200, 4000);
         }
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
@@ -990,7 +992,7 @@ int main( int argc, char* argv[] )
       //  local_copy_with_convertor( pdt, 1, 6000 );
       //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
       //  local_copy_with_convertor( pdt, 1, 36000 );
-          local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*2000, 4000, 256, 384 );
+      //    local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*2000, 4000, 256, 384 );
         }
     }
     printf( ">>--------------------------------------------<<\n" );

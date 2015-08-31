@@ -13,7 +13,10 @@
 #define OPAL_DATATYPE_CUDA_DEBUG
 //#define OPAL_DATATYPE_CUDA_KERNEL_TIME
 #define OPAL_DATATYPE_CUDA_DEBUG_LEVEL  0
-//#define OPAL_DATATYPE_CUDA_TIMING
+#define OPAL_DATATYPE_CUDA_TIMING
+#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D   0
+#define OPAL_DATATYPE_VECTOR_USE_ZEROCPY   0
+#define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
 
 
 #define IOV_ARRAY_SIZE          1
@@ -27,7 +30,7 @@
 #define CUDA_NB_IOV         4096
 #define CUDA_IOV_LEN        1024*1204
 #define CUDA_MAX_NB_BLOCKS  1024
-#define CUDA_IOV_MAX_TASK_PER_BLOCK 200
+#define CUDA_IOV_MAX_TASK_PER_BLOCK 10
 #define ALIGNMENT_DOUBLE    8
 #define ALIGNMENT_FLOAT     4
 #define ALIGNMENT_CHAR      1
@@ -158,6 +161,14 @@ __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
 __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist);
 
 __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist);
+
+__global__ void opal_empty_kernel(uint32_t copy_loops,
+                                  size_t size,
+                                  OPAL_PTRDIFF_TYPE extent,
+                                  unsigned char* source,
+                                  unsigned char* destination);
+                            
+__global__ void opal_empty_kernel_noargs();
 
 void opal_cuda_output(int output_id, const char *format, ...);
 

@@ -53,7 +53,7 @@ size_t mca_pml_ob1_rdma_cuda_btls(
 int mca_pml_ob1_rdma_cuda_btl_register_data(
     mca_pml_ob1_com_btl_t* rdma_btls, 
     uint32_t num_btls_used, 
-    size_t pipeline_size, int lindex, uint8_t pack_required);
+    size_t pipeline_size, int lindex, uint8_t pack_required, uint8_t gpu_device);
 
 int mca_pml_ob1_cuda_need_buffers(void * rreq,
                                   mca_btl_base_module_t* btl);
@@ -109,6 +109,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             printf("GPU data ready for GET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
             unsigned char *base;
             struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
+            int local_device = 0;
             base = opal_cuda_malloc_gpu_buffer_p(convertor->local_size, 0);
             convertor->gpu_buffer_ptr = base;
             sendreq->req_send.req_bytes_packed = convertor->local_size;
@@ -121,8 +122,13 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
     
                 int lindex = mca_btl_smcuda_alloc_cuda_dt_pack_clone(bml_btl->btl_endpoint);
                 assert(lindex >= 0);
-                mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, 0, lindex, 1); 
-                mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, NULL, NULL, NULL, 0, lindex);
+                rc = mca_common_cuda_get_device(&local_device);
+                if (rc != 0) {
+                    opal_output_verbose(0, "Failed to get the GPU device ID, rc=%d", rc);
+                    return rc;
+                }
+                mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, 0, lindex, 1, local_device); 
+                mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, NULL, NULL, NULL, NULL, 0, lindex, 0, local_device);
     
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                          sendreq->req_send.req_bytes_packed);
@@ -200,7 +206,7 @@ size_t mca_pml_ob1_rdma_cuda_btls(
 int mca_pml_ob1_rdma_cuda_btl_register_data(
     mca_pml_ob1_com_btl_t* rdma_btls, 
     uint32_t num_btls_used, 
-    size_t pipeline_size, int lindex, uint8_t pack_required)
+    size_t pipeline_size, int lindex, uint8_t pack_required, uint8_t gpu_device)
 {
     uint32_t i, j;
     for (i = 0; i < num_btls_used; i++) {
@@ -215,6 +221,7 @@ int mca_pml_ob1_rdma_cuda_btl_register_data(
         cuda_reg->data.pipeline_size = pipeline_size;
         cuda_reg->data.lindex = lindex;
         cuda_reg->data.pack_required = pack_required;
+        cuda_reg->data.gpu_device = gpu_device;
 
     }
     return 0;

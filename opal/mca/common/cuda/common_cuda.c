@@ -2067,6 +2067,19 @@ int mca_common_cuda_get_address_range(void *pbase, size_t *psize, void *base)
     return 0;
 }
 
+int mca_common_cuda_memp2pcpy(void *dest, const void *src, size_t size)
+{
+    CUresult result;
+
+    result = cuFunc.cuMemcpy((CUdeviceptr)dest, (CUdeviceptr)src, size);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+        opal_show_help("help-mpi-common-cuda.txt", "cuMemcpy failed",
+                        true, OPAL_PROC_MY_HOSTNAME, result);
+        return OPAL_ERROR;
+    }
+    return OPAL_SUCCESS;
+}
+
 #if OPAL_CUDA_GDR_SUPPORT
 /* Check to see if the memory was freed between the time it was stored in
  * the registration cache and now.  Return true if the memory was previously

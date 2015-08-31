@@ -623,13 +623,27 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
             _destination_tmp = dst + threadIdx.x * alignment;
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
             if (alignment == ALIGNMENT_DOUBLE) {
-                *((double *)_destination_tmp) = *((double *)_source_tmp);
+                *((long *)_destination_tmp) = *((long *)_source_tmp);
             } else if (alignment == ALIGNMENT_FLOAT) {
-                *((float *)_destination_tmp) = *((float *)_source_tmp);
+                *((int *)_destination_tmp) = *((int *)_source_tmp);
             } else {
                 * _destination_tmp = *_source_tmp;
             }
 #endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
         }
     }
+}
+
+__global__ void opal_empty_kernel(uint32_t copy_loops,
+                                  size_t size,
+                                  OPAL_PTRDIFF_TYPE extent,
+                                  unsigned char* source,
+                                  unsigned char* destination)
+{
+    
+}
+
+__global__ void opal_empty_kernel_noargs()
+{
+    
 }

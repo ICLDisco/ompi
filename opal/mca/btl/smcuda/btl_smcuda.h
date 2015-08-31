@@ -41,6 +41,8 @@
 #include "opal/mca/btl/btl.h"
 #include "opal/mca/common/sm/common_sm.h"
 
+#define OPAL_DATATYPE_DIRECT_COPY_GPUMEM    0
+
 BEGIN_C_DECLS
 
 /*
@@ -205,6 +207,7 @@ struct mca_btl_smcuda_component_t {
     int cuda_ipc_output;
     int use_cuda_ipc;
     int use_cuda_ipc_same_gpu;
+    int cuda_dt_pipeline_size;
 #endif /* OPAL_CUDA_SUPPORT */
     unsigned long mpool_min_size;
     char *allocator;
@@ -520,16 +523,18 @@ typedef struct {
 /* package save pack/unpack convertor and cbfunc */
 typedef struct {
     struct opal_convertor_t *convertor;
-    void *gpu_ptr;
     struct mca_btl_base_endpoint_t *endpoint;
     void *local_address;
     struct mca_btl_base_registration_handle_t *local_handle;
+    void *remote_gpu_address;
     mca_btl_base_completion_fn_t cbfunc;
     void *cbcontext;
     void *cbdata;
     size_t pipeline_size;
     int lindex;
     int seq;
+    uint8_t remote_device;
+    uint8_t local_device;
 } cuda_dt_clone_t;
 
 #define SMCUDA_DT_CLONE_SIZE 20
@@ -549,20 +554,22 @@ void mca_btl_smcuda_cuda_dt_pack_clone(struct opal_convertor_t *convertor,
                                        struct mca_btl_base_endpoint_t *endpoint,
                                        void *local_address,
                                        struct mca_btl_base_registration_handle_t *local_handle,
+                                       void *remote_gpu_address,
                                        mca_btl_base_completion_fn_t cbfunc,
                                        void *cbcontext,
                                        void *cbdata,
                                        size_t pipeline_size,
-                                       int lindex);
+                                       int lindex, uint8_t remote_device, uint8_t local_device);
 void mca_btl_smcuda_cuda_dt_unpack_clone(struct opal_convertor_t *convertor,
                                          struct mca_btl_base_endpoint_t *endpoint,
                                          void *local_address,
                                          struct mca_btl_base_registration_handle_t *local_handle,
+                                         void *remote_gpu_address,
                                          mca_btl_base_completion_fn_t cbfunc,
                                          void *cbcontext,
                                          void *cbdata,
                                          size_t pipeline_size,
-                                         int lindex);
+                                         int lindex, uint8_t remote_device, uint8_t local_device);
 
 #endif /* OPAL_CUDA_SUPPORT */
 

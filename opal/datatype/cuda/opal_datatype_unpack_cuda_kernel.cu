@@ -277,9 +277,9 @@ __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t*
             _destination_tmp = dst + threadIdx.x * alignment;
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
                 if (alignment == ALIGNMENT_DOUBLE) {
-                    *((double *)_destination_tmp) = *((double *)_source_tmp);
+                    *((long *)_destination_tmp) = *((long *)_source_tmp);
                 } else if (alignment == ALIGNMENT_FLOAT) {
-                    *((float *)_destination_tmp) = *((float *)_source_tmp);
+                    *((int *)_destination_tmp) = *((int *)_source_tmp);
                 } else {
                     * _destination_tmp = *_source_tmp;
                 }
