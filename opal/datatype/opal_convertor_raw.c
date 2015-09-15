@@ -211,3 +211,32 @@ complete_loop:
                            pConvertor->stack_pos, pStack->index, (int)pStack->count, (long)pStack->disp ); );
     return 0;
 }
+
+#define IOVEC_INITIAL_SIZE 64
+
+void
+opal_convertor_to_iov(struct opal_convertor_t *convertor,
+                      struct iovec **iov,
+                      uint32_t *iov_count,
+                      size_t *max_data)
+{
+    uint32_t temp_count = IOVEC_INITIAL_SIZE;
+    struct iovec *iovec;
+    size_t temp_data;
+
+    *iov_count = 0;
+    *max_data = 0;
+
+    *iov = iovec = (struct iovec*) malloc(temp_count * sizeof(struct iovec));
+    while(1) {
+        int ret = opal_convertor_raw(convertor, iovec, &temp_count, &temp_data);
+        *iov_count += temp_count;
+        *max_data += temp_data;
+        if(ret)
+            break;
+
+        *iov = (struct iovec*)realloc(*iov, (*iov_count + IOVEC_INITIAL_SIZE) * sizeof(struct iovec));
+        temp_count = IOVEC_INITIAL_SIZE;
+        iovec = &((*iov)[*iov_count]);
+    }
+}

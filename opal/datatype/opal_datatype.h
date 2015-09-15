@@ -130,7 +130,11 @@ struct opal_datatype_t {
                                       Reason being is that Fortran is not at the OPAL layer. */
     /* --- cacheline 5 boundary (320 bytes) was 32-36 bytes ago --- */
 
-    /* size: 352, cachelines: 6, members: 15 */
+    struct iovec*      iov;
+    int                iov_count;
+    size_t             max_data;
+    /* size: 372, cachelines: 6, members: 18 */
+
     /* last cacheline: 28-32 bytes */
 };
 

@@ -303,5 +303,11 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
         pLast->first_elem_disp = first_elem_disp;
         pLast->size            = pData->size;
     }
+
+    /* save a compressed datatype description as a iovec list */
+    opal_convertor_t* conv = opal_convertor_create( opal_local_arch, 0 /* unused */);
+    opal_convertor_prepare_for_send( conv, pData, 1, (void*)0 );
+    opal_convertor_to_iov(conv, &pData->iov, &pData->iov_count, &pData->max_data);
+    OBJ_RELEASE(conv);
     return OPAL_SUCCESS;
 }

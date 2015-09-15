@@ -281,7 +281,11 @@ opal_convertor_raw( opal_convertor_t* convertor,  /* [IN/OUT] */
                     struct iovec* iov,            /* [IN/OUT] */
                     uint32_t* iov_count,          /* [IN/OUT] */
                     size_t* length );             /* [OUT]    */
-
+OPAL_DECLSPEC void
+opal_convertor_to_iov(struct opal_convertor_t *convertor,
+                      struct iovec **iov,
+                      uint32_t *iov_count,
+                      size_t *max_data);
 /*
  * Upper level does not need to call the _nocheck function directly.
  */
