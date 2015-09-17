@@ -844,34 +844,45 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     printf("$$$$$$$$$$$$$$hello, rank %d in smcuda unpack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
     
     if (seq == -2) {
-        mca_btl_base_rdma_completion_fn_t cbfunc = (mca_btl_base_rdma_completion_fn_t)my_cuda_dt_clone->cbfunc;
-        cbfunc(btl, endpoint, my_cuda_dt_clone->local_address, my_cuda_dt_clone->local_handle, my_cuda_dt_clone->cbcontext, my_cuda_dt_clone->cbdata, OPAL_SUCCESS);
+        mca_btl_smcuda_frag_t *frag_recv = (mca_btl_smcuda_frag_t *) my_cuda_dt_clone->frag;
+        mca_btl_base_rdma_completion_fn_t cbfunc = (mca_btl_base_rdma_completion_fn_t) frag_recv->base.des_cbfunc;
+        cbfunc (btl, endpoint, frag_recv->segment.seg_addr.pval, frag_recv->local_handle, frag_recv->base.des_context, frag_recv->base.des_cbdata, OPAL_SUCCESS);
+        mca_btl_smcuda_free(btl, (mca_btl_base_descriptor_t *)frag_recv);
         mca_btl_smcuda_free_cuda_dt_unpack_clone(endpoint, lindex);
     } else if (seq == -1) {
-        mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, lindex, pipeline_size, -1);
+        mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, lindex, 0, -1);
     } else {
         struct iovec iov;
         uint32_t iov_count = 1;
         size_t max_data;
-        struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;     
-        if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
-            convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer_p(pipeline_size, 0);
-            mca_common_cuda_memp2pcpy(convertor->gpu_buffer_ptr, my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, pipeline_size);
-            iov.iov_base = convertor->gpu_buffer_ptr;
-            printf("start D2D copy src %p, dst %p, size %lu\n", my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, convertor->gpu_buffer_ptr, pipeline_size);
-            
-        } else {
-            iov.iov_base = convertor->gpu_buffer_ptr + seq * pipeline_size;
+        struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
+        if (my_cuda_dt_clone->pipeline_size == 0) {
+            my_cuda_dt_clone->pipeline_size = packed_size;
         }
-        max_data = pipeline_size;
-        iov.iov_len = pipeline_size;
-        opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
-        if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
-            if (convertor->gpu_buffer_ptr != NULL) {
-                opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
-                convertor->gpu_buffer_ptr = NULL;
+        size_t pipeline_size = my_cuda_dt_clone->pipeline_size;
+        if (convertor == NULL) { /* do not unpack */
+            mca_btl_smcuda_frag_t *frag_recv = (mca_btl_smcuda_frag_t *) my_cuda_dt_clone->frag;
+            unsigned char *local_address = (unsigned char*)frag_recv->segment.seg_addr.pval;
+            printf("D2D local %p, remote %p, size %ld\n", local_address + seq*pipeline_size, my_cuda_dt_clone->remote_gpu_address+seq*pipeline_size, packed_size);
+            mca_common_cuda_memp2pcpy(local_address + seq*pipeline_size, my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, packed_size);
+        } else {     /* unpack */
+            if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
+                convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer_p(pipeline_size, 0);
+                mca_common_cuda_memp2pcpy(convertor->gpu_buffer_ptr, my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, packed_size);
+                iov.iov_base = convertor->gpu_buffer_ptr;
+                printf("start D2D copy src %p, dst %p, size %lu\n", my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, convertor->gpu_buffer_ptr, packed_size);        
+            } else {
+                iov.iov_base = convertor->gpu_buffer_ptr + seq * pipeline_size;
             }
-            
+            max_data = packed_size;
+            iov.iov_len = packed_size;
+            opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
+            if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
+                if (convertor->gpu_buffer_ptr != NULL) {
+                    opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
+                    convertor->gpu_buffer_ptr = NULL;
+                }   
+            }
         }
     }
    // MCA_BTL_SMCUDA_FRAG_RETURN(frag);
@@ -887,7 +898,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     memcpy(&cuda_dt_hdr, segments->seg_addr.pval, sizeof(cuda_dt_hdr_t));
     int seq = cuda_dt_hdr.seq;
     int lindex = cuda_dt_hdr.lindex;
-    int pipeline_size = cuda_dt_hdr.pipeline_size;
+    size_t packed_size = cuda_dt_hdr.packed_size;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
     cuda_dt_clone_t *my_cuda_dt_clone;
 
@@ -898,34 +909,35 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     printf("$$$$$$$$$$$$$$hello, rank %d in smcuda pack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
     struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
     if (seq == -1) {
-        mca_btl_smcuda_send_cuda_unpack_sig(btl, my_cuda_dt_clone->endpoint, lindex, 0, -2);
+        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, 0, -2);
         if (convertor->gpu_buffer_ptr != NULL) {
             opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
         }
-        mca_btl_smcuda_free_cuda_dt_pack_clone(my_cuda_dt_clone->endpoint, lindex);
+        mca_btl_smcuda_free_cuda_dt_pack_clone(endpoint, lindex);
     } else {
         struct iovec iov;
         int rc_dt = 0;
-        size_t pipeline_size = mca_btl_smcuda_component.cuda_dt_pipeline_size;
-        printf("Pipeline_size %ld\n", pipeline_size);
+        size_t packed_size = mca_btl_smcuda_component.cuda_dt_pipeline_size;
+        printf("Pipeline_size %ld\n", packed_size);
         uint32_t iov_count = 1;
         iov.iov_base = convertor->gpu_buffer_ptr;
-        iov.iov_len = pipeline_size;
+        iov.iov_len = packed_size;
         size_t max_data = 0;
         int seq = 0;
         /* the first pack here is used to get the correct size of pipeline_size */
         /* because pack may not use the whole pipeline size */
         rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
-        pipeline_size = max_data;
-        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, pipeline_size, seq);
+        packed_size = max_data;
+        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, packed_size, seq);
         while (rc_dt != 1) {
-            iov.iov_base += pipeline_size;
+            iov.iov_base += packed_size;
             seq ++;
             rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
-            mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, pipeline_size, seq);
+            packed_size = max_data;
+            mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, packed_size, seq);
         }
-        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, pipeline_size, -1);
+        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, 0, -1);
     }
   //  MCA_BTL_SMCUDA_FRAG_RETURN(frag);
 }

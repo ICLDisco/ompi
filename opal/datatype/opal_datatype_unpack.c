@@ -618,8 +618,8 @@ opal_generic_simple_unpack_cuda_function( opal_convertor_t* pConvertor,
     
     if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
         if (opal_generic_simple_unpack_function_cuda_vector_p != NULL) {
-         //   return (*opal_generic_simple_unpack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
-            return (*opal_generic_simple_unpack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
+            return (*opal_generic_simple_unpack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
+          //  return (*opal_generic_simple_unpack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
         }
     } else {
         if (opal_generic_simple_unpack_function_cuda_iov_p != NULL) {

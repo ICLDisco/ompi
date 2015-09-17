@@ -68,6 +68,8 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                         mca_bml_base_btl_t* bml_btl,
                                         size_t size) {
     int rc;
+    int local_device = 0;
+#if OPAL_CUDA_SUPPORT_41
 #if OPAL_CUDA_GDR_SUPPORT
     /* With some BTLs, switch to RNDV from RGET at large messages */
     if ((sendreq->req_send.req_base.req_convertor.flags & CONVERTOR_CUDA) &&
@@ -87,6 +89,13 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                                                            base,
                                                                            sendreq->req_send.req_bytes_packed,
                                                                            sendreq->req_rdma))) {
+            
+            rc = mca_common_cuda_get_device(&local_device);
+            if (rc != 0) {
+                opal_output_verbose(0, "Failed to get the GPU device ID, rc=%d", rc);
+                return rc;
+            }                                                                   
+            mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, 0, -1, 0, local_device); 
             rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                      sendreq->req_send.req_bytes_packed);
             if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
@@ -109,7 +118,6 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             printf("GPU data ready for GET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
             unsigned char *base;
             struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
-            int local_device = 0;
             base = opal_cuda_malloc_gpu_buffer_p(convertor->local_size, 0);
             convertor->gpu_buffer_ptr = base;
             sendreq->req_send.req_bytes_packed = convertor->local_size;
@@ -128,7 +136,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                     return rc;
                 }
                 mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, 0, lindex, 1, local_device); 
-                mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, NULL, NULL, NULL, NULL, 0, lindex, 0, local_device);
+                mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, 0, lindex, 0, local_device);
     
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                          sendreq->req_send.req_bytes_packed);

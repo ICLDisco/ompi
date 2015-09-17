@@ -26,8 +26,8 @@
 #define THREAD_PER_BLOCK    32
 #define CUDA_WARP_SIZE      32
 #define TASK_PER_THREAD     2
-#define NB_STREAMS          4
-#define CUDA_NB_IOV         4096
+#define NB_STREAMS          8
+#define CUDA_NB_IOV         1024*20
 #define CUDA_IOV_LEN        1024*1204
 #define CUDA_MAX_NB_BLOCKS  1024
 #define CUDA_IOV_MAX_TASK_PER_BLOCK 10

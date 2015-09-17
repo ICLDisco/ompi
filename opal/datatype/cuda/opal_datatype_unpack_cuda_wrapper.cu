@@ -303,7 +303,7 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end, start_total, end_total;
-    long total_time;
+    long total_time, move_time;
 #endif
     
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
@@ -327,17 +327,23 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     if (opal_cuda_is_gpu_buffer(iov[0].iov_base)) {
         source = (unsigned char*)iov[0].iov_base;
         free_required = 0;
-    } else {  
+    } else {
+        if (OPAL_DATATYPE_VECTOR_USE_ZEROCPY) {
+            cudaHostGetDevicePointer((void **)&source, (void *)iov[0].iov_base, 0);
+            pConvertor->gpu_buffer_ptr = NULL;
+            free_required = 0;
+        } else {
 #if defined(OPAL_DATATYPE_CUDA_DRY_RUN)
-        source = (unsigned char*)iov[0].iov_base;
+            source = (unsigned char*)iov[0].iov_base;
 #else
-        if (pConvertor->gpu_buffer_ptr == NULL) {
-            pConvertor->gpu_buffer_ptr = (unsigned char*)opal_cuda_malloc_gpu_buffer(iov[0].iov_len, 0);
+            if (pConvertor->gpu_buffer_ptr == NULL) {
+                pConvertor->gpu_buffer_ptr = (unsigned char*)opal_cuda_malloc_gpu_buffer(iov[0].iov_len, 0);
+            }
+            source = pConvertor->gpu_buffer_ptr;
+#endif /* OPAL_DATATYPE_CUDA_DRY_RUN */
+            cudaMemcpy(source, iov[0].iov_base, iov[0].iov_len, cudaMemcpyHostToDevice);
+            free_required = 1;
         }
-        source = pConvertor->gpu_buffer_ptr;
-#endif /* OPAL_DATATYPE_CUDA_DRY_RUN */  
-        cudaMemcpy(source, iov[0].iov_base, iov[0].iov_len, cudaMemcpyHostToDevice);
-        free_required = 1;
     }
     
     source_tmp = source;
@@ -345,8 +351,8 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     DT_CUDA_DEBUG ( opal_cuda_output(0, "UNpack GPU base %p, unpack from buffer %p, total size %ld\n", pConvertor->pBaseBuf, source, iov[0].iov_len); );
 #if defined(OPAL_DATATYPE_CUDA_TIMING) 
     GET_TIME( end );
-    total_time = ELAPSED_TIME( start, end );
-    printf( "[Timing]: HtoD memcpy in %ld microsec, free required %d\n", total_time, free_required );
+    move_time = ELAPSED_TIME( start, end );
+    printf( "[Timing]: HtoD memcpy in %ld microsec, free required %d\n", move_time, free_required );
 #endif
 
 
@@ -370,7 +376,7 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
 #endif
     
     dst_offset = 0;
-    thread_per_block = CUDA_WARP_SIZE * 4;
+    thread_per_block = CUDA_WARP_SIZE * 5;
     nb_blocks = 256;
     
     while (cuda_iov_count > 0) {
@@ -506,7 +512,7 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME( end_total );
     total_time = ELAPSED_TIME( start_total, end_total );
-    printf( "[Timing]: total unpacking in %ld microsec\n", total_time );
+    printf( "[Timing]: total unpacking in %ld microsec, kernel %ld microsec\n", total_time, total_time-move_time );
 #endif
     
     if( pConvertor->bConverted == pConvertor->local_size ) {

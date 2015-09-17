@@ -293,6 +293,8 @@ void opal_datatype_cuda_init(void)
     // ALIGNMENT_DOUBLE = sizeof(double);
     // ALIGNMENT_FLOAT = sizeof(float);
     // ALIGNMENT_CHAR = sizeof(char);
+    
+    cudaDeviceSynchronize();
 }
 
 void opal_datatype_cuda_fini(void)
