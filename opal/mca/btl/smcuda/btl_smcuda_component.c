@@ -833,8 +833,10 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     memcpy(&cuda_dt_hdr, segments->seg_addr.pval, sizeof(cuda_dt_hdr_t));
     int seq = cuda_dt_hdr.seq;
     int lindex = cuda_dt_hdr.lindex;
+    int msg_type = cuda_dt_hdr.msg_type;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
     cuda_dt_clone_t *my_cuda_dt_clone;
+    cuda_dt_hdr_t send_msg;
 
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
@@ -843,15 +845,20 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     
     printf("$$$$$$$$$$$$$$hello, rank %d in smcuda unpack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
     
-    if (seq == -2) {
+    if (msg_type == CUDA_PACK_CLEANUP) {
         mca_btl_smcuda_frag_t *frag_recv = (mca_btl_smcuda_frag_t *) my_cuda_dt_clone->frag;
         mca_btl_base_rdma_completion_fn_t cbfunc = (mca_btl_base_rdma_completion_fn_t) frag_recv->base.des_cbfunc;
         cbfunc (btl, endpoint, frag_recv->segment.seg_addr.pval, frag_recv->local_handle, frag_recv->base.des_context, frag_recv->base.des_cbdata, OPAL_SUCCESS);
         mca_btl_smcuda_free(btl, (mca_btl_base_descriptor_t *)frag_recv);
         mca_btl_smcuda_free_cuda_dt_unpack_clone(endpoint, lindex);
-    } else if (seq == -1) {
-        mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, lindex, 0, -1);
-    } else {
+    } else if (msg_type == CUDA_PACK_COMPLETE) {
+        cuda_dt_hdr_t send_msg;
+        send_msg.lindex = lindex;
+        send_msg.packed_size = 0;
+        send_msg.seq = -1;
+        send_msg.msg_type = CUDA_PACK_COMPLETE_ACK;
+        mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, &send_msg);
+    } else if (msg_type == CUDA_UNPACK_FROM_REMOTE){
         struct iovec iov;
         uint32_t iov_count = 1;
         size_t max_data;
@@ -899,6 +906,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     int seq = cuda_dt_hdr.seq;
     int lindex = cuda_dt_hdr.lindex;
     size_t packed_size = cuda_dt_hdr.packed_size;
+    int msg_type = cuda_dt_hdr.msg_type;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
     cuda_dt_clone_t *my_cuda_dt_clone;
 
@@ -908,14 +916,35 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     
     printf("$$$$$$$$$$$$$$hello, rank %d in smcuda pack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
     struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
-    if (seq == -1) {
-        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, 0, -2);
+    send_msg.lindex = lindex;
+    if (msg_type == CUDA_PACK_COMPLETE_ACK) {
+        send_msg.packed_size = 0;
+        send_msg.seq = -2;
+        send_msg.msg_type = CUDA_PACK_CLEANUP;
+        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
         if (convertor->gpu_buffer_ptr != NULL) {
             opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
         }
         mca_btl_smcuda_free_cuda_dt_pack_clone(endpoint, lindex);
     } else {
+        mca_mpool_common_cuda_reg_t *rget_reg_ptr = NULL;
+        if (msg_type == CUDA_PACK_TO_REMOTE) { /* receiver is contiguous, and ask me to pack directly to his gpu memory */
+            opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
+            mca_mpool_common_cuda_reg_t rget_reg;
+            rget_reg_ptr= &rget_reg;
+            memset(&rget_reg, 0, sizeof(rget_reg));
+            memcpy(rget_reg.data.memHandle, cuda_dt_hdr.mem_handle, sizeof(cuda_dt_hdr.mem_handle));
+            cuda_openmemhandle(NULL, 0, (mca_mpool_base_registration_t *)&rget_reg, NULL);
+            mca_common_wait_stream_synchronize(&rget_reg);
+            size_t offset = (size_t) ((intptr_t) cuda_dt_hdr.remote_address - (intptr_t) cuda_dt_hdr.remote_base);
+            unsigned char *remote_memory_address = (unsigned char *)rget_reg_ptr->base.alloc_base + offset;
+            convertor->gpu_buffer_ptr = remote_memory_address;
+            printf("remote_memory_address $$$$$$ %p, r_addr %p, r_base %p\n", remote_memory_address, cuda_dt_hdr.remote_address, cuda_dt_hdr.remote_base);
+            send_msg.msg_type = CUDA_UNPACK_NO;
+        } else {
+            send_msg.msg_type = CUDA_UNPACK_FROM_REMOTE;
+        }
         struct iovec iov;
         int rc_dt = 0;
         size_t packed_size = mca_btl_smcuda_component.cuda_dt_pipeline_size;
@@ -929,15 +958,27 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
         /* because pack may not use the whole pipeline size */
         rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
         packed_size = max_data;
-        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, packed_size, seq);
+        send_msg.packed_size = packed_size;
+        send_msg.seq = seq;
+        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
         while (rc_dt != 1) {
             iov.iov_base += packed_size;
             seq ++;
             rc_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
             packed_size = max_data;
-            mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, packed_size, seq);
+            send_msg.packed_size = packed_size;
+            send_msg.seq = seq;
+            mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
         }
-        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, lindex, 0, -1);
+        
+        send_msg.packed_size = 0;
+        send_msg.seq = -1;
+        send_msg.msg_type = CUDA_PACK_COMPLETE;
+        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
+        
+        if (rget_reg_ptr != NULL) { /* close memhandle */
+            cuda_closememhandle(NULL, (mca_mpool_base_registration_t *)rget_reg_ptr);
+        }
     }
   //  MCA_BTL_SMCUDA_FRAG_RETURN(frag);
 }

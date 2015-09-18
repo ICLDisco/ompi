@@ -1180,6 +1180,11 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
         uint32_t lindex = remote_handle->reg_data.lindex;
         uint8_t remote_device = remote_handle->reg_data.gpu_device;
         uint8_t local_device = 0;
+        rc = mca_common_cuda_get_device(&local_device);
+        if (rc != 0) {
+            opal_output(0, "Failed to get the GPU device ID, rc=%d", rc);
+            return rc;
+        }
         if(opal_convertor_need_buffers(&recvreq->req_recv.req_base.req_convertor) == true) {
             recvreq->req_recv.req_base.req_convertor.flags |= CONVERTOR_CUDA;
             printf("RECEIVE REGT UNPACK, size %ld!!!!!!!!!!!\n", size);
@@ -1188,11 +1193,6 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
           //  size_t pipeline_size = remote_handle->reg_data.pipeline_size;
             printf("i receive lindex %d, pack_required %d, remote_device %d， local_device %d\n", lindex, pack_required, remote_device, local_device);
             
-            rc = mca_common_cuda_get_device(&local_device);
-            if (rc != 0) {
-                opal_output(0, "Failed to get the GPU device ID, rc=%d", rc);
-                return rc;
-            }
             if (remote_device != local_device && !OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {
                 convertor->gpu_buffer_ptr = NULL;  
             } else {
@@ -1201,7 +1201,12 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
             if (pack_required) {
                 mca_btl_smcuda_cuda_dt_unpack_clone(convertor, ep, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                     0, lindex, remote_device, local_device);
-                mca_btl_smcuda_send_cuda_pack_sig(btl, ep, lindex, 0, 0);
+                cuda_dt_hdr_t send_msg;
+                send_msg.lindex = lindex;
+                send_msg.packed_size = 0;
+                send_msg.seq = 0;
+                send_msg.msg_type = CUDA_PACK_TO_LOCAL;
+                mca_btl_smcuda_send_cuda_pack_sig(btl, ep, &send_msg);
                 done = 0;
             } else {
                 struct iovec iov;
@@ -1224,9 +1229,28 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
             printf("RECEIVE REGT CONTIGUOUS, size %ld !!!!!!!!!!!\n", size);
             recvreq->req_recv.req_base.req_convertor.flags |= CONVERTOR_CUDA;
             if (pack_required) {
+                cuda_dt_hdr_t send_msg;
+                send_msg.lindex = lindex;
+                send_msg.packed_size = 0;
+                if (remote_device == local_device && OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {
+                    /* now we are able to let sender pack directly to my memory */
+                    mca_mpool_common_cuda_reg_t loc_reg;
+                    mca_mpool_common_cuda_reg_t *loc_reg_ptr = &loc_reg;
+                    cuda_getmemhandle(local_address, size, (mca_mpool_base_registration_t *)&loc_reg, NULL);
+                    memcpy(send_msg.mem_handle, loc_reg_ptr->data.memHandle, sizeof(loc_reg_ptr->data.memHandle));
+                    send_msg.seq = -9;
+                    send_msg.msg_type = CUDA_PACK_TO_REMOTE;
+                    send_msg.remote_address = local_address;
+                    send_msg.remote_base = loc_reg.base.base;
+                    mca_common_wait_stream_synchronize(&loc_reg);
+                    printf("send r_addr %p, r_base %p\n", local_address, loc_reg.base.base);
+                } else {
+                    send_msg.seq = 0;
+                    send_msg.msg_type = CUDA_PACK_TO_LOCAL;
+                }
                 mca_btl_smcuda_cuda_dt_unpack_clone(NULL, ep, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                     0, lindex, 0, 0);
-                mca_btl_smcuda_send_cuda_pack_sig(btl, ep, lindex, 0, 0);
+                mca_btl_smcuda_send_cuda_pack_sig(btl, ep, &send_msg);
                 done = 0;
             } else {
                 rc = mca_common_cuda_memcpy(local_address, remote_memory_address, size,
@@ -1335,7 +1359,7 @@ static void mca_btl_smcuda_send_cuda_ipc_request(struct mca_btl_base_module_t* b
 
 int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
                                            struct mca_btl_base_endpoint_t* endpoint, 
-                                           int lindex, int packed_size, int seq)
+                                           cuda_dt_hdr_t *send_msg)
 {
     mca_btl_smcuda_frag_t* frag;
     int rc;
@@ -1350,19 +1374,16 @@ int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
 
     /* Fill in fragment fields. */
     frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
-    cuda_dt_hdr.seq = seq;
-    cuda_dt_hdr.lindex = lindex;
-    cuda_dt_hdr.packed_size = packed_size;
-    memcpy(frag->segment.seg_addr.pval, &cuda_dt_hdr, sizeof(cuda_dt_hdr_t));
+    memcpy(frag->segment.seg_addr.pval, send_msg, sizeof(cuda_dt_hdr_t));
     
     rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
-    printf("######## rank %d, send seq %d, endpoint %p\n", endpoint->my_smp_rank, seq, endpoint);
+    printf("######## rank %d, send seq %d, endpoint %p\n", endpoint->my_smp_rank, send_msg->seq, endpoint);
     return rc;
 }
 
 int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl,
                                       struct mca_btl_base_endpoint_t* endpoint, 
-                                      int lindex, int packed_size, int seq)
+                                      cuda_dt_hdr_t *send_msg)
 {
     mca_btl_smcuda_frag_t* frag;
     int rc;
@@ -1376,10 +1397,7 @@ int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl,
 
     /* Fill in fragment fields. */
     frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
-    cuda_dt_hdr.seq = seq;
-    cuda_dt_hdr.lindex = lindex;
-    cuda_dt_hdr.packed_size = packed_size;
-    memcpy(frag->segment.seg_addr.pval, &cuda_dt_hdr, sizeof(cuda_dt_hdr_t));
+    memcpy(frag->segment.seg_addr.pval, send_msg, sizeof(cuda_dt_hdr_t));
     
     rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
     return rc;

@@ -41,7 +41,7 @@
 #include "opal/mca/btl/btl.h"
 #include "opal/mca/common/sm/common_sm.h"
 
-#define OPAL_DATATYPE_DIRECT_COPY_GPUMEM    0
+#define OPAL_DATATYPE_DIRECT_COPY_GPUMEM    1
 
 BEGIN_C_DECLS
 
@@ -516,9 +516,21 @@ enum ipcState {
 /* cuda datatype control message */
 typedef struct {
     int seq;
+    int msg_type;
     int lindex;
     int packed_size;
+    void *remote_address;
+    void *remote_base;
+    uint64_t mem_handle[8];
 } cuda_dt_hdr_t;
+
+#define CUDA_UNPACK_FROM_REMOTE     0
+#define CUDA_PACK_COMPLETE          1
+#define CUDA_PACK_COMPLETE_ACK      2
+#define CUDA_PACK_CLEANUP           3
+#define CUDA_PACK_TO_LOCAL          4
+#define CUDA_PACK_TO_REMOTE         5
+#define CUDA_UNPACK_NO              6
 
 /* package save pack/unpack convertor and cbfunc */
 typedef struct {
@@ -536,8 +548,8 @@ typedef struct {
 #define SMCUDA_DT_CLONE_SIZE 20
 extern cuda_dt_clone_t smcuda_dt_clone[SMCUDA_DT_CLONE_SIZE];
 
-int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, int lindex, int packed_size, int seq);
-int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, int lindex, int packed_size, int seq);
+int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, cuda_dt_hdr_t *send_msg);
+int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, cuda_dt_hdr_t *send_msg);
 int mca_btl_smcuda_check_cuda_dt_pack_clone_exist(struct mca_btl_base_endpoint_t *endpoint, struct opal_convertor_t *convertor);
 int mca_btl_smcuda_set_cuda_dt_pack_seq(struct mca_btl_base_endpoint_t *endpoint, int lindex, int seq);
 int mca_btl_smcuda_get_cuda_dt_pack_seq(struct mca_btl_base_endpoint_t *endpoint, int lindex);
