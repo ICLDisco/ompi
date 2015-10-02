@@ -1259,10 +1259,8 @@ int mca_btl_smcuda_component_progress(void)
                 }
                 if( btl_ownership ) {
                     if (frag->hdr->tag == MCA_BTL_TAG_SMCUDA_DATATYPE_PACK) {
-                        printf("&&&&&&&&&&&&&&&&&&got PACK TAG\n");
                     }
                     if (frag->hdr->tag == MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK) {
-                        printf("&&&&&&&&&&&&&&&&&&got UNPACK TAG\n");
                     }
                     MCA_BTL_SMCUDA_FRAG_RETURN(frag);
                 }

@@ -613,7 +613,8 @@ opal_generic_simple_pack_cuda_function( opal_convertor_t* pConvertor,
     pStack = pConvertor->pStack + pConvertor->stack_pos;
     pos_desc   = pStack->index;
     pElem = &(description[pos_desc]);
-    
+   
+   // return (*opal_generic_simple_pack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
     if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
         if (opal_generic_simple_pack_function_cuda_vector_p != NULL) {
         //    return (*opal_generic_simple_pack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);

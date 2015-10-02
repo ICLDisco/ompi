@@ -85,6 +85,12 @@ void pack_predefined_data_cuda( dt_elem_desc_t* ELEM,
                                 unsigned char** SOURCE,
                                 unsigned char** DESTINATION,
                                 size_t* SPACE );
+                                
+void unpack_predefined_data_cuda( dt_elem_desc_t* ELEM,
+                                  uint32_t* COUNT,
+                                  unsigned char** SOURCE,
+                                  unsigned char** DESTINATION,
+                                  size_t* SPACE );
 
 void opal_cuda_sync_device(void);
 

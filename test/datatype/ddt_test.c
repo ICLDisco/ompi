@@ -779,6 +779,232 @@ clean_and_return:
     return OMPI_SUCCESS;
 }
 
+static void fill_matrix(void *matt, int msize)
+{
+    int i, j;
+#if defined (TEST_DOUBLE)
+    double *mat = (double *)matt;
+#elif defined (TEST_FLOAT)
+    float *mat = (float *)matt;
+#elif defined (TEST_CHAR)
+    char *mat = (char *)matt;
+#else
+    void *mat = matt;
+#endif
+    
+    for (i = 0; i < msize*msize; i++) {
+        mat[i] = i;
+    }
+
+   // printf("matrix generate\n");
+   // for (i = 0; i < msize; i++) {
+   //     for (j = 0; j < msize; j++) {
+   //         printf(" %1.f ", mat[i*msize+j]);
+   //     }
+   //     printf("\n");
+   // }
+}
+
+static void verify_mat(void *matt, int msize)
+{
+    int i, j, error = 0;
+#if defined (TEST_DOUBLE)
+    double *mat = (double *)matt;
+#elif defined (TEST_FLOAT)
+    float *mat = (float *)matt;
+#elif defined (TEST_CHAR)
+    char *mat = (char *)matt;
+#else
+    void *mat = matt;
+#endif
+    
+    for (i = 0; i < msize*msize; i++) {
+#if defined (TEST_CHAR) 
+        if (mat[i] != 'a') {
+#else
+        if (mat[i] != (0.0+i)) {
+#endif
+            error ++;
+        }
+    }
+    
+    // printf("matrix received\n");
+    // for (i = 0; i < msize; i++) {
+    //     for (j = 0; j < msize; j++) {
+    //         printf(" %1.f ", mat[i*msize+j]);
+    //     }
+    //     printf("\n");
+    // }
+    
+    if (error != 0) {
+        printf("error is found %d\n", error);
+    } else {
+        printf("no error is found\n");
+    }
+}
+
+static int local_copy_with_convertor_mat( ompi_datatype_t* pdt, int count, int chunk, int msize )
+{
+    void *pdst = NULL, *psrc = NULL, *ptemp = NULL, *phost = NULL;
+    opal_convertor_t *send_convertor = NULL, *recv_convertor = NULL;
+    struct iovec iov;
+    uint32_t iov_count;
+    size_t max_data, dt_length;
+    int32_t length = 0, done1 = 0, done2 = 0;
+    TIMER_DATA_TYPE start, end, unpack_start, unpack_end;
+    long total_time, unpack_time = 0;
+
+    dt_length = compute_buffer_length(pdt, count);
+    printf("length %lu\n", dt_length);
+
+#if defined (DDT_TEST_CUDA)
+    cudaSetDevice(0);
+#endif
+
+#if defined (DDT_TEST_CUDA)
+    cudaError_t error = cudaMalloc((void **)&psrc, dt_length);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(psrc, 0, dt_length);
+    printf("cudamalloc psrc %p\n", psrc);
+    
+    error = cudaMalloc((void **)&pdst, dt_length);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(pdst, 0, dt_length); 
+    printf("cudamalloc pdst %p\n", pdst);
+    
+    error = cudaMallocHost((void **)&ptemp, chunk);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    memset(ptemp, 0, chunk);
+    printf("cudamallochost ptemp %p\n", ptemp);
+    
+    error = cudaMallocHost((void **)&phost, dt_length);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    memset(phost, 0, dt_length);
+    printf("cudamallochost phost %p\n", phost);
+#else
+    pdst  = malloc(dt_length);
+    psrc  = malloc(dt_length);
+    ptemp = malloc(chunk);
+    
+    for( int i = 0; i < length; ((char*)psrc)[i] = i % 128 + 32, i++ );
+    memset( pdst, 0, length );
+#endif
+
+#if defined (DDT_TEST_CUDA)
+    if (msize > 0) {
+        fill_matrix(phost, msize);
+    }
+    cudaMemcpy(psrc, phost, dt_length, cudaMemcpyHostToDevice);
+#else 
+    if (msize > 0) {
+  //      fill_upper_matrix(psrc, msize);
+    }
+#endif
+
+    send_convertor = opal_convertor_create( remote_arch, 0 );
+#if defined (DDT_TEST_CUDA)
+    send_convertor->flags |= CONVERTOR_CUDA;
+#endif
+    if( OPAL_SUCCESS != opal_convertor_prepare_for_send( send_convertor, &(pdt->super), count, psrc ) ) {
+        printf( "Unable to create the send convertor. Is the datatype committed ?\n" );
+        goto clean_and_return;
+    }
+
+    recv_convertor = opal_convertor_create( remote_arch, 0 );
+#if defined (DDT_TEST_CUDA)
+    recv_convertor->flags |= CONVERTOR_CUDA;
+#endif
+    if( OPAL_SUCCESS != opal_convertor_prepare_for_recv( recv_convertor, &(pdt->super), count, pdst ) ) {
+        printf( "Unable to create the recv convertor. Is the datatype committed ?\n" );
+        goto clean_and_return;
+    }
+
+    cache_trash();  /* make sure the cache is useless */
+    cudaDeviceSynchronize();
+
+    GET_TIME( start );
+    while( (done1 & done2) != 1 ) {
+        /* They are supposed to finish in exactly the same time. */
+        if( done1 | done2 ) {
+            printf( "WRONG !!! the send is %s but the receive is %s in local_copy_with_convertor\n",
+                    (done1 ? "finish" : "not finish"),
+                    (done2 ? "finish" : "not finish") );
+        }
+
+        max_data = chunk;
+        iov_count = 1;
+        iov.iov_base = ptemp;
+        iov.iov_len = chunk;
+
+        if( done1 == 0 ) {
+            done1 = opal_convertor_pack( send_convertor, &iov, &iov_count, &max_data );
+        }
+        
+        // int i,j = 0;
+        // printf("buffer received\n");
+        // double *mat_temp = (double*)ptemp;
+        // for (i = 0; i < msize; i++) {
+        //     for (j = 0; j < msize; j++) {
+        //         printf(" %1.f ", mat_temp[i*msize+j]);
+        //     }
+        //     printf("\n");
+        // }
+
+        if( done2 == 0 ) {
+            GET_TIME( unpack_start );
+            done2 = opal_convertor_unpack( recv_convertor, &iov, &iov_count, &max_data );
+            GET_TIME( unpack_end );
+            unpack_time += ELAPSED_TIME( unpack_start, unpack_end );
+        }
+
+        length += max_data;
+    }
+    GET_TIME( end );
+    total_time = ELAPSED_TIME( start, end );
+    printf( "copying same data-type using convertors in %ld microsec\n", total_time );
+    printf( "\t unpack in %ld microsec [pack in %ld microsec]\n", unpack_time,
+            total_time - unpack_time );
+            
+#if defined (DDT_TEST_CUDA)
+    memset(phost, 0, dt_length);
+    cudaMemcpy(phost, pdst, dt_length, cudaMemcpyDeviceToHost);
+    if (msize > 0) {
+     verify_mat(phost, msize);
+    }
+#else
+    if (msize > 0) {
+//      verify_mat_result(pdst, msize);
+    }
+#endif
+clean_and_return:
+    if( NULL != send_convertor ) OBJ_RELEASE( send_convertor );
+    if( NULL != recv_convertor ) OBJ_RELEASE( recv_convertor );
+
+#if defined (DDT_TEST_CUDA)
+    if( NULL != pdst ) cudaFree( pdst );
+    if( NULL != psrc ) cudaFree( psrc );
+    if( NULL != ptemp ) cudaFreeHost( ptemp );
+    if( NULL != phost ) cudaFreeHost( phost );
+#else
+    if( NULL != pdst ) free( pdst );
+    if( NULL != psrc ) free( psrc );
+    if( NULL != ptemp ) free( ptemp );
+#endif
+    return OMPI_SUCCESS;
+}
+
 /**
  * Main function. Call several tests and print-out the results. It try to stress the convertor
  * using difficult data-type constructions as well as strange segment sizes for the conversion.
@@ -828,30 +1054,40 @@ int main( int argc, char* argv[] )
     }
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
-    pdt = upper_matrix(4000);
-    if( outputFlags & CHECK_PACK_UNPACK ) {
-        for (i = 1; i <= 4; i++) {
-//        local_copy_ddt_count(pdt, 1);
-            local_copy_with_convertor(pdt, 1, 1024*1024*200, 4000);
+    int mat_size = 500;
+    for (mat_size = 500; mat_size <= 6000; mat_size +=500) {
+        pdt = upper_matrix(mat_size);
+        printf("----matrix size %d-----\n", mat_size);
+        if( outputFlags & CHECK_PACK_UNPACK ) {
+            for (i = 1; i <= 1; i++) {
+     //           local_copy_with_convertor(pdt, 1, 1024*1024*200, mat_size);
+            }
         }
     }
-    OBJ_RELEASE( pdt ); assert( pdt == NULL );
-  /*  
-    mpich_typeub();
-    mpich_typeub2();
-    mpich_typeub3();
-
-    printf( "\n\n#\n * TEST UPPER MATRIX\n #\n\n" );
-    rc = test_upper( length );
-    if( rc == 0 )
-        printf( "decode [PASSED]\n" );
-    else
-        printf( "decode [NOT PASSED]\n" );
-
-    printf( "\n\n#\n * TEST MATRIX BORDERS\n #\n\n" );
-    pdt = test_matrix_borders( length, 100 );
-    if( outputFlags & DUMP_DATA_AFTER_COMMIT ) {
-        ompi_datatype_dump( pdt );
+    
+    ompi_datatype_t *column, *matt;
+    mat_size = 500;
+    ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
+    ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
+    ompi_datatype_commit( &matt );
+  //  local_copy_with_convertor_mat(matt, 1, 1200000, mat_size);
+    
+    
+    int packed_size = 256;
+    int blk_len = 4;
+    int blk_count;
+    
+    while (packed_size <= 8388608) {
+        blk_count = packed_size / blk_len / sizeof(double);
+        printf( ">>--------------------------------------------<<\n" );
+        printf( "Vector data-type packed size %d, blk %d, count %d\n", packed_size, blk_len, blk_count );
+        pdt = create_vector_type( MPI_DOUBLE, blk_count, blk_len, 128+blk_len );
+        if( outputFlags & CHECK_PACK_UNPACK ) {
+            for (i = 0; i < 4; i++) {
+            //     vector_ddt( pdt, 1, pdt, 1, 1024*1024*30, blk_count, blk_len, 128+blk_len );
+            }
+        }
+        packed_size *= 2;
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
@@ -882,9 +1118,19 @@ int main( int argc, char* argv[] )
     if( outputFlags & DUMP_DATA_AFTER_COMMIT ) {
         ompi_datatype_dump( pdt2 );
     }
-    printf( ">>--------------------------------------------<<\n" );
-    if( outputFlags & DUMP_DATA_AFTER_COMMIT ) {
-        ompi_datatype_dump( pdt3 );
+    
+    
+    for (blk_len = 64; blk_len <= 64; blk_len += 2) {
+        printf( ">>--------------------------------------------<<\n" );
+        printf( "Vector data-type (1024 times %d double stride 512)\n", blk_len );
+        pdt = create_vector_type( MPI_DOUBLE, 1000, blk_len, blk_len+128);
+        if( outputFlags & CHECK_PACK_UNPACK ) {
+            for (i = 0; i < 4; i++) {
+                 vector_ddt( pdt, 1, pdt, 1, 1024*10 , 1000, blk_len, blk_len+128);
+     //          vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
+            }
+        }
+        OBJ_RELEASE( pdt ); assert( pdt == NULL );
     }
 
     OBJ_RELEASE( pdt1 ); assert( pdt1 == NULL );
@@ -1002,7 +1248,7 @@ int main( int argc, char* argv[] )
     pdt = create_vector_type( MPI_DOUBLE, 4000, 128, 256 );
 //    ompi_datatype_dump( pdt );
     if( outputFlags & CHECK_PACK_UNPACK ) {
-        for (i = 0; i < 10; i++) {
+        for (i = 0; i < 1; i++) {
        // local_copy_ddt_count(pdt, 1);
       //  local_copy_with_convertor( pdt, 1, 12 );
       //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
@@ -1011,7 +1257,7 @@ int main( int argc, char* argv[] )
       //  local_copy_with_convertor( pdt, 1, 6000 );
       //  local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
       //  local_copy_with_convertor( pdt, 1, 36000 );
-    //      local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*1024*5 );
+     //     local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 1024*1024*5 );
         }
     }
     printf( ">>--------------------------------------------<<\n" );
