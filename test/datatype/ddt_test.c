@@ -30,7 +30,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DDT_TEST_CUDA
+//#define DDT_TEST_CUDA
+#define CUDA_MEMCPY_2D_D2H
+
 
 #if defined (DDT_TEST_CUDA)
 #include <cuda_runtime_api.h>
@@ -1066,11 +1068,11 @@ int main( int argc, char* argv[] )
     }
     
     ompi_datatype_t *column, *matt;
-    mat_size = 500;
+    mat_size = 1500;
     ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
     ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
     ompi_datatype_commit( &matt );
-  //  local_copy_with_convertor_mat(matt, 1, 1200000, mat_size);
+    local_copy_with_convertor_mat(matt, 1, 200000000, mat_size);
     
     
     int packed_size = 256;
@@ -1126,7 +1128,7 @@ int main( int argc, char* argv[] )
         pdt = create_vector_type( MPI_DOUBLE, 1000, blk_len, blk_len+128);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 0; i < 4; i++) {
-                 vector_ddt( pdt, 1, pdt, 1, 1024*10 , 1000, blk_len, blk_len+128);
+                 vector_ddt( pdt, 1, pdt, 1, 1024*10240 , 1000, blk_len, blk_len+128);
      //          vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
