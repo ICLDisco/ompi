@@ -41,7 +41,7 @@
 #include "opal/mca/btl/btl.h"
 #include "opal/mca/common/sm/common_sm.h"
 
-#define OPAL_DATATYPE_DIRECT_COPY_GPUMEM    1
+#define OPAL_DATATYPE_DIRECT_COPY_GPUMEM    0
 
 BEGIN_C_DECLS
 
@@ -524,13 +524,14 @@ typedef struct {
     uint64_t mem_handle[8];
 } cuda_dt_hdr_t;
 
-#define CUDA_UNPACK_FROM_REMOTE     0
+#define CUDA_UNPACK_FROM_SEQ        0
 #define CUDA_PACK_COMPLETE          1
 #define CUDA_PACK_COMPLETE_ACK      2
 #define CUDA_PACK_CLEANUP           3
-#define CUDA_PACK_TO_LOCAL          4
-#define CUDA_PACK_TO_REMOTE         5
-#define CUDA_UNPACK_NO              6
+#define CUDA_PACK_TO_LOCAL_START    4
+#define CUDA_PACK_TO_REMOTE_START   5
+#define CUDA_PACK_TO_SEQ      6
+#define CUDA_UNPACK_NO              7
 
 /* package save pack/unpack convertor and cbfunc */
 typedef struct {

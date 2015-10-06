@@ -25,6 +25,8 @@
 #ifndef MCA_BTL_IB_FRAG_H
 #define MCA_BTL_IB_FRAG_H
 
+#define OPAL_OPENIB_PAD_HDR 1
+
 #include "opal_config.h"
 #include "opal/align.h"
 #include "opal/mca/btl/btl.h"

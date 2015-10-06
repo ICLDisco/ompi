@@ -727,8 +727,8 @@ void unpack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
 #endif
 //    tasks_per_block = THREAD_PER_BLOCK * TASK_PER_THREAD;
 //    num_blocks = (*COUNT + tasks_per_block - 1) / tasks_per_block;
-    unpack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
-//     cudaMemcpy2D(_destination, _loop->extent, _source, _end_loop->size, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
+//    unpack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
+     cudaMemcpy2D(_destination, _loop->extent, _source, _end_loop->size, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
 
 #if !defined(OPAL_DATATYPE_CUDA_DRY_RUN)     
     *(DESTINATION) = _destination + _loop->extent*_copy_loops - _end_loop->first_elem_disp;
@@ -818,8 +818,13 @@ void unpack_contiguous_loop_cuda_zerocopy( dt_elem_desc_t* ELEM,
 //    tasks_per_block = THREAD_PER_BLOCK * TASK_PER_THREAD;
 //    num_blocks = (*COUNT + tasks_per_block - 1) / tasks_per_block;
 //    cudaHostRegister(_source, _copy_loops*_end_loop->size, cudaHostRegisterMapped);
-    cudaHostGetDevicePointer((void **)&_source_dev, (void *) _source, 0);
-    unpack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
+    cudaError_t reg_rv = cudaHostGetDevicePointer((void **)&_source_dev, (void *) _source, 0);
+    if (reg_rv != cudaSuccess) {
+        const char *cuda_err = cudaGetErrorString(reg_rv);
+        printf("can not get dev mem, %s\n", cuda_err);
+    }
+    //cudaMemcpy2D(_destination, _loop->extent, _source_dev, _end_loop->size, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
+    unpack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source_dev, _destination);
 
 #if !defined(OPAL_DATATYPE_CUDA_DRY_RUN)
     *(DESTINATION) = _destination + _loop->extent*_copy_loops - _end_loop->first_elem_disp;

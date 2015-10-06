@@ -1205,7 +1205,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 send_msg.lindex = lindex;
                 send_msg.packed_size = 0;
                 send_msg.seq = 0;
-                send_msg.msg_type = CUDA_PACK_TO_LOCAL;
+                send_msg.msg_type = CUDA_PACK_TO_LOCAL_START;
                 mca_btl_smcuda_send_cuda_pack_sig(btl, ep, &send_msg);
                 done = 0;
             } else {
@@ -1239,14 +1239,14 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                     cuda_getmemhandle(local_address, size, (mca_mpool_base_registration_t *)&loc_reg, NULL);
                     memcpy(send_msg.mem_handle, loc_reg_ptr->data.memHandle, sizeof(loc_reg_ptr->data.memHandle));
                     send_msg.seq = -9;
-                    send_msg.msg_type = CUDA_PACK_TO_REMOTE;
+                    send_msg.msg_type = CUDA_PACK_TO_REMOTE_START;
                     send_msg.remote_address = local_address;
                     send_msg.remote_base = loc_reg.base.base;
                     mca_common_wait_stream_synchronize(&loc_reg);
                     printf("send r_addr %p, r_base %p\n", local_address, loc_reg.base.base);
                 } else {
                     send_msg.seq = 0;
-                    send_msg.msg_type = CUDA_PACK_TO_LOCAL;
+                    send_msg.msg_type = CUDA_PACK_TO_LOCAL_START;
                 }
                 mca_btl_smcuda_cuda_dt_unpack_clone(NULL, ep, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                     0, lindex, 0, 0);

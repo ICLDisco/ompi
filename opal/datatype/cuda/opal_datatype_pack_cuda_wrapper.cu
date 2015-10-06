@@ -604,7 +604,8 @@ void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
 #endif    
  //   tasks_per_block = THREAD_PER_BLOCK * TASK_PER_THREAD;
  //   num_blocks = (*COUNT + tasks_per_block - 1) / tasks_per_block;
- //    cudaMemcpy2D(_destination, _end_loop->size, _source, _loop->extent, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
+//    printf("extent %ld, size %ld, count %ld\n", _loop->extent, _end_loop->size, _copy_loops);
+    cudaMemcpy2D(_destination, _end_loop->size, _source, _loop->extent, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
 //    pack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
 //    int i;
 //    for (i = 0; i < 4; i++) {
@@ -775,7 +776,12 @@ void pack_contiguous_loop_cuda_zerocopy( dt_elem_desc_t* ELEM,
  //   tasks_per_block = THREAD_PER_BLOCK * TASK_PER_THREAD;
  //   num_blocks = (*COUNT + tasks_per_block - 1) / tasks_per_block;
  //   cudaHostRegister(_destination, _copy_loops*_end_loop->size, cudaHostRegisterMapped);
-    cudaHostGetDevicePointer((void **)&_destination_dev, (void *) _destination, 0);
+    cudaError_t reg_rv = cudaHostGetDevicePointer((void **)&_destination_dev, (void *) _destination, 0);
+    if (reg_rv != cudaSuccess) {
+        const char *cuda_err = cudaGetErrorString(reg_rv);
+        printf("can not get dev  mem, %s\n", cuda_err);
+    }
+    //cudaMemcpy2D(_destination_dev, _end_loop->size, _source, _loop->extent, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
     pack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination_dev);
 
 #if !defined(OPAL_DATATYPE_CUDA_DRY_RUN)    
@@ -851,13 +857,13 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
         }
         transfer_required = 0;
     } else {
+        buffer_size = iov[0].iov_len;
         if (OPAL_DATATYPE_VECTOR_USE_ZEROCPY) {
             pConvertor->gpu_buffer_ptr = NULL;
             transfer_required = 0;
             free_required = 0;
             cudaHostGetDevicePointer((void **)&destination, (void *)iov[0].iov_base, 0);
         } else {
-            buffer_size = iov[0].iov_len;
             if (pConvertor->gpu_buffer_ptr == NULL) {
                 pConvertor->gpu_buffer_ptr = (unsigned char*)opal_cuda_malloc_gpu_buffer(buffer_size, 0);
             }

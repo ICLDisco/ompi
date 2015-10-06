@@ -120,6 +120,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
             base = opal_cuda_malloc_gpu_buffer_p(convertor->local_size, 0);
             convertor->gpu_buffer_ptr = base;
+            convertor->gpu_buffer_size = convertor->local_size;
             sendreq->req_send.req_bytes_packed = convertor->local_size;
             printf("GPU BUFFER %p, local %lu, remote %lu\n", base, convertor->local_size, convertor->remote_size);
             if( 0 != (sendreq->req_rdma_cnt = (uint32_t)mca_pml_ob1_rdma_cuda_btls(
