@@ -157,7 +157,6 @@ int mca_pml_ob1_isend(const void *buf,
     MCA_PML_OB1_SEND_REQUEST_ALLOC(comm, dst, sendreq);
     if (NULL == sendreq)
         return OMPI_ERR_OUT_OF_RESOURCE;
-
     MCA_PML_OB1_SEND_REQUEST_INIT(sendreq,
                                   buf,
                                   count,

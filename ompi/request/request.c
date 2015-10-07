@@ -125,7 +125,7 @@ int ompi_request_init(void)
     ompi_request_null.request.req_status._ucount = 0;
     ompi_request_null.request.req_status._cancelled = 0;
 
-    ompi_request_null.request.req_complete = true;
+    ompi_request_null.request.req_complete = REQUEST_COMPLETED;
     ompi_request_null.request.req_state = OMPI_REQUEST_INACTIVE;
     ompi_request_null.request.req_persistent = false;
     ompi_request_null.request.req_f_to_c_index =
@@ -157,7 +157,7 @@ int ompi_request_init(void)
     ompi_request_empty.req_status._ucount = 0;
     ompi_request_empty.req_status._cancelled = 0;
 
-    ompi_request_empty.req_complete = true;
+    ompi_request_empty.req_complete = REQUEST_COMPLETED;
     ompi_request_empty.req_state = OMPI_REQUEST_ACTIVE;
     ompi_request_empty.req_persistent = false;
     ompi_request_empty.req_f_to_c_index =

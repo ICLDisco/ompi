@@ -137,7 +137,7 @@ static inline ucp_ep_h mca_pml_ucx_get_ep(ompi_communicator_t *comm, int dst)
 
 static inline void mca_pml_ucx_request_reset(ompi_request_t *req)
 {
-    req->req_complete          = false;
+    req->req_complete          = REQUEST_PENDING;
     req->req_status._cancelled = false;
 }
 

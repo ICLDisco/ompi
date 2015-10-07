@@ -30,7 +30,7 @@ static int request_free(struct ompi_request_t **ompi_req)
     ompi_osc_rdma_request_t *request =
         (ompi_osc_rdma_request_t*) *ompi_req;
 
-    if (true != request->super.req_complete) {
+    if (REQUEST_COMPLETED != request->super.req_complete) {
         return MPI_ERR_REQUEST;
     }
 

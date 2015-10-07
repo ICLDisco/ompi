@@ -37,6 +37,7 @@
 #include "ompi/mca/bml/base/base.h"
 #include "ompi/memchecker.h"
 
+
 OBJ_CLASS_INSTANCE(mca_pml_ob1_send_range_t, opal_free_list_item_t,
         NULL, NULL);
 
@@ -97,12 +98,14 @@ void mca_pml_ob1_send_request_process_pending(mca_bml_base_btl_t *bml_btl)
 static int mca_pml_ob1_send_request_free(struct ompi_request_t** request)
 {
     mca_pml_ob1_send_request_t* sendreq = *(mca_pml_ob1_send_request_t**)request;
-
-    assert( false == sendreq->req_send.req_base.req_free_called );
-
-    OPAL_THREAD_LOCK(&ompi_request_lock);
+#if OPAL_ENABLE_MULTI_THREADS
+    if(!opal_atomic_cmpset_32(&sendreq->req_send.req_base.req_free_called,
+                             0, 1))
+        goto done;
+#else
+    assert(false == sendreq->req_send.req_base.req_free_called);
     sendreq->req_send.req_base.req_free_called = true;
-
+#endif
     PERUSE_TRACE_COMM_EVENT( PERUSE_COMM_REQ_NOTIFY,
                              &(sendreq->req_send.req_base), PERUSE_SEND );
 
@@ -119,8 +122,7 @@ static int mca_pml_ob1_send_request_free(struct ompi_request_t** request)
         MCA_PML_OB1_SEND_REQUEST_RETURN( sendreq );
     }
 
-    OPAL_THREAD_UNLOCK(&ompi_request_lock);
-
+ done:
     *request = MPI_REQUEST_NULL;
     return OMPI_SUCCESS;
 }
@@ -446,9 +448,7 @@ int mca_pml_ob1_send_request_start_buffered(
     sendreq->req_state = 2;
 
     /* request is complete at mpi level */
-    OPAL_THREAD_LOCK(&ompi_request_lock);
     MCA_PML_OB1_SEND_REQUEST_MPI_COMPLETE(sendreq, true);
-    OPAL_THREAD_UNLOCK(&ompi_request_lock);
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RNDV);
@@ -573,7 +573,7 @@ int mca_pml_ob1_send_request_start_copy( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send_status(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
-    if( OPAL_LIKELY( rc >= OMPI_SUCCESS ) ) {
+    if( OPAL_LIKELY( rc >= OPAL_SUCCESS ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_match_completion_free_request( bml_btl, sendreq );
         }
@@ -633,7 +633,7 @@ int mca_pml_ob1_send_request_start_prepare( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
-    if( OPAL_LIKELY( rc >= 0 ) ) {
+    if( OPAL_LIKELY( rc >= OPAL_SUCCESS ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_match_completion_free_request( bml_btl, sendreq );
         }
@@ -941,7 +941,7 @@ mca_pml_ob1_send_request_schedule_once(mca_pml_ob1_send_request_t* sendreq)
         prev_bytes_remaining = range->range_send_length;
 
         if( OPAL_UNLIKELY(num_fail == range->range_btl_cnt) ) {
-            assert(sendreq->req_pending == MCA_PML_OB1_SEND_PENDING_NONE);
+            /*TODO : assert(send$req->req_pending == MCA_PML_OB1_SEND_PENDING_NONE); */
             add_request_to_send_pending(sendreq,
                     MCA_PML_OB1_SEND_PENDING_SCHEDULE, true);
             /* Note that request remains locked. send_request_process_pending()

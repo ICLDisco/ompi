@@ -79,7 +79,7 @@ int mca_io_ompio_component_progress ( void )
 
     OPAL_LIST_FOREACH(litem, &mca_io_ompio_pending_requests, opal_list_item_t) {
         req = GET_OMPIO_REQ_FROM_ITEM(litem);
-	if ( true == req->req_ompi.req_complete ) {
+	if ( REQUEST_COMPLETED == req->req_ompi.req_complete ) {
 	    continue;
 	}
         if ( NULL != req->req_progress_fn ) {

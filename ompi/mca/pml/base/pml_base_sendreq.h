@@ -88,7 +88,7 @@ OMPI_DECLSPEC OBJ_CLASS_DECLARATION( mca_pml_base_send_request_t );
       (request)->req_base.req_tag = (int32_t)tag;                         \
       (request)->req_base.req_comm = comm;                                \
       /* (request)->req_base.req_proc is set on request allocation */     \
-      (request)->req_base.req_pml_complete = OPAL_INT_TO_BOOL(persistent); \
+      (request)->req_base.req_pml_complete = false;                       \
       (request)->req_base.req_free_called = false;                        \
       (request)->req_base.req_ompi.req_status._cancelled = 0;             \
       (request)->req_bytes_packed = 0;                                    \
@@ -119,7 +119,7 @@ OMPI_DECLSPEC OBJ_CLASS_DECLARATION( mca_pml_base_send_request_t );
 #define MCA_PML_BASE_SEND_START( request )                    \
     do {                                                      \
         (request)->req_pml_complete = false;                  \
-        (request)->req_ompi.req_complete = false;             \
+        (request)->req_ompi.req_complete = REQUEST_PENDING;   \
         (request)->req_ompi.req_state = OMPI_REQUEST_ACTIVE;  \
         (request)->req_ompi.req_status._cancelled = 0;        \
     } while (0)

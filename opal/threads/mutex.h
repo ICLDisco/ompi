@@ -325,6 +325,11 @@ OPAL_THREAD_ADD_SIZE_T(volatile size_t *addr, int delta)
 #define OPAL_ATOMIC_CMPSET(x, y, z) \
     (opal_using_threads() ? opal_atomic_cmpset(x, y, z) : OPAL_CMPSET(x, y, z))
 #endif
+#if OPAL_HAVE_ATOMIC_CMPSET_32 || OPAL_HAVE_ATOMIC_CMPSET_64
+#define OPAL_ATOMIC_CMPSET_PTR(x, y, z) \
+    (opal_using_threads() ? opal_atomic_cmpset_ptr(x, y, z) : OPAL_CMPSET(x, y, z))
+#endif
+
 
 END_C_DECLS
 

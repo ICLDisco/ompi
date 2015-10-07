@@ -79,7 +79,7 @@ int MPI_Bsend_init(const void *buf, int count, MPI_Datatype type,
            ompi_request_t */
         (*request)->req_type = OMPI_REQUEST_NOOP;
         (*request)->req_status = ompi_request_empty.req_status;
-        (*request)->req_complete = true;
+        (*request)->req_complete = REQUEST_COMPLETED;
         (*request)->req_state = OMPI_REQUEST_INACTIVE;
         (*request)->req_persistent = true;
         (*request)->req_free = ompi_request_persistent_proc_null_free;
