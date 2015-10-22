@@ -52,8 +52,8 @@ struct mca_btl_base_endpoint_t {
     opal_proc_t *proc_opal;  /**< Needed for adding CUDA IPC support dynamically */
     enum ipcState ipcstate;  /**< CUDA IPC connection status */
     int ipctries;            /**< Number of times CUDA IPC connect was sent */
-    cuda_dt_clone_t smcuda_dt_pack_clone[SMCUDA_DT_CLONE_SIZE];
-    cuda_dt_clone_t smcuda_dt_unpack_clone[SMCUDA_DT_CLONE_SIZE];
+    cuda_ddt_clone_t smcuda_ddt_pack_clone[SMCUDA_DT_CLONE_SIZE];
+    cuda_ddt_clone_t smcuda_ddt_unpack_clone[SMCUDA_DT_CLONE_SIZE];
 #endif /* OPAL_CUDA_SUPPORT */
 };
 

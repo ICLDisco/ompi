@@ -137,7 +137,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                     return rc;
                 }
                 mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, 0, lindex, 1, local_device); 
-                mca_btl_smcuda_cuda_dt_pack_clone(convertor, bml_btl->btl_endpoint, NULL, NULL, 0, lindex, 0, local_device);
+                mca_btl_smcuda_cuda_dt_pack_clone( bml_btl->btl_endpoint, convertor, NULL, NULL, 0, lindex, 0, local_device);
     
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                          sendreq->req_send.req_bytes_packed);

@@ -10,9 +10,9 @@
 
 /* OPAL_CUDA */
 // #define OPAL_DATATYPE_CUDA_DRY_RUN
-#define OPAL_DATATYPE_CUDA_DEBUG
+#define OPAL_DATATYPE_CUDA_DEBUG    1
 //#define OPAL_DATATYPE_CUDA_KERNEL_TIME
-#define OPAL_DATATYPE_CUDA_DEBUG_LEVEL  0
+#define OPAL_DATATYPE_CUDA_DEBUG_LEVEL  2
 #define OPAL_DATATYPE_CUDA_TIMING
 #define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D   0
 #define OPAL_DATATYPE_VECTOR_USE_ZEROCPY   0
@@ -40,43 +40,16 @@
 #define ELAPSED_TIME(TSTART, TEND)  (((TEND).tv_sec - (TSTART).tv_sec) * 1000000 + ((TEND).tv_usec - (TSTART).tv_usec))
 
 
-
-typedef struct {
-    uint32_t description_index[200];     /* index of y direction */
-    uint32_t description_local_index[200];   /* index of x direction */
-    uint32_t dst_offset[200];
-    uint32_t description_used;
-} ddt_cuda_description_dist_t;
-
-typedef struct {
-    dt_stack_t pStack[DT_STATIC_STACK_SIZE];
-    dt_elem_desc_t* description;
-    struct iovec iov[IOV_ARRAY_SIZE];
-    uint32_t stack_pos;
-    uint32_t stack_size;
-    unsigned char* pBaseBuf; /* const */
-    OPAL_PTRDIFF_TYPE lb;  /* const */
-    OPAL_PTRDIFF_TYPE ub;  /* const */
-    size_t bConverted;
-    size_t local_size; /* const */
-    uint32_t out_size;
-    size_t max_data;
-    uint32_t description_count;
-    uint32_t description_max_count;
-    ddt_cuda_description_dist_t *description_dist;
-} ddt_cuda_desc_t;
-
 typedef struct {
     cudaStream_t opal_cuda_stream[NB_STREAMS];
     uint32_t current_stream_id;
 } ddt_cuda_stream_t;
 
 typedef struct {
-    unsigned char* src[CUDA_IOV_MAX_TASK_PER_BLOCK];
-    unsigned char* dst[CUDA_IOV_MAX_TASK_PER_BLOCK];
-    uint32_t nb_elements[CUDA_IOV_MAX_TASK_PER_BLOCK];
-    uint8_t element_alignment[CUDA_IOV_MAX_TASK_PER_BLOCK];
-    uint32_t nb_tasks;
+    size_t src_offset;
+    size_t dst_offset;
+    uint32_t nb_elements;
+    uint8_t element_alignment;
 } ddt_cuda_iov_dist_t;
 
 typedef struct ddt_cuda_buffer{
@@ -103,19 +76,11 @@ typedef struct {
 
 extern ddt_cuda_list_t *cuda_free_list;
 extern ddt_cuda_device_t *cuda_device;
-extern ddt_cuda_desc_t *cuda_desc_d, *cuda_desc_h;
-extern unsigned char* pBaseBuf_GPU;
-extern unsigned char *ddt_cuda_pack_buffer, *ddt_cuda_unpack_buffer;
-extern size_t ddt_cuda_buffer_space;
 extern ddt_cuda_stream_t* cuda_streams;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
-extern ddt_cuda_description_dist_t description_dist_h[CUDA_MAX_NB_BLOCKS];
-extern ddt_cuda_description_dist_t* description_dist_d;
-extern ddt_cuda_iov_dist_t cuda_iov_dist_h[NB_STREAMS][CUDA_MAX_NB_BLOCKS];
+extern ddt_cuda_iov_dist_t* cuda_iov_dist_h[NB_STREAMS];
 extern ddt_cuda_iov_dist_t* cuda_iov_dist_d[NB_STREAMS];
-extern dt_elem_desc_t* description_d;
-extern uint8_t opal_datatype_cuda_debug;
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
@@ -125,24 +90,6 @@ extern uint8_t opal_datatype_cuda_debug;
 #else 
 #define DBGPRINT(fmt, ...) 
 #endif 
-
-__device__ void pack_contiguous_loop_cuda_kernel( dt_elem_desc_t* ELEM,
-                                                  uint32_t* COUNT,
-                                                  unsigned char** SOURCE,
-                                                  unsigned char** DESTINATION,
-                                                  size_t* SPACE );
-                                                            
-__device__ void unpack_contiguous_loop_cuda_kernel( dt_elem_desc_t* ELEM,
-                                                    uint32_t* COUNT,
-                                                    unsigned char** SOURCE,
-                                                    unsigned char** DESTINATION,
-                                                    size_t* SPACE );
-                                                  
-__global__ void opal_generic_simple_pack_cuda_kernel(ddt_cuda_desc_t* cuda_desc);
-
-__global__ void opal_generic_simple_pack_cuda_kernel_v2(ddt_cuda_desc_t* cuda_desc);
-
-__global__ void opal_generic_simple_unpack_cuda_kernel(ddt_cuda_desc_t* cuda_desc);
 
 __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
                                                          size_t size,
@@ -156,11 +103,10 @@ __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
                                                            unsigned char* source,
                                                            unsigned char* destination );
                                                            
-// __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_description_dist_t* desc_dist_d, dt_elem_desc_t* desc_d, uint32_t required_blocks, struct iovec* iov, unsigned char* pBaseBuf);
 
-__global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist);
+__global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
 
-__global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist);
+__global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
 
 __global__ void opal_empty_kernel(uint32_t copy_loops,
                                   size_t size,
@@ -173,7 +119,7 @@ __global__ void opal_empty_kernel_noargs();
 void opal_cuda_output(int output_id, const char *format, ...);
 
 #if defined (OPAL_DATATYPE_CUDA_DEBUG)
-#define DT_CUDA_DEBUG( INST ) if (opal_datatype_cuda_debug) { INST }
+#define DT_CUDA_DEBUG( INST ) if (OPAL_DATATYPE_CUDA_DEBUG) { INST }
 #else
 #define DT_CUDA_DEBUG( INST )
 #endif

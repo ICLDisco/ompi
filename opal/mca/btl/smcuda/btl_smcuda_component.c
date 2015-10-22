@@ -180,7 +180,7 @@ static int smcuda_register(void)
     mca_btl_smcuda_param_register_int("use_cuda_ipc", 1, OPAL_INFO_LVL_4, &mca_btl_smcuda_component.use_cuda_ipc);
     mca_btl_smcuda_param_register_int("use_cuda_ipc_same_gpu", 1, OPAL_INFO_LVL_4,&mca_btl_smcuda_component.use_cuda_ipc_same_gpu);
     mca_btl_smcuda_param_register_int("cuda_ipc_verbose", 0, OPAL_INFO_LVL_4, &mca_btl_smcuda_component.cuda_ipc_verbose);
-    mca_btl_smcuda_param_register_int("cuda_ddt_pipeline_size", 1024*1024*400, OPAL_INFO_LVL_4, &mca_btl_smcuda_component.cuda_dt_pipeline_size);
+    mca_btl_smcuda_param_register_int("cuda_ddt_pipeline_size", 1024*1024*400, OPAL_INFO_LVL_4, &mca_btl_smcuda_component.cuda_ddt_pipeline_size);
     mca_btl_smcuda_component.cuda_ipc_output = opal_output_open(NULL);
     opal_output_set_verbosity(mca_btl_smcuda_component.cuda_ipc_output, mca_btl_smcuda_component.cuda_ipc_verbose);
 #else /* OPAL_CUDA_SUPPORT */
@@ -836,19 +836,14 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     int msg_type = cuda_dt_hdr.msg_type;
     size_t packed_size = cuda_dt_hdr.packed_size;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
-    cuda_dt_clone_t *my_cuda_dt_clone;
-    cuda_dt_hdr_t send_msg;
-    
-    uint32_t iov_count = 1;
-    int rc_dt = 0;
-    size_t max_data = 0;
+    cuda_ddt_clone_t *my_cuda_dt_clone;
 
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
-    my_cuda_dt_clone = &endpoint->smcuda_dt_unpack_clone[lindex];
+    my_cuda_dt_clone = &endpoint->smcuda_ddt_unpack_clone[lindex];
     assert(my_cuda_dt_clone->lindex == lindex);
     
-    printf("$$$$$$$$$$$$$$hello, rank %d in smcuda unpack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
+    printf("$$$$$$$$$$$$$$hello, rank %d in smcuda unpack seq %d, index %d\n", endpoint->my_smp_rank, seq, lindex);
     cuda_dt_hdr_t send_msg;
     send_msg.lindex = lindex;
     
@@ -917,13 +912,18 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     size_t packed_size = cuda_dt_hdr.packed_size;
     int msg_type = cuda_dt_hdr.msg_type;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
-    cuda_dt_clone_t *my_cuda_dt_clone;
+    cuda_ddt_clone_t *my_cuda_dt_clone;
+    cuda_dt_hdr_t send_msg;
+    
+    uint32_t iov_count = 1;
+    int rc_dt = 0;
+    size_t max_data = 0;
 
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
-    my_cuda_dt_clone = &endpoint->smcuda_dt_pack_clone[lindex];
+    my_cuda_dt_clone = &endpoint->smcuda_ddt_pack_clone[lindex];
     
-    printf("$$$$$$$$$$$$$$hello, rank %d in smcuda pack seq %d, index %d\n", my_cuda_dt_clone->endpoint->my_smp_rank, seq, lindex);
+    printf("$$$$$$$$$$$$$$hello, rank %d in smcuda pack seq %d, index %d\n", endpoint->my_smp_rank, seq, lindex);
     struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
     send_msg.lindex = lindex;
     if (msg_type == CUDA_PACK_COMPLETE_ACK) {
@@ -975,7 +975,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             send_msg.msg_type = CUDA_UNPACK_FROM_SEQ;
         }
         struct iovec iov;
-        packed_size = mca_btl_smcuda_component.cuda_dt_pipeline_size;
+        packed_size = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
         printf("Pipeline_size %ld\n", packed_size);
         iov.iov_base = convertor->gpu_buffer_ptr;
         iov.iov_len = packed_size;

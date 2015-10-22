@@ -5,21 +5,10 @@
 
 int32_t opal_datatype_gpu_init(void);
 int32_t opal_datatype_gpu_fini(void);
-unsigned char* opal_datatype_get_gpu_buffer(void);
 
 extern void (*opal_datatype_cuda_init_p)(void);
 
 extern void (*opal_datatype_cuda_fini_p)(void);
-
-extern int32_t (*opal_generic_simple_pack_function_cuda_p)( opal_convertor_t* pConvertor,
-                                                            struct iovec* iov, 
-                                                            uint32_t* out_size,
-                                                            size_t* max_data );
-                                                            
-extern int32_t (*opal_generic_simple_unpack_function_cuda_p)( opal_convertor_t* pConvertor,
-                                                              struct iovec* iov, 
-                                                              uint32_t* out_size,
-                                                              size_t* max_data );
                                                               
 extern int32_t (*opal_generic_simple_pack_function_cuda_iov_p)( opal_convertor_t* pConvertor,
                                                                 struct iovec* iov, 
@@ -60,8 +49,6 @@ extern void (*pack_predefined_data_cuda_p)( dt_elem_desc_t* ELEM,
                                             size_t* SPACE );
                                             
 extern void (*opal_cuda_sync_device_p)(void);
-
-extern unsigned char* (*opal_cuda_get_gpu_pack_buffer_p)(void);
 
 extern void (*opal_cuda_free_gpu_buffer_p)(void *addr, int gpu_id);
 

@@ -207,7 +207,7 @@ struct mca_btl_smcuda_component_t {
     int cuda_ipc_output;
     int use_cuda_ipc;
     int use_cuda_ipc_same_gpu;
-    int cuda_dt_pipeline_size;
+    int cuda_ddt_pipeline_size;
 #endif /* OPAL_CUDA_SUPPORT */
     unsigned long mpool_min_size;
     char *allocator;
@@ -536,7 +536,6 @@ typedef struct {
 /* package save pack/unpack convertor and cbfunc */
 typedef struct {
     struct opal_convertor_t *convertor;
-    struct mca_btl_base_endpoint_t *endpoint;
     void *remote_gpu_address;
     size_t pipeline_size;
     int lindex;
@@ -544,10 +543,10 @@ typedef struct {
     uint8_t remote_device;
     uint8_t local_device;
     mca_btl_base_descriptor_t *frag;
-} cuda_dt_clone_t;
+} cuda_ddt_clone_t;
 
 #define SMCUDA_DT_CLONE_SIZE 20
-extern cuda_dt_clone_t smcuda_dt_clone[SMCUDA_DT_CLONE_SIZE];
+extern cuda_ddt_clone_t smcuda_dt_clone[SMCUDA_DT_CLONE_SIZE];
 
 int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, cuda_dt_hdr_t *send_msg);
 int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, cuda_dt_hdr_t *send_msg);
@@ -559,14 +558,14 @@ int mca_btl_smcuda_alloc_cuda_dt_pack_clone(struct mca_btl_base_endpoint_t *endp
 int mca_btl_smcuda_alloc_cuda_dt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint);
 void mca_btl_smcuda_free_cuda_dt_pack_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex);
 void mca_btl_smcuda_free_cuda_dt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex);
-void mca_btl_smcuda_cuda_dt_pack_clone(struct opal_convertor_t *convertor,
-                                       struct mca_btl_base_endpoint_t *endpoint,
+void mca_btl_smcuda_cuda_dt_pack_clone(struct mca_btl_base_endpoint_t *endpoint,
+                                       struct opal_convertor_t *convertor,
                                        void *remote_gpu_address,
                                        mca_btl_base_descriptor_t *frag,
                                        size_t pipeline_size,
                                        int lindex, uint8_t remote_device, uint8_t local_device);
-void mca_btl_smcuda_cuda_dt_unpack_clone(struct opal_convertor_t *convertor,
-                                         struct mca_btl_base_endpoint_t *endpoint,
+void mca_btl_smcuda_cuda_dt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint,
+                                         struct opal_convertor_t *convertor,
                                          void *remote_gpu_address,
                                          mca_btl_base_descriptor_t *frag,
                                          size_t pipeline_size,
