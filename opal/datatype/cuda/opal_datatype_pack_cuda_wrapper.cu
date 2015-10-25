@@ -300,6 +300,7 @@ int32_t opal_generic_simple_pack_function_cuda_vector(opal_convertor_t* pConvert
                 iov_ptr = pConvertor->gpu_buffer_ptr;
             }
         }
+        cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
         while( 1 ) {
             while( pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA ) {
                 /* now here we have a basic datatype */
@@ -442,7 +443,7 @@ void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
 //    int i;
 //    for (i = 0; i < 4; i++) {
 //     opal_empty_kernel<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
-     pack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
+ //    pack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
 //     }
 
 #if !defined(OPAL_DATATYPE_CUDA_DRY_RUN)    
@@ -639,7 +640,7 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
                                                     size_t* max_data )
 {
     uint32_t i, j;
-    uint32_t count_desc, current_block, task_iteration, nb_blocks_per_description, residue_desc;
+    uint32_t count_desc, nb_blocks_per_description, residue_desc;
     uint32_t nb_blocks, thread_per_block, nb_blocks_used;
     size_t length, buffer_size, length_per_iovec, dst_offset;
     unsigned char *destination, *destination_base, *source_base;
@@ -713,6 +714,8 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
     convertor_flags = pConvertor->flags;
   //  orig_stack_index = pStack->index;
     destination_base = destination;
+    
+    cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start_total);
@@ -733,12 +736,10 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
     dst_offset = 0;
     thread_per_block = CUDA_WARP_SIZE * 5;
     nb_blocks = 256;
-    nb_blocks_used = 0;
     
     while (cuda_iov_count > 0) {
         
-        current_block = 0;
-        task_iteration = 0;
+        nb_blocks_used = 0;
         cuda_iov_dist_h_current = cuda_iov_dist_h[cuda_streams->current_stream_id];
         cuda_iov_dist_d_current = cuda_iov_dist_d[cuda_streams->current_stream_id];
         source_base = (unsigned char*)cuda_iov[0].iov_base; 
@@ -746,9 +747,6 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
         GET_TIME(start);
 #endif
-        for (i = 0; i < nb_blocks; i++) {
-            cuda_iov_dist_h_current[i].nb_tasks = 0;
-        }
 
         for (i = 0; i < cuda_iov_count; i++) {
           /*  pElem = &(description[orig_stack_index+i]);*/
@@ -783,21 +781,17 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
                 cuda_iov_dist_h_current[nb_blocks_used].dst_offset = destination - destination_base;
                 cuda_iov_dist_h_current[nb_blocks_used].element_alignment = alignment;
                 if ( (j+1) * thread_per_block <= count_desc) {
-                    cuda_iov_dist_h_current[current_block].nb_elements[task_iteration] = thread_per_block;// * sizeof(double);
+                    cuda_iov_dist_h_current[nb_blocks_used].nb_elements = thread_per_block;// * sizeof(double);
                 } else {
-                    cuda_iov_dist_h_current[current_block].nb_elements[task_iteration] = count_desc - j*thread_per_block; //(thread_per_block - ((j+1)*thread_per_block - count_desc));// * sizeof(double);
+                    cuda_iov_dist_h_current[nb_blocks_used].nb_elements = count_desc - j*thread_per_block; //(thread_per_block - ((j+1)*thread_per_block - count_desc));// * sizeof(double);
                 }
 #if defined (OPAL_DATATYPE_CUDA_DEBUG)
-                assert(cuda_iov_dist_h_current[current_block].nb_elements[task_iteration] > 0);
+                assert(cuda_iov_dist_h_current[nb_blocks_used].nb_elements > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
                 destination += cuda_iov_dist_h_current[nb_blocks_used].nb_elements * alignment;
                 DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, src %p, dst %p, nb_elements %d, alignment %d\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].src_offset, cuda_iov_dist_h_current[nb_blocks_used].dst_offset, cuda_iov_dist_h_current[nb_blocks_used].nb_elements, cuda_iov_dist_h_current[nb_blocks_used].element_alignment); );
                 nb_blocks_used ++;
-                if (current_block >= nb_blocks) {
-                    current_block = 0;
-                    task_iteration ++;
-                    assert(task_iteration < CUDA_IOV_MAX_TASK_PER_BLOCK);
-                }
+                assert (nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
             }
             
             /* handle residue */
@@ -809,16 +803,12 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
                 cuda_iov_dist_h_current[nb_blocks_used].element_alignment = orig_alignment;
                 cuda_iov_dist_h_current[nb_blocks_used].nb_elements = (length_per_iovec - length_per_iovec / alignment * alignment) / orig_alignment;
 #if defined (OPAL_DATATYPE_CUDA_DEBUG)
-                assert(cuda_iov_dist_h_current[current_block].nb_elements[task_iteration] > 0);
+                assert(cuda_iov_dist_h_current[nb_blocks_used].nb_elements > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
                 destination += cuda_iov_dist_h_current[nb_blocks_used].nb_elements * orig_alignment;
                 DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, src %p, dst %p, nb_elements %d, alignment %d\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].src_offset, cuda_iov_dist_h_current[nb_blocks_used].dst_offset, cuda_iov_dist_h_current[nb_blocks_used].nb_elements, cuda_iov_dist_h_current[nb_blocks_used].element_alignment); );
                 nb_blocks_used ++;
-                if (current_block >= nb_blocks) {
-                    current_block = 0;
-                    task_iteration ++;
-                    assert(task_iteration < CUDA_IOV_MAX_TASK_PER_BLOCK);
-                }
+                assert (nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
             }
             
             if (buffer_isfull) {
@@ -839,9 +829,11 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
         
         /* buffer is full */
         if (buffer_isfull) {
+            size_t total_converted_tmp = total_converted;
             pConvertor->flags = convertor_flags;
             total_converted += total_packed;
             opal_convertor_set_position_nocheck(pConvertor, &total_converted);
+            total_packed = total_converted - total_converted_tmp;
             break;
         }
 #if defined(OPAL_DATATYPE_CUDA_TIMING)

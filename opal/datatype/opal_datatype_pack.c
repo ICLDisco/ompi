@@ -292,7 +292,7 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
                            (void*)pConvertor, (void*)pConvertor->pBaseBuf,
                            (void*)iov[0].iov_base, (unsigned long)iov[0].iov_len, *out_size ); );
 
-    printf("I am in simple pack, max_data %lu, iov_len %lu\n", *max_data, iov[0].iov_len);
+    opal_output(0, "I am in simple pack, max_data %lu, iov_len %lu\n", *max_data, iov[0].iov_len);
     description = pConvertor->use_desc->desc;
 
     /* For the first step we have to add both displacement to the source. After in the
@@ -389,7 +389,7 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
     *out_size = iov_count;
     if( pConvertor->bConverted == pConvertor->local_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
-        printf("total packed %lu\n", pConvertor->bConverted);
+        opal_output(0, "total packed %lu\n", pConvertor->bConverted);
         // double *vtmp = (double *)iov[0].iov_base;
         // for (uint32_t i = 0; i < total_packed/8; i++) {
         //     printf(" %1.f ", *vtmp);
@@ -617,8 +617,8 @@ opal_generic_simple_pack_cuda_function( opal_convertor_t* pConvertor,
    // return (*opal_generic_simple_pack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
     if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
         if (opal_generic_simple_pack_function_cuda_vector_p != NULL) {
-        //    return (*opal_generic_simple_pack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
-            return (*opal_generic_simple_pack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
+            return (*opal_generic_simple_pack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
+        //    return (*opal_generic_simple_pack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
         }
     } else {
         if (opal_generic_simple_pack_function_cuda_iov_p != NULL) {

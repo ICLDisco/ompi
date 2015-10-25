@@ -81,7 +81,11 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
     
     if (threadIdx.x == 0) {
         //printf("iov pack kernel \n");
-        nb_tasks = cuda_iov_dist[blockIdx.x].nb_tasks;
+        nb_tasks = nb_blocks_used / gridDim.x;
+        if (blockIdx.x < (nb_blocks_used % gridDim.x)) {
+            nb_tasks ++;
+        }
+   //     printf("nb_tasks %d, griddim %d, nb_blocks_used %d, bloid %d \n", nb_tasks, gridDim.x, nb_blocks_used, blockIdx.x);
     }
     __syncthreads();
     

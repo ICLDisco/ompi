@@ -22,7 +22,9 @@
 #include "opal_config.h"
 
 #include <stddef.h>
+#include <stdio.h>
 #include <dlfcn.h>
+#include <stdio.h>
 
 #include "opal/mca/installdirs/installdirs.h"
 #include "opal/datatype/opal_convertor_internal.h"
@@ -90,6 +92,10 @@ void (*opal_cuda_free_gpu_buffer_p)(void *addr, int gpu_id) = NULL;
 
 void* (*opal_cuda_malloc_gpu_buffer_p)(size_t size, int gpu_id) = NULL;
 
+void (*opal_cuda_d2dcpy_async_p)(void* dst, const void* src, size_t count) = NULL;
+
+void (*opal_cuda_d2dcpy_p)(void* dst, const void* src, size_t count) = NULL;
+
 #define OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN(handle, fname)       \
     do {                                                                \
         char* _error;                                                   \
@@ -128,6 +134,8 @@ int32_t opal_datatype_gpu_init(void)
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_sync_device );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_free_gpu_buffer );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_malloc_gpu_buffer );
+        OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_d2dcpy_async );
+        OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_d2dcpy );
 
         (*opal_datatype_cuda_init_p)();
         opal_output( 0, "cuda init done\n");
@@ -152,6 +160,8 @@ int32_t opal_datatype_gpu_fini(void)
         opal_cuda_sync_device_p = NULL;
         opal_cuda_free_gpu_buffer_p = NULL;
         opal_cuda_malloc_gpu_buffer_p = NULL;
+        opal_cuda_d2dcpy_async_p = NULL;
+        opal_cuda_d2dcpy_p = NULL;
 
         dlclose(opal_datatype_cuda_handle);
         opal_datatype_cuda_handle = NULL;

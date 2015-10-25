@@ -5,9 +5,6 @@
 
 #include "opal_config.h"
 
-/* original OMPI */
-#define OPAL_DECLSPEC
-
 #define OPAL_PTRDIFF_TYPE ptrdiff_t
 #define DT_STATIC_STACK_SIZE    5                /**< This should be sufficient for most applications */
 

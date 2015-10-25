@@ -53,4 +53,8 @@ extern void (*opal_cuda_sync_device_p)(void);
 extern void (*opal_cuda_free_gpu_buffer_p)(void *addr, int gpu_id);
 
 extern void* (*opal_cuda_malloc_gpu_buffer_p)(size_t size, int gpu_id);
+
+extern void (*opal_cuda_d2dcpy_async_p)(void* dst, const void* src, size_t count);
+
+extern void (*opal_cuda_d2dcpy_p)(void* dst, const void* src, size_t count);
 #endif /* OPAL_DATATYPE_GPU_H_HAS_BEEN_INCLUDED */

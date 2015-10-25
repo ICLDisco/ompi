@@ -558,8 +558,8 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
     if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
         opal_datatype_gpu_fini();
     }
-#endif /* defined OPAL_DATATYPE_CUDA_KERNEL */
-#endif
+#endif /* OPAL_DATATYPE_CUDA_KERNEL */
+#endif  /* OPAL_CUDA_SUPPORT */
 
     OPAL_CONVERTOR_PREPARE( convertor, datatype, count, pUserBuf );
 
@@ -605,8 +605,8 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
     if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
         opal_datatype_gpu_fini();
     }
-#endif /* defined OPAL_DATATYPE_CUDA_KERNEL */
-#endif
+#endif /* OPAL_DATATYPE_CUDA_KERNEL */
+#endif  /* OPAL_CUDA_SUPPORT */
 
     OPAL_CONVERTOR_PREPARE( convertor, datatype, count, pUserBuf );
 

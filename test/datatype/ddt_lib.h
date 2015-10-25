@@ -96,5 +96,6 @@ extern ompi_datatype_t* create_strange_dt( void );
 extern ompi_datatype_t* create_contiguous_type( const ompi_datatype_t* data, int count );
 extern ompi_datatype_t* create_vector_type( const ompi_datatype_t* data, int count,
                                             int length, int stride );
+extern ompi_datatype_t* create_struct_constant_gap_resized_ddt( ompi_datatype_t* type );
 extern ompi_datatype_t* create_struct_type(int count);
 

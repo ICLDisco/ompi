@@ -91,6 +91,10 @@ void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id);
 
 void opal_cuda_free_gpu_buffer(void *addr, int gpu_id);
 
+void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count);
+
+void opal_cuda_d2dcpy(void* dst, const void* src, size_t count);
+
 void opal_dump_cuda_list(ddt_cuda_list_t *list);
 
 }

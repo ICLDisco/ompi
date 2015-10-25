@@ -16,7 +16,10 @@ __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t*
     __shared__ uint32_t nb_tasks;
     
     if (threadIdx.x == 0) {
-        nb_tasks = cuda_iov_dist[blockIdx.x].nb_tasks;
+        nb_tasks = nb_blocks_used / gridDim.x;
+        if (blockIdx.x < nb_blocks_used % gridDim.x) {
+            nb_tasks ++;
+        }
     }
     __syncthreads();
     
