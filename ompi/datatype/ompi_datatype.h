@@ -95,7 +95,7 @@ OMPI_DECLSPEC OBJ_CLASS_DECLARATION(ompi_datatype_t);
 /* Using set constant for padding of the DATATYPE handles because the size of
  * base structure is very close to being the same no matter the bitness.
  */
-#define PREDEFINED_DATATYPE_PAD (512)
+#define PREDEFINED_DATATYPE_PAD (1024)
 
 struct ompi_predefined_datatype_t {
     struct ompi_datatype_t dt;

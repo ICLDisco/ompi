@@ -543,8 +543,8 @@ typedef struct {
     unsigned char *current_convertor_pBaseBuf;
     void *remote_gpu_address;
     int lindex;
-    uint8_t remote_device;
-    uint8_t local_device;
+    int remote_device;
+    int local_device;
     mca_btl_base_descriptor_t *frag;
 } cuda_ddt_clone_t;
 
@@ -561,12 +561,12 @@ void mca_btl_smcuda_cuda_ddt_pack_clone(struct mca_btl_base_endpoint_t *endpoint
                                         struct opal_convertor_t *convertor,
                                         void *remote_gpu_address,
                                         mca_btl_base_descriptor_t *frag,
-                                        int lindex, uint8_t remote_device, uint8_t local_device);
+                                        int lindex, int remote_device, int local_device);
 void mca_btl_smcuda_cuda_ddt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint,
                                           struct opal_convertor_t *convertor,
                                           void *remote_gpu_address,
                                           mca_btl_base_descriptor_t *frag,
-                                          int lindex, uint8_t remote_device, uint8_t local_device);
+                                          int lindex, int remote_device, int local_device);
 
 #endif /* OPAL_CUDA_SUPPORT */
 

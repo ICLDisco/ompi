@@ -53,7 +53,7 @@ size_t mca_pml_ob1_rdma_cuda_btls(
 int mca_pml_ob1_rdma_cuda_btl_register_data(
     mca_pml_ob1_com_btl_t* rdma_btls, 
     uint32_t num_btls_used, 
-    size_t pipeline_size, int lindex, uint8_t pack_required, uint8_t gpu_device);
+    int lindex, uint8_t pack_required, int32_t gpu_device);
 
 int mca_pml_ob1_cuda_need_buffers(void * rreq,
                                   mca_btl_base_module_t* btl);
@@ -68,7 +68,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                         mca_bml_base_btl_t* bml_btl,
                                         size_t size) {
     int rc;
-    int local_device = 0;
+    int32_t local_device = 0;
 #if OPAL_CUDA_SUPPORT_41
 #if OPAL_CUDA_GDR_SUPPORT
     /* With some BTLs, switch to RNDV from RGET at large messages */
@@ -92,10 +92,10 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             
             rc = mca_common_cuda_get_device(&local_device);
             if (rc != 0) {
-                opal_output_verbose(0, "Failed to get the GPU device ID, rc=%d", rc);
+                opal_output(0, "Failed to get the GPU device ID, rc= %d\n", rc);
                 return rc;
             }                                                                   
-            mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, 0, -1, 0, local_device); 
+            mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, -1, 0, local_device); 
             rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                      sendreq->req_send.req_bytes_packed);
             if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
@@ -138,10 +138,10 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                 assert(lindex >= 0);
                 rc = mca_common_cuda_get_device(&local_device);
                 if (rc != 0) {
-                    opal_output_verbose(0, "Failed to get the GPU device ID, rc=%d", rc);
+                    opal_output(0, "Failed to get the GPU device ID, rc=%d\n", rc);
                     return rc;
                 }
-                mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, 0, lindex, 1, local_device); 
+                mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, lindex, 1, local_device); 
                 mca_btl_smcuda_cuda_ddt_pack_clone( bml_btl->btl_endpoint, convertor, NULL, NULL, lindex, 0, local_device);
     
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
@@ -220,9 +220,9 @@ size_t mca_pml_ob1_rdma_cuda_btls(
 int mca_pml_ob1_rdma_cuda_btl_register_data(
     mca_pml_ob1_com_btl_t* rdma_btls, 
     uint32_t num_btls_used, 
-    size_t pipeline_size, int lindex, uint8_t pack_required, uint8_t gpu_device)
+    int lindex, uint8_t pack_required, int32_t gpu_device)
 {
-    uint32_t i, j;
+    uint32_t i;
     for (i = 0; i < num_btls_used; i++) {
         mca_btl_base_registration_handle_t *handle = rdma_btls[i].btl_reg;
         mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t *)
@@ -232,7 +232,6 @@ int mca_pml_ob1_rdma_cuda_btl_register_data(
       //       mca_common_cuda_geteventhandle(&convertor->pipeline_event[j], j, (mca_mpool_base_registration_t *)cuda_reg);
       // //      printf("event %lu, j %d\n", convertor->pipeline_event[j], j);
       //   }
-   //     cuda_reg->data.pipeline_size = pipeline_size;
         cuda_reg->data.lindex = lindex;
         cuda_reg->data.pack_required = pack_required;
         cuda_reg->data.gpu_device = gpu_device;

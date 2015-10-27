@@ -109,33 +109,32 @@ struct opal_datatype_t {
     size_t             size;     /**< total size in bytes of the memory used by the data if
                                       the data is put on a contiguous buffer */
     OPAL_PTRDIFF_TYPE  true_lb;  /**< the true lb of the data without user defined lb and ub */
+    /* --- cacheline 1 boundary (64 bytes) --- */
     OPAL_PTRDIFF_TYPE  true_ub;  /**< the true ub of the data without user defined lb and ub */
     OPAL_PTRDIFF_TYPE  lb;       /**< lower bound in memory */
     OPAL_PTRDIFF_TYPE  ub;       /**< upper bound in memory */
-    /* --- cacheline 1 boundary (64 bytes) --- */
     size_t             nbElems;  /**< total number of elements inside the datatype */
-    uint32_t           align;    /**< data should be aligned to */
 
     /* Attribute fields */
     char               name[OPAL_MAX_OBJECT_NAME];  /**< name of the datatype */
-    /* --- cacheline 2 boundary (128 bytes) was 8-12 bytes ago --- */
+    /* --- cacheline 2 boundary (128 bytes) was 40 bytes ago --- */
     dt_type_desc_t     desc;     /**< the data description */
     dt_type_desc_t     opt_desc; /**< short description of the data used when conversion is useless
                                       or in the send case (without conversion) */
 
+    uint32_t           align;    /**< data should be aligned to */
     uint32_t           btypes[OPAL_DATATYPE_MAX_SUPPORTED];
                                  /**< basic elements count used to compute the size of the
                                       datatype for remote nodes. The length of the array is dependent on
                                       the maximum number of datatypes of all top layers.
                                       Reason being is that Fortran is not at the OPAL layer. */
-    /* --- cacheline 5 boundary (320 bytes) was 32-36 bytes ago --- */
-
+    /* --- cacheline 6 boundary (384 bytes) was 8 bytes ago --- */
     struct iovec*      iov;
     int                iov_count;
     size_t             max_data;
-    /* size: 372, cachelines: 6, members: 18 */
+    /* size: 416, cachelines: 7, members: 18 */
 
-    /* last cacheline: 28-32 bytes */
+    /* last cacheline: 32 bytes */
 };
 
 typedef struct opal_datatype_t opal_datatype_t;
