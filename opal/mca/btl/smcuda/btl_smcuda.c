@@ -89,7 +89,8 @@ static int mca_btl_smcuda_deregister_mem (struct mca_btl_base_module_t* btl,
                                           
 inline static int mca_btl_smcuda_cuda_ddt_start_pack(struct mca_btl_base_module_t *btl, 
                                                      struct mca_btl_base_endpoint_t *endpoint,
-                                                     struct opal_convertor_t *convertor,
+                                                     struct opal_convertor_t *pack_convertor,
+                                                     struct opal_convertor_t *unpack_convertor,
                                                      void *remote_gpu_address,
                                                      mca_btl_base_descriptor_t *frag,
                                                      int lindex, int remote_device, int local_device);
@@ -532,9 +533,13 @@ create_sm_endpoint(int local_proc, struct opal_proc_t *proc)
     /* Create a remote memory pool on the endpoint. The rgpusm component
      * does not take any resources. They are filled in internally. */
     ep->rcache = mca_rcache_base_module_create ("rgpusm", NULL, NULL);
-    for (int i = 0; i < SMCUDA_DT_CLONE_SIZE; i++) {
-        ep->smcuda_ddt_pack_clone[i].lindex = -1;
-        ep->smcuda_ddt_unpack_clone[i].lindex = -1;
+    /* alloc array for pack/unpack use */
+    ep->smcuda_ddt_clone = NULL;
+    ep->smcuda_ddt_clone = (cuda_ddt_clone_t *)malloc(sizeof(cuda_ddt_clone_t) * SMCUDA_DT_CLONE_SIZE);
+    ep->smcuda_ddt_clone_size = SMCUDA_DT_CLONE_SIZE;
+    ep->smcuda_ddt_clone_avail = SMCUDA_DT_CLONE_SIZE;
+    for (int i = 0; i < ep->smcuda_ddt_clone_size; i++) {
+        ep->smcuda_ddt_clone[i].lindex = -1;
     }
 #endif /* OPAL_CUDA_SUPPORT */
     return ep;
@@ -740,10 +745,16 @@ int mca_btl_smcuda_del_procs(
     struct opal_proc_t **procs,
     struct mca_btl_base_endpoint_t **peers)
 {
+    struct mca_btl_base_endpoint_t * ep;
     for (size_t i = 0 ; i < nprocs ; ++i) {
         if (peers[i]->rcache) {
             mca_rcache_base_module_destroy (peers[i]->rcache);
             peers[i]->rcache = NULL;
+        }
+        ep = peers[i];
+        if (ep->smcuda_ddt_clone != NULL) {
+            free(ep->smcuda_ddt_clone);
+            ep->smcuda_ddt_clone = NULL;
         }
     }
 
@@ -1178,32 +1189,34 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     mca_pml_ob1_rdma_frag_t *frag_ob1 = cbdata;
     mca_bml_base_btl_t *bml_btl = frag_ob1->rdma_bml;
     mca_pml_base_request_t *req = (mca_pml_base_request_t*) frag_ob1->rdma_req;
-    opal_convertor_t* convertor = &req->req_convertor;
+    opal_convertor_t* unpack_convertor = &req->req_convertor;
 
-    if ((convertor->flags & CONVERTOR_CUDA) &&
+    if ((unpack_convertor->flags & CONVERTOR_CUDA) &&
         (bml_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET)) {
-        convertor->flags &= ~CONVERTOR_CUDA;
+        unpack_convertor->flags &= ~CONVERTOR_CUDA;
         uint8_t pack_required = remote_handle->reg_data.pack_required;
-        uint32_t lindex = remote_handle->reg_data.lindex;
+        int lindex = -1;
         int remote_device = remote_handle->reg_data.gpu_device;
+        opal_convertor_t* pack_convertor = remote_handle->reg_data.pack_convertor;
         int local_device = 0;
         rc = mca_common_cuda_get_device(&local_device);
         if (rc != 0) {
             opal_output(0, "Failed to get the GPU device ID, rc=%d", rc);
             return rc;
         }
-        if(opal_convertor_need_buffers(convertor) == true) {
-            convertor->flags |= CONVERTOR_CUDA;
+        if(opal_convertor_need_buffers(unpack_convertor) == true) {
+            unpack_convertor->flags |= CONVERTOR_CUDA;
             
-            printf("local addr %p, pbase %p\n", local_address, convertor->pBaseBuf);
+            printf("local addr %p, pbase %p\n", local_address, unpack_convertor->pBaseBuf);
             
             if (remote_device != local_device && !OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {
-                convertor->gpu_buffer_ptr = NULL;  
+                unpack_convertor->gpu_buffer_ptr = NULL;  
             } else {
-                convertor->gpu_buffer_ptr = remote_memory_address;   
+                unpack_convertor->gpu_buffer_ptr = remote_memory_address;   
             }
             if (pack_required) {
-                mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
+                lindex = mca_btl_smcuda_alloc_cuda_ddt_clone(ep);
+                mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, pack_convertor, unpack_convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                     lindex, remote_device, local_device);
                 done = 0;
             } else {
@@ -1211,40 +1224,42 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 uint32_t iov_count = 1;
                 size_t max_data;
                 if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && remote_device != local_device) {
-                    convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer_p(size, 0);
-                    (*opal_cuda_d2dcpy_async_p)(convertor->gpu_buffer_ptr, remote_memory_address, size);
-                    iov.iov_base = convertor->gpu_buffer_ptr;
-                    opal_output(0, "start D2D copy src %p, dst %p, size %lu\n", remote_memory_address, convertor->gpu_buffer_ptr, size);
+                    unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer_p(size, 0);
+                    (*opal_cuda_d2dcpy_async_p)(unpack_convertor->gpu_buffer_ptr, remote_memory_address, size);
+                    iov.iov_base = unpack_convertor->gpu_buffer_ptr;
+                    opal_output(0, "start D2D copy src %p, dst %p, size %lu\n", remote_memory_address, unpack_convertor->gpu_buffer_ptr, size);
                 } else {
-                    iov.iov_base = convertor->gpu_buffer_ptr;
+                    iov.iov_base = unpack_convertor->gpu_buffer_ptr;
                 }
                 iov.iov_len = size;
                 max_data = size;
-                opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
-                opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
+                opal_convertor_unpack(unpack_convertor, &iov, &iov_count, &max_data );
+                opal_cuda_free_gpu_buffer_p(unpack_convertor->gpu_buffer_ptr, 0);
                 done = 1;
             }
         } else {
-            convertor->flags |= CONVERTOR_CUDA;
+            unpack_convertor->flags |= CONVERTOR_CUDA;
             if (pack_required) {
+                lindex = mca_btl_smcuda_alloc_cuda_ddt_clone(ep);
                 if (remote_device == local_device || OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {
                     /* now we are able to let sender pack directly to my memory */
                     mca_mpool_common_cuda_reg_t loc_reg;
                     mca_mpool_common_cuda_reg_t *loc_reg_ptr = &loc_reg;
                     cuda_ddt_put_hdr_t put_msg;
                     if (OPAL_SUCCESS != cuda_getmemhandle(local_address, size, (mca_mpool_base_registration_t *)&loc_reg, NULL)) {
-                        mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
+                        mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, pack_convertor, unpack_convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                            lindex, remote_device, local_device);
                     }
                     memcpy(put_msg.mem_handle, loc_reg_ptr->data.memHandle, sizeof(loc_reg_ptr->data.memHandle));
                     put_msg.remote_address = local_address;
                     put_msg.remote_base = loc_reg.base.base;
                     put_msg.lindex = lindex;
-                    mca_btl_smcuda_cuda_ddt_unpack_clone(ep, convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
+                    put_msg.pack_convertor = pack_convertor;
+                    mca_btl_smcuda_cuda_ddt_clone(ep, pack_convertor, unpack_convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                         lindex, 0, 0);
                     mca_btl_smcuda_send_cuda_put_sig(btl, ep, &put_msg);
                 } else {
-                    mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
+                    mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, pack_convertor, unpack_convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                        lindex, remote_device, local_device);
                 }
                 done = 0;
@@ -1421,84 +1436,67 @@ int mca_btl_smcuda_send_cuda_put_sig(struct mca_btl_base_module_t* btl,
 
 inline static int mca_btl_smcuda_cuda_ddt_start_pack(struct mca_btl_base_module_t *btl,
                                                      struct mca_btl_base_endpoint_t *endpoint,
-                                                     struct opal_convertor_t *convertor,
+                                                     struct opal_convertor_t *pack_convertor,
+                                                     struct opal_convertor_t *unpack_convertor,
                                                      void *remote_gpu_address,
                                                      mca_btl_base_descriptor_t *frag,
                                                      int lindex, int remote_device, int local_device)
 {
     cuda_ddt_hdr_t send_msg;
-    mca_btl_smcuda_cuda_ddt_unpack_clone(endpoint, convertor, remote_gpu_address, (mca_btl_base_descriptor_t *)frag, 
+    mca_btl_smcuda_cuda_ddt_clone(endpoint, pack_convertor, unpack_convertor, remote_gpu_address, (mca_btl_base_descriptor_t *)frag, 
                                         lindex, remote_device, local_device);
     send_msg.lindex = lindex;
     send_msg.packed_size = 0;
     send_msg.seq = 0;
     send_msg.msg_type = CUDA_DDT_PACK_START;
+    send_msg.pack_convertor = pack_convertor;
     opal_output(0, "smcuda btl start pack, remote_gpu_address %p, frag %p, lindex %d, remote_device %d, local_device %d\n",
                 (void*)remote_gpu_address, (void*)frag, lindex, remote_device, local_device);
     mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, &send_msg);
     return OPAL_SUCCESS;
 }
 
-int mca_btl_smcuda_alloc_cuda_ddt_pack_clone(struct mca_btl_base_endpoint_t *endpoint)
+int mca_btl_smcuda_alloc_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint)
 {
     int i;
-    for (i = 0; i < SMCUDA_DT_CLONE_SIZE; i++) {
-        if (endpoint->smcuda_ddt_pack_clone[i].lindex == -1) {
-            return i;
+    if (endpoint->smcuda_ddt_clone_avail > 0) {
+        for (i = 0; i < endpoint->smcuda_ddt_clone_size; i++) {
+            if (endpoint->smcuda_ddt_clone[i].lindex == -1) {
+                endpoint->smcuda_ddt_clone_avail --;
+                opal_output(0, "Alloc cuda ddt clone array success, lindex %d\n",i);
+                return i;
+            }
         }
+    } else {
+        endpoint->smcuda_ddt_clone = realloc(endpoint->smcuda_ddt_clone, endpoint->smcuda_ddt_clone_size + SMCUDA_DT_CLONE_SIZE);
+        endpoint->smcuda_ddt_clone_avail = SMCUDA_DT_CLONE_SIZE - 1;
+        endpoint->smcuda_ddt_clone_size += SMCUDA_DT_CLONE_SIZE;
+        return endpoint->smcuda_ddt_clone_size - SMCUDA_DT_CLONE_SIZE;
     }
-    return -1;
-}
-int mca_btl_smcuda_alloc_cuda_ddt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint)
-{
-    int i;
-    for (i = 0; i < SMCUDA_DT_CLONE_SIZE; i++) {
-        if (endpoint->smcuda_ddt_unpack_clone[i].lindex == -1) {
-            return i;
-        }
-    }
-    return -1;
 }
 
-void mca_btl_smcuda_free_cuda_ddt_pack_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex)
+void mca_btl_smcuda_free_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex)
 {
-    assert(endpoint->smcuda_ddt_pack_clone[lindex].lindex == lindex);
-    endpoint->smcuda_ddt_pack_clone[lindex].lindex = -1;
-}
-void mca_btl_smcuda_free_cuda_ddt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex)
-{
-    assert(endpoint->smcuda_ddt_unpack_clone[lindex].lindex == lindex);
-    endpoint->smcuda_ddt_unpack_clone[lindex].lindex = -1;
+    assert(endpoint->smcuda_ddt_clone[lindex].lindex == lindex);
+    endpoint->smcuda_ddt_clone[lindex].lindex = -1;
+    endpoint->smcuda_ddt_clone_avail ++;
 }
 
-void mca_btl_smcuda_cuda_ddt_pack_clone(struct mca_btl_base_endpoint_t *endpoint,
-                                        struct opal_convertor_t *convertor,
-                                        void *remote_gpu_address,
-                                        mca_btl_base_descriptor_t *frag,
-                                        int lindex, int remote_device, int local_device)
+void mca_btl_smcuda_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint,
+                                   struct opal_convertor_t *pack_convertor,
+                                   struct opal_convertor_t *unpack_convertor,
+                                   void *remote_gpu_address,
+                                   mca_btl_base_descriptor_t *frag,
+                                   int lindex, int remote_device, int local_device)
 {
-    endpoint->smcuda_ddt_pack_clone[lindex].convertor = convertor;
-    endpoint->smcuda_ddt_pack_clone[lindex].current_convertor_pBaseBuf = convertor->pBaseBuf;
-    endpoint->smcuda_ddt_pack_clone[lindex].remote_gpu_address = remote_gpu_address;
-    endpoint->smcuda_ddt_pack_clone[lindex].lindex = lindex;
-    endpoint->smcuda_ddt_pack_clone[lindex].remote_device = remote_device;
-    endpoint->smcuda_ddt_pack_clone[lindex].local_device = local_device;
-    endpoint->smcuda_ddt_pack_clone[lindex].frag = frag;
-}
-
-void mca_btl_smcuda_cuda_ddt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint,
-                                          struct opal_convertor_t *convertor,
-                                          void *remote_gpu_address,
-                                          mca_btl_base_descriptor_t *frag,
-                                          int lindex, int remote_device, int local_device)
-{
-    endpoint->smcuda_ddt_unpack_clone[lindex].convertor = convertor;
-    endpoint->smcuda_ddt_unpack_clone[lindex].current_convertor_pBaseBuf = convertor->pBaseBuf;
-    endpoint->smcuda_ddt_unpack_clone[lindex].remote_gpu_address = remote_gpu_address;
-    endpoint->smcuda_ddt_unpack_clone[lindex].lindex = lindex;
-    endpoint->smcuda_ddt_unpack_clone[lindex].remote_device = remote_device;
-    endpoint->smcuda_ddt_unpack_clone[lindex].local_device = local_device;
-    endpoint->smcuda_ddt_unpack_clone[lindex].frag = frag;
+    endpoint->smcuda_ddt_clone[lindex].pack_convertor = pack_convertor;
+    endpoint->smcuda_ddt_clone[lindex].unpack_convertor = unpack_convertor;
+    endpoint->smcuda_ddt_clone[lindex].current_unpack_convertor_pBaseBuf = unpack_convertor->pBaseBuf;
+    endpoint->smcuda_ddt_clone[lindex].remote_gpu_address = remote_gpu_address;
+    endpoint->smcuda_ddt_clone[lindex].lindex = lindex;
+    endpoint->smcuda_ddt_clone[lindex].remote_device = remote_device;
+    endpoint->smcuda_ddt_clone[lindex].local_device = local_device;
+    endpoint->smcuda_ddt_clone[lindex].frag = frag;
 }
 
 #endif /* OPAL_CUDA_SUPPORT */

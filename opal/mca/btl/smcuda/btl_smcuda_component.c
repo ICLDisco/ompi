@@ -831,7 +831,7 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
                                        mca_btl_base_tag_t tag,
                                        mca_btl_base_descriptor_t* des, void* cbdata)
 {   
-    struct mca_btl_base_endpoint_t *endpoint;
+    struct mca_btl_base_endpoint_t *endpoint = NULL;
     cuda_ddt_hdr_t recv_msg;
     mca_btl_base_segment_t* segments = des->des_segments;
     memcpy(&recv_msg, segments->seg_addr.pval, sizeof(cuda_ddt_hdr_t));
@@ -844,33 +844,34 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
 
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
-    my_cuda_dt_clone = &endpoint->smcuda_ddt_unpack_clone[lindex];
+    my_cuda_dt_clone = &endpoint->smcuda_ddt_clone[lindex];
     assert(my_cuda_dt_clone->lindex == lindex);
     
     cuda_ddt_hdr_t send_msg;
     send_msg.lindex = lindex;
+    send_msg.pack_convertor = my_cuda_dt_clone->pack_convertor;
     
     if (msg_type == CUDA_DDT_CLEANUP) {
         mca_btl_smcuda_frag_t *frag_recv = (mca_btl_smcuda_frag_t *) my_cuda_dt_clone->frag;
         mca_btl_base_rdma_completion_fn_t cbfunc = (mca_btl_base_rdma_completion_fn_t) frag_recv->base.des_cbfunc;
         cbfunc (btl, endpoint, frag_recv->segment.seg_addr.pval, frag_recv->local_handle, frag_recv->base.des_context, frag_recv->base.des_cbdata, OPAL_SUCCESS);
         mca_btl_smcuda_free(btl, (mca_btl_base_descriptor_t *)frag_recv);
-        mca_btl_smcuda_free_cuda_ddt_unpack_clone(endpoint, lindex);
+        mca_btl_smcuda_free_cuda_ddt_clone(endpoint, lindex);
     } else if (msg_type == CUDA_DDT_UNPACK_FROM_BLOCK || msg_type == CUDA_DDT_COMPLETE){
         struct iovec iov;
         uint32_t iov_count = 1;
         size_t max_data;
-        struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
+        struct opal_convertor_t *convertor = my_cuda_dt_clone->unpack_convertor;
         size_t pipeline_size = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
         convertor->flags &= ~CONVERTOR_CUDA;
         unsigned char *remote_address = NULL;
         if (opal_convertor_need_buffers(convertor) == false) { /* do not unpack */
             convertor->flags |= CONVERTOR_CUDA;
-            unsigned char *local_address = my_cuda_dt_clone->current_convertor_pBaseBuf;
+            unsigned char *local_address = my_cuda_dt_clone->current_unpack_convertor_pBaseBuf;
             remote_address = (unsigned char*)my_cuda_dt_clone->remote_gpu_address + seq * pipeline_size;
             opal_output(0, "no unpack, start D2D copy local %p, remote %p, size %ld\n", local_address, remote_address, packed_size);
             mca_common_cuda_memp2pcpy(local_address, (unsigned char*)my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, packed_size);
-            my_cuda_dt_clone->current_convertor_pBaseBuf += packed_size;
+            my_cuda_dt_clone->current_unpack_convertor_pBaseBuf += packed_size;
         } else {     /* unpack */
             convertor->flags |= CONVERTOR_CUDA;
             if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
@@ -907,27 +908,25 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
                                      mca_btl_base_tag_t tag,
                                      mca_btl_base_descriptor_t* des, void* cbdata)
 {
-    struct mca_btl_base_endpoint_t *endpoint;
+    struct mca_btl_base_endpoint_t *endpoint = NULL;
     cuda_ddt_hdr_t recv_msg;
     mca_btl_base_segment_t* segments = des->des_segments;
     memcpy(&recv_msg, segments->seg_addr.pval, sizeof(cuda_ddt_hdr_t));
     int seq = recv_msg.seq;
     int lindex = recv_msg.lindex;
     int msg_type = recv_msg.msg_type;
+    struct opal_convertor_t *convertor = recv_msg.pack_convertor;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
-    cuda_ddt_clone_t *my_cuda_dt_clone;
     cuda_ddt_hdr_t send_msg;
+    
+    /* We can find the endoint back from the rank embedded in the header */
+    endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
     
     uint32_t iov_count = 1;
     int rv_dt = 0;
     size_t max_data = 0;
     size_t packed_size = 0;
 
-    /* We can find the endoint back from the rank embedded in the header */
-    endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
-    my_cuda_dt_clone = &endpoint->smcuda_ddt_pack_clone[lindex];
-    
-    struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
     send_msg.lindex = lindex;
     if (msg_type == CUDA_DDT_COMPLETE_ACK) {
         send_msg.packed_size = 0;
@@ -938,7 +937,6 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
         }
-        mca_btl_smcuda_free_cuda_ddt_pack_clone(endpoint, lindex);
     } else if (msg_type == CUDA_DDT_PACK_TO_BLOCK) {
         if (convertor->bConverted < convertor->local_size) {
             struct iovec iov;
@@ -984,21 +982,19 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
                                     mca_btl_base_tag_t tag,
                                     mca_btl_base_descriptor_t* des, void* cbdata)
 {
-    struct mca_btl_base_endpoint_t *endpoint;
+    struct mca_btl_base_endpoint_t *endpoint = NULL;
     cuda_ddt_put_hdr_t recv_msg;
     mca_btl_base_segment_t* segments = des->des_segments;
     memcpy(&recv_msg, segments->seg_addr.pval, sizeof(cuda_ddt_put_hdr_t));
     int lindex = recv_msg.lindex;
     void *remote_address = recv_msg.remote_address;
     void *remote_base = recv_msg.remote_base;
+    struct opal_convertor_t *convertor = recv_msg.pack_convertor;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
-    cuda_ddt_clone_t *my_cuda_dt_clone;
     cuda_ddt_hdr_t send_msg;
     
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
-    my_cuda_dt_clone = &endpoint->smcuda_ddt_pack_clone[lindex];
-    struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
     
     opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
     mca_mpool_common_cuda_reg_t *rget_reg_ptr = NULL;
@@ -1026,7 +1022,6 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
     send_msg.seq = -2;
     send_msg.msg_type = CUDA_DDT_CLEANUP;
     mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
-    mca_btl_smcuda_free_cuda_ddt_pack_clone(endpoint, lindex);
 }
 
 #endif /* OPAL_CUDA_SUPPORT */
