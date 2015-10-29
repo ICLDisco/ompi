@@ -618,6 +618,7 @@ int btl_openib_register_mca_params(void)
         mca_btl_openib_module.super.btl_cuda_rdma_limit = 0;  /* Unused */
     }
 #endif /* OPAL_CUDA_GDR_SUPPORT */
+    mca_btl_openib_module.super.btl_cuda_ddt_allow_rdma = 0;
 #endif /* OPAL_CUDA_SUPPORT */
     CHECK(mca_btl_base_param_register(
             &mca_btl_openib_component.super.btl_version,

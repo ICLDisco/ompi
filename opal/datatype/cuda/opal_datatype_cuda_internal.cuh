@@ -13,12 +13,15 @@
 #define OPAL_DATATYPE_CUDA_DEBUG    1
 //#define OPAL_DATATYPE_CUDA_KERNEL_TIME
 #define OPAL_DATATYPE_CUDA_DEBUG_LEVEL  2
-//#define OPAL_DATATYPE_CUDA_TIMING
-#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D   0
+#define OPAL_DATATYPE_CUDA_TIMING
+#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_D2H   0
 #define OPAL_DATATYPE_VECTOR_USE_ZEROCPY   0
 #define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
+#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL   1
 
 
+
+#define NB_GPUS                 1
 #define IOV_ARRAY_SIZE          1
 #define DT_CUDA_BUFFER_SIZE    1024*1024*200
 #define DT_CUDA_FREE_LIST_SIZE  50
@@ -52,6 +55,14 @@ typedef struct {
     uint8_t element_alignment;
 } ddt_cuda_iov_dist_t;
 
+typedef struct {
+    ddt_cuda_iov_dist_t* cuda_iov_dist_h;
+    ddt_cuda_iov_dist_t* cuda_iov_dist_d;
+    cudaStream_t *cuda_stream;
+    int32_t cuda_stream_id;
+    cudaEvent_t cuda_event;
+} ddt_cuda_iov_pipeline_block_t;
+
 typedef struct ddt_cuda_buffer{
     unsigned char* gpu_addr;
     size_t size;
@@ -72,15 +83,16 @@ typedef struct {
     ddt_cuda_list_t buffer_used;
     size_t buffer_free_size;
     size_t buffer_used_size;
+    ddt_cuda_stream_t *cuda_streams;
+    ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block[NB_STREAMS];
+    cudaEvent_t memcpy_event;
 } ddt_cuda_device_t;
 
 extern ddt_cuda_list_t *cuda_free_list;
-extern ddt_cuda_device_t *cuda_device;
-extern ddt_cuda_stream_t* cuda_streams;
+extern ddt_cuda_device_t *cuda_devices;
+extern ddt_cuda_device_t *current_cuda_device;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
-extern ddt_cuda_iov_dist_t* cuda_iov_dist_h[NB_STREAMS];
-extern ddt_cuda_iov_dist_t* cuda_iov_dist_d[NB_STREAMS];
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
@@ -117,6 +129,8 @@ __global__ void opal_empty_kernel(uint32_t copy_loops,
 __global__ void opal_empty_kernel_noargs();
 
 void opal_cuda_output(int output_id, const char *format, ...);
+
+void opal_cuda_check_error(cudaError_t err);
 
 #if defined (OPAL_DATATYPE_CUDA_DEBUG)
 #define DT_CUDA_DEBUG( INST ) if (OPAL_DATATYPE_CUDA_DEBUG) { INST }

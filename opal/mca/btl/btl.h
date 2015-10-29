@@ -1233,8 +1233,9 @@ struct mca_btl_base_module_t {
 #endif /* OPAL_CUDA_GDR_SUPPORT */
 #if OPAL_CUDA_SUPPORT
     size_t      btl_cuda_max_send_size;   /**< set if CUDA max send_size is different from host max send size */
+    int32_t     btl_cuda_ddt_allow_rdma;
     size_t      btl_cuda_ddt_pipeline_size;
-    int         btl_cuda_ddt_pipeline_depth;
+    int32_t     btl_cuda_ddt_pipeline_depth;
 #endif /* OPAL_CUDA_SUPPORT */
 };
 typedef struct mca_btl_base_module_t mca_btl_base_module_t;

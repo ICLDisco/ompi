@@ -40,12 +40,14 @@
 
 #include "opal/datatype/opal_datatype_gpu.h"
 
+int32_t opal_datatype_cuda_kernel_support = 0;
+
 static void *opal_datatype_cuda_handle = NULL;
 static char *opal_datatype_cuda_lib = NULL;
 
-void (*opal_datatype_cuda_init_p)(void) = NULL;
+int32_t (*opal_datatype_cuda_init_p)(void) = NULL;
 
-void (*opal_datatype_cuda_fini_p)(void) = NULL;
+int32_t (*opal_datatype_cuda_fini_p)(void) = NULL;
 
 
 int32_t (*opal_generic_simple_pack_function_cuda_iov_p)( opal_convertor_t* pConvertor,
@@ -85,8 +87,6 @@ void (*pack_predefined_data_cuda_p)( dt_elem_desc_t* ELEM,
                                      unsigned char** SOURCE,
                                      unsigned char** DESTINATION,
                                      size_t* SPACE ) = NULL;
-
-void (*opal_cuda_sync_device_p)(void) = NULL;
 
 void (*opal_cuda_free_gpu_buffer_p)(void *addr, int gpu_id) = NULL;
 
@@ -131,14 +131,16 @@ int32_t opal_datatype_gpu_init(void)
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, pack_contiguous_loop_cuda );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, unpack_contiguous_loop_cuda );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, pack_predefined_data_cuda );
-        OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_sync_device );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_free_gpu_buffer );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_malloc_gpu_buffer );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_d2dcpy_async );
         OPAL_DATATYPE_FIND_CUDA_FUNCTION_OR_RETURN( opal_datatype_cuda_handle, opal_cuda_d2dcpy );
 
-        (*opal_datatype_cuda_init_p)();
-        opal_output( 0, "cuda init done\n");
+        if (OPAL_SUCCESS != (*opal_datatype_cuda_init_p)()) {
+            return OPAL_ERROR;
+        }
+        opal_datatype_cuda_kernel_support = 1;
+        opal_output( 0, "opal_datatype_cuda_kernel_support init done\n");
     }
     return OPAL_SUCCESS;
 }
@@ -157,7 +159,6 @@ int32_t opal_datatype_gpu_fini(void)
         pack_contiguous_loop_cuda_p = NULL;
         unpack_contiguous_loop_cuda_p = NULL;
         pack_predefined_data_cuda_p = NULL;
-        opal_cuda_sync_device_p = NULL;
         opal_cuda_free_gpu_buffer_p = NULL;
         opal_cuda_malloc_gpu_buffer_p = NULL;
         opal_cuda_d2dcpy_async_p = NULL;
@@ -169,7 +170,8 @@ int32_t opal_datatype_gpu_fini(void)
         if( NULL != opal_datatype_cuda_lib )
             free(opal_datatype_cuda_lib);
         opal_datatype_cuda_lib = NULL;
-        opal_output( 0, "cuda fini done\n");
+        opal_datatype_cuda_kernel_support = 0;
+        opal_output( 0, "opal_datatype_cuda_kernel_support fini done\n");
     }
     return OPAL_SUCCESS;
 }

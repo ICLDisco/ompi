@@ -189,6 +189,7 @@ static int smcuda_register(void)
     mca_btl_smcuda.super.btl_cuda_ddt_pipeline_size = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
     printf("pipeline size %lu\n", mca_btl_smcuda.super.btl_cuda_ddt_pipeline_size);
     mca_btl_smcuda.super.btl_cuda_ddt_pipeline_depth = 4;
+    mca_btl_smcuda.super.btl_cuda_ddt_allow_rdma = 1;
     mca_btl_smcuda.super.btl_eager_limit = 4*1024;
     mca_btl_smcuda.super.btl_rndv_eager_limit = 4*1024;
     mca_btl_smcuda.super.btl_max_send_size = 32*1024;

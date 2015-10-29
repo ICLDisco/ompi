@@ -570,7 +570,12 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
             if( convertor->pDesc->flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
                 convertor->fAdvance = opal_unpack_homogeneous_contig_checksum;
             } else {
-                convertor->fAdvance = opal_generic_simple_unpack_checksum;
+                if ((convertor->flags & CONVERTOR_CUDA) && (opal_datatype_cuda_kernel_support == 1)) {
+                    convertor->fAdvance = opal_generic_simple_unpack_cuda_checksum;
+                    convertor->gpu_buffer_ptr = NULL;
+                } else {
+                    convertor->fAdvance = opal_generic_simple_unpack_checksum;
+                }
             }
         }
     } else {
@@ -580,7 +585,7 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
             if( convertor->pDesc->flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
                 convertor->fAdvance = opal_unpack_homogeneous_contig;
             } else {
-                if ((convertor->flags & CONVERTOR_CUDA) && OPAL_DATATYPE_CUDA_KERNEL) {
+                if ((convertor->flags & CONVERTOR_CUDA) && (opal_datatype_cuda_kernel_support == 1)) {
                     convertor->fAdvance = opal_generic_simple_unpack_cuda;
                     convertor->gpu_buffer_ptr = NULL;
                 } else {
@@ -621,8 +626,13 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
                 else
                     convertor->fAdvance = opal_pack_homogeneous_contig_with_gaps_checksum;
             } else {
-                convertor->fAdvance = opal_generic_simple_pack_checksum;
-            }
+                if ((convertor->flags & CONVERTOR_CUDA) && (opal_datatype_cuda_kernel_support == 1)) {
+                    convertor->fAdvance = opal_generic_simple_pack_cuda_checksum;
+                    convertor->gpu_buffer_ptr = NULL;
+                } else {
+                    convertor->fAdvance = opal_generic_simple_pack_checksum;
+                }
+            }   
         }
     } else {
         if( CONVERTOR_SEND_CONVERSION == (convertor->flags & (CONVERTOR_SEND_CONVERSION|CONVERTOR_HOMOGENEOUS)) ) {
@@ -635,7 +645,7 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
                 else
                     convertor->fAdvance = opal_pack_homogeneous_contig_with_gaps;
             } else {
-                if ((convertor->flags & CONVERTOR_CUDA) && OPAL_DATATYPE_CUDA_KERNEL ) {
+                if ((convertor->flags & CONVERTOR_CUDA) && (opal_datatype_cuda_kernel_support == 1)) {
                     convertor->fAdvance = opal_generic_simple_pack_cuda;
                     convertor->gpu_buffer_ptr = NULL;
                 } else {

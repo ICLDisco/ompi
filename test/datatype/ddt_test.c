@@ -1067,11 +1067,11 @@ int main( int argc, char* argv[] )
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
     int mat_size = 500;
-    for (mat_size = 500; mat_size <= 500; mat_size +=500) {
+    for (mat_size = 6000; mat_size <= 6000; mat_size +=500) {
         pdt = upper_matrix(mat_size);
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 1; i <= 1; i++) {
+            for (i = 1; i <= 2; i++) {
                 local_copy_with_convertor(pdt, 1, 1024*1024*200, mat_size);
             }
         }
@@ -1222,7 +1222,7 @@ int main( int argc, char* argv[] )
         pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 0; i < 4; i++) {
-                  vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
+        //          vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
     //             vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
