@@ -33,7 +33,9 @@
 #include "opal/datatype/opal_datatype.h"
 #include "opal/datatype/opal_convertor_internal.h"
 #include "opal/mca/base/mca_base_var.h"
-#include "opal/datatype/opal_datatype_gpu.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/datatype/opal_datatype_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 
 /* by default the debuging is turned off */
 int opal_datatype_dfd = -1;
@@ -249,9 +251,9 @@ int32_t opal_datatype_finalize( void )
     /* clear all master convertors */
     opal_convertor_destroy_masters();
 
-#if OPAL_DATATYPE_CUDA_KERNEL
-    opal_datatype_gpu_fini();
-#endif /* defined OPAL_DATATYPE_CUDA_KERNEL */
+#if OPAL_CUDA_SUPPORT
+    opal_cuda_kernel_support_fini();
+#endif /* OPAL_CUDA_SUPPORT */
 
     return OPAL_SUCCESS;
 }

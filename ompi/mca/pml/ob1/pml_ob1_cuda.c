@@ -38,7 +38,7 @@
 #include "ompi/mca/bml/base/base.h"
 #include "ompi/memchecker.h"
 
-#include "opal/datatype/opal_datatype_gpu.h"
+#include "opal/datatype/opal_datatype_cuda.h"
 #include "opal/mca/common/cuda/common_cuda.h"
 #include "opal/mca/btl/smcuda/btl_smcuda.h"
 
@@ -126,7 +126,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             } else {
                 buffer_size = convertor->local_size;
             }
-            base = opal_cuda_malloc_gpu_buffer_p(buffer_size, 0);
+            base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
             convertor->gpu_buffer_ptr = base;
             convertor->gpu_buffer_size = buffer_size;
             sendreq->req_send.req_bytes_packed = convertor->local_size;

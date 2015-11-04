@@ -58,7 +58,7 @@
 
 #if OPAL_CUDA_SUPPORT
 #include "opal/mca/common/cuda/common_cuda.h"
-#include "opal/datatype/opal_datatype_gpu.h"
+#include "opal/datatype/opal_datatype_cuda.h"
 #endif /* OPAL_CUDA_SUPPORT */
 #include "opal/mca/mpool/base/base.h"
 #include "opal/mca/rcache/base/base.h"
@@ -1224,8 +1224,8 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 uint32_t iov_count = 1;
                 size_t max_data;
                 if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && remote_device != local_device) {
-                    unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer_p(size, 0);
-                    (*opal_cuda_d2dcpy_async_p)(unpack_convertor->gpu_buffer_ptr, remote_memory_address, size);
+                    unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(size, 0);
+                    opal_cuda_d2dcpy_async(unpack_convertor->gpu_buffer_ptr, remote_memory_address, size);
                     iov.iov_base = unpack_convertor->gpu_buffer_ptr;
                     opal_output(0, "start D2D copy src %p, dst %p, size %lu\n", remote_memory_address, unpack_convertor->gpu_buffer_ptr, size);
                 } else {
@@ -1234,7 +1234,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 iov.iov_len = size;
                 max_data = size;
                 opal_convertor_unpack(unpack_convertor, &iov, &iov_count, &max_data );
-                opal_cuda_free_gpu_buffer_p(unpack_convertor->gpu_buffer_ptr, 0);
+                opal_cuda_free_gpu_buffer(unpack_convertor->gpu_buffer_ptr, 0);
                 done = 1;
             }
         } else {
@@ -1473,6 +1473,7 @@ int mca_btl_smcuda_alloc_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint
         endpoint->smcuda_ddt_clone_size += SMCUDA_DT_CLONE_SIZE;
         return endpoint->smcuda_ddt_clone_size - SMCUDA_DT_CLONE_SIZE;
     }
+    return -1;
 }
 
 void mca_btl_smcuda_free_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex)

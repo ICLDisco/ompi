@@ -304,6 +304,13 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
         pLast->size            = pData->size;
     }
 
+#if OPAL_CUDA_SUPPORT   
+    /* cuda iov for caching, it will be malloced latter when init convertor */
+    pData->cuda_iov_dist = NULL;
+    pData->cuda_iov_is_cached = 0;
+    pData->cuda_iov_count = 0;
+#endif /* OPAL_CUDA_SUPPORT */
+
     /* save a compressed datatype description as a iovec list */
 //    opal_convertor_t* conv = opal_convertor_create( opal_local_arch, 0 /* unused */);
 //    opal_convertor_prepare_for_send( conv, pData, 1, (void*)0 );

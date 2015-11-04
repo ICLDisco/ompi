@@ -89,7 +89,6 @@ OPAL_DECLSPEC int mca_common_cuda_device_can_access_peer(int *access, int dev1, 
 OPAL_DECLSPEC int mca_common_cuda_stage_one_init(void);
 OPAL_DECLSPEC int mca_common_cuda_get_address_range(void *pbase, size_t *psize, void *base);
 OPAL_DECLSPEC void mca_common_cuda_fini(void);
-OPAL_DECLSPEC int mca_common_cuda_geteventhandle(uint64_t **event, int n, mca_mpool_base_registration_t *newreg);
 OPAL_DECLSPEC int mca_common_cuda_create_event(uint64_t **event);
 OPAL_DECLSPEC int mca_common_cuda_record_event(uint64_t *event);
 OPAL_DECLSPEC int mca_common_cuda_query_event(uint64_t *event);

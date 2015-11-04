@@ -18,6 +18,7 @@
 #define OPAL_DATATYPE_VECTOR_USE_ZEROCPY   0
 #define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
 #define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL   1
+#define OPAL_DATATYPE_CUDA_IOV_CACHE    1
 
 
 
@@ -36,7 +37,8 @@
 #define CUDA_IOV_MAX_TASK_PER_BLOCK 400
 #define ALIGNMENT_DOUBLE    8
 #define ALIGNMENT_FLOAT     4
-#define ALIGNMENT_CHAR      1
+#define ALIGNMENT_CHAR      18
+#define NUM_CUDA_IOV_PER_DDT    100000
 
 #define TIMER_DATA_TYPE struct timeval
 #define GET_TIME(TV)   gettimeofday( &(TV), NULL )
@@ -119,14 +121,6 @@ __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
 __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
 
 __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
-
-__global__ void opal_empty_kernel(uint32_t copy_loops,
-                                  size_t size,
-                                  OPAL_PTRDIFF_TYPE extent,
-                                  unsigned char* source,
-                                  unsigned char* destination);
-                            
-__global__ void opal_empty_kernel_noargs();
 
 void opal_cuda_output(int output_id, const char *format, ...);
 

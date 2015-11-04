@@ -37,7 +37,9 @@
 #include "opal/datatype/opal_datatype_checksum.h"
 #include "opal/datatype/opal_datatype_pack.h"
 #include "opal/datatype/opal_datatype_prototypes.h"
-#include "opal/datatype/opal_datatype_gpu.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/datatype/opal_datatype_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 
 #if defined(CHECKSUM)
 #define opal_pack_homogeneous_contig_function           opal_pack_homogeneous_contig_checksum
@@ -318,7 +320,6 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
         while( 1 ) {
             while( pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA ) {
                 /* now here we have a basic datatype */
-//                (*pack_predefined_data_cuda_p)(pElem, &count_desc, &conv_ptr, &iov_ptr, &iov_len_local);
                 PACK_PREDEFINED_DATATYPE( pConvertor, pElem, count_desc,
                                         conv_ptr, iov_ptr, iov_len_local );
                 if( 0 == count_desc ) {  /* completed */
@@ -361,7 +362,6 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
             if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
                 OPAL_PTRDIFF_TYPE local_disp = (OPAL_PTRDIFF_TYPE)conv_ptr;
                 if( pElem->loop.common.flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
-                    //(*pack_contiguous_loop_cuda_p)(pElem, &count_desc, &conv_ptr, &iov_ptr, &iov_len_local);
                     PACK_CONTIGUOUS_LOOP( pConvertor, pElem, count_desc,
                                           conv_ptr, iov_ptr, iov_len_local );
                     if( 0 == count_desc ) {  /* completed */
@@ -390,12 +390,6 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
     if( pConvertor->bConverted == pConvertor->local_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
         opal_output(0, "total packed %lu\n", pConvertor->bConverted);
-        // double *vtmp = (double *)iov[0].iov_base;
-        // for (uint32_t i = 0; i < total_packed/8; i++) {
-        //     printf(" %1.f ", *vtmp);
-        //     vtmp ++;
-        // }
-        // printf("\n");
         return 1;
     }
     /* Save the global position for the next round */
@@ -614,16 +608,11 @@ opal_generic_simple_pack_cuda_function( opal_convertor_t* pConvertor,
     pos_desc   = pStack->index;
     pElem = &(description[pos_desc]);
    
-   // return (*opal_generic_simple_pack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
+//    return opal_generic_simple_pack_function_cuda_vector( pConvertor, iov, out_size, max_data);
     if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
-        if (opal_generic_simple_pack_function_cuda_vector_p != NULL) {
-            return (*opal_generic_simple_pack_function_cuda_vector_p)( pConvertor, iov, out_size, max_data);
-        //    return (*opal_generic_simple_pack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
-        }
+        return opal_generic_simple_pack_function_cuda_vector( pConvertor, iov, out_size, max_data);
     } else {
-        if (opal_generic_simple_pack_function_cuda_iov_p != NULL) {
-            return (*opal_generic_simple_pack_function_cuda_iov_p)( pConvertor, iov, out_size, max_data);
-        }
+        return opal_generic_simple_pack_function_cuda_iov( pConvertor, iov, out_size, max_data);
     }
     return 0;
 }

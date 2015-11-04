@@ -32,8 +32,7 @@ headers = \
         opal_datatype_memcpy.h \
         opal_datatype_pack.h \
         opal_datatype_prototypes.h \
-        opal_datatype_unpack.h \
-		opal_datatype_gpu.h
+        opal_datatype_unpack.h
 
 
 noinst_LTLIBRARIES = \
@@ -61,7 +60,6 @@ libdatatype_la_SOURCES = \
         opal_datatype_get_count.c \
         opal_datatype_module.c \
         opal_datatype_optimize.c \
-		opal_datatype_gpu.c \
         opal_datatype_pack.c \
         opal_datatype_position.c \
         opal_datatype_resize.c \

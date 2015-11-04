@@ -33,7 +33,6 @@
 #include "opal/align.h"
 #include "opal/datatype/opal_convertor.h"
 #include "opal/datatype/opal_datatype_cuda.h"
-#include "opal/datatype/opal_datatype_gpu.h"
 #include "opal/util/output.h"
 #include "opal/util/show_help.h"
 #include "opal/util/proc.h"
@@ -1639,16 +1638,6 @@ int progress_one_cuda_htod_event(struct mca_btl_base_descriptor_t **frag) {
     return OPAL_ERR_RESOURCE_BUSY;
 }
 
-int mca_common_cuda_geteventhandle(uint64_t **event, int n, mca_mpool_base_registration_t *newreg) 
-{
-    CUipcEventHandle evtHandle;
-    mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t*)newreg;
- //   mca_common_cuda_construct_event_and_handle(event, (void**)&evtHandle);
-//    printf("0 %p, 1 %p\n",&cuda_reg->data.pipeline_evtHandle[0], &cuda_reg->data.pipeline_evtHandle[EVTHANDLE_SIZE]);
- //   memcpy(&cuda_reg->data.pipeline_evtHandle[n*EVTHANDLE_SIZE], &evtHandle, sizeof(evtHandle));
-    return OPAL_SUCCESS;
-}
-
 int mca_common_cuda_create_event(uint64_t **event)
 {
     CUresult result;
@@ -1912,7 +1901,7 @@ static int mca_common_cuda_is_gpu_buffer(const void *pUserBuf, opal_convertor_t 
         if (0 != mca_common_cuda_stage_three_init()) {
             opal_cuda_support = 0;
         } else {
-	    opal_datatype_gpu_init();
+	    opal_cuda_kernel_support_init();
 	}
     }
 

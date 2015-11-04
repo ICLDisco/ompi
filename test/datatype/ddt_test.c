@@ -1034,7 +1034,7 @@ int main( int argc, char* argv[] )
 #endif
     opal_init_util(&argc, &argv);
 #if defined (DDT_TEST_CUDA)
-   // mca_common_cuda_stage_one_init();
+    mca_common_cuda_stage_one_init();
 #endif
     ompi_datatype_init();
 
@@ -1072,17 +1072,17 @@ int main( int argc, char* argv[] )
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 1; i <= 2; i++) {
-                local_copy_with_convertor(pdt, 1, 1024*1024*200, mat_size);
+    //            local_copy_with_convertor(pdt, 1, 1024*1024*200, mat_size);
             }
         }
     }
     
     ompi_datatype_t *column, *matt;
-    mat_size = 4000;
-//    ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
-//    ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
-//    ompi_datatype_commit( &matt );
-//    local_copy_with_convertor_mat(matt, 1, 200000000, mat_size);
+    mat_size = 1000;
+    ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
+    ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
+    ompi_datatype_commit( &matt );
+    local_copy_with_convertor_mat(matt, 1, 200000000, mat_size);
     
     
     int packed_size = 256;
@@ -1132,13 +1132,13 @@ int main( int argc, char* argv[] )
     }
     
     
-    for (blk_len = 64; blk_len <= 64; blk_len += 2) {
+    for (blk_len = 1000; blk_len <= 1000; blk_len += 2) {
         printf( ">>--------------------------------------------<<\n" );
         printf( "Vector data-type (1024 times %d double stride 512)\n", blk_len );
-        pdt = create_vector_type( MPI_DOUBLE, 1000, blk_len, blk_len+128);
+        pdt = create_vector_type( MPI_DOUBLE, 1000, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 0; i < 4; i++) {
-      //           vector_ddt( pdt, 1, pdt, 1, 1024*10240 , 1000, blk_len, blk_len+128);
+            for (i = 0; i < 1; i++) {
+                 vector_ddt( pdt, 1, pdt, 1, 2000000 , 1000, blk_len, blk_len*2);
      //          vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }

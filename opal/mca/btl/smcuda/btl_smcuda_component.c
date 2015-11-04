@@ -54,7 +54,7 @@
 
 #if OPAL_CUDA_SUPPORT
 #include "opal/mca/common/cuda/common_cuda.h"
-#include "opal/datatype/opal_datatype_gpu.h"
+#include "opal/datatype/opal_datatype_cuda.h"
 #endif /* OPAL_CUDA_SUPPORT */
 #if OPAL_ENABLE_FT_CR    == 1
 #include "opal/runtime/opal_cr.h"
@@ -876,9 +876,9 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
         } else {     /* unpack */
             convertor->flags |= CONVERTOR_CUDA;
             if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
-                convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer_p(packed_size, 0);
+                convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(packed_size, 0);
                 remote_address = (unsigned char*)my_cuda_dt_clone->remote_gpu_address + seq * pipeline_size;
-                (*opal_cuda_d2dcpy_async_p)(convertor->gpu_buffer_ptr, remote_address, packed_size);
+                opal_cuda_d2dcpy_async(convertor->gpu_buffer_ptr, remote_address, packed_size);
                 iov.iov_base = convertor->gpu_buffer_ptr;
                 opal_output(0, "unpack, start D2D copy src %p, dst %p, size %lu\n", remote_address, convertor->gpu_buffer_ptr, packed_size);        
             } else {
@@ -889,7 +889,7 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
             opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
             if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
                 if (convertor->gpu_buffer_ptr != NULL) {
-                    opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
+                    opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
                     convertor->gpu_buffer_ptr = NULL;
                 }   
             }
@@ -935,7 +935,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
         send_msg.msg_type = CUDA_DDT_CLEANUP;
         mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
         if (convertor->gpu_buffer_ptr != NULL) {
-            opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
+            opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
         }
     } else if (msg_type == CUDA_DDT_PACK_TO_BLOCK) {
@@ -997,7 +997,7 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
     
-    opal_cuda_free_gpu_buffer_p(convertor->gpu_buffer_ptr, 0);
+    opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
     mca_mpool_common_cuda_reg_t *rget_reg_ptr = NULL;
     mca_mpool_common_cuda_reg_t rget_reg;
     rget_reg_ptr= &rget_reg;

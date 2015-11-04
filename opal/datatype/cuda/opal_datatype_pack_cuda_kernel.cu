@@ -43,33 +43,6 @@ __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
     }
 }
 
-// __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_description_dist_t* desc_dist_d,
-//                                                         dt_elem_desc_t* desc_d,
-//                                                         uint32_t required_blocks, struct iovec* iov, unsigned char* pBaseBuf)
-// {
-//     uint32_t i;
-//     dt_elem_desc_t* pElem;
-//     unsigned char *conv_ptr, *iov_ptr;
-//     uint32_t local_index, dst_offset, pos_desc, count_desc;
-//     size_t iov_len_local;
-//
-//     iov_ptr = (unsigned char *) iov[0].iov_base;
-//     iov_len_local = iov[0].iov_len;
-//     conv_ptr = pBaseBuf;
-//     for (i = 0; i < desc_dist_d[blockIdx.x].description_used; i++) {
-//         pos_desc = desc_dist_d[blockIdx.x].description_index[i];
-//         local_index = desc_dist_d[blockIdx.x].description_local_index[i];
-//         dst_offset = desc_dist_d[blockIdx.x].dst_offset[i];
-//         pElem = &(desc_d[pos_desc]);
-//         count_desc = pElem->elem.count;
-//
-//   //      if ( pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA ) {
-//             pack_predefined_data_cuda_kernel_v2(pElem, &count_desc, conv_ptr, iov_ptr, &iov_len_local, local_index, dst_offset);
-// //        }
-//     }
-//
-// }
-
 __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
 {
     uint32_t i, _copy_count;
@@ -113,18 +86,4 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
 #endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
         }
     }
-}
-
-__global__ void opal_empty_kernel(uint32_t copy_loops,
-                                  size_t size,
-                                  OPAL_PTRDIFF_TYPE extent,
-                                  unsigned char* source,
-                                  unsigned char* destination)
-{
-    
-}
-
-__global__ void opal_empty_kernel_noargs()
-{
-    
 }

@@ -9,8 +9,8 @@ VPATH = @srcdir@
 NVCC       = nvcc
 ARCH       = @AR@
 ARCHFLAGS  = cr
-STLIB     ?= opal_datatype_cuda.a
-DYLIB     ?= opal_datatype_cuda.so
+STLIB     ?= opal_datatype_cuda_kernel.a
+DYLIB     ?= opal_datatype_cuda_kernel.so
 EXTLIB     = -L$(top_builddir)/opal/datatype/.libs -ldatatype -L$(top_builddir)/opal/.libs -lopen-pal -L/usr/local/cuda/lib -lcuda
 subdir     = opal/datatype/cuda
 
