@@ -1,6 +1,6 @@
 /* -*- Mode: C; c-basic-offset:4 ; -*- */
 /*
- * Copyright (c) 2004-2009 The University of Tennessee and The University
+ * Copyright (c) 2004-2015 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2009      Oak Ridge National Labs.  All rights reserved.
@@ -239,4 +239,29 @@ opal_convertor_to_iov(struct opal_convertor_t *convertor,
         temp_count = IOVEC_INITIAL_SIZE;
         iovec = &((*iov)[*iov_count]);
     }
+}
+
+int opal_convertor_raw_cached(struct opal_convertor_t *convertor,
+                              const struct iovec **iov,
+                              uint32_t* iov_count)
+{
+    if( NULL == convertor->pDesc->cached_iovec ) {
+        struct opal_convertor_t conv;
+        size_t max_data;
+
+        OBJ_CONSTRUCT(&conv, opal_convertor_t);
+        conv.remoteArch = convertor->remoteArch;
+        conv.stack_pos  = 0;
+        conv.flags      = convertor->flags;
+        conv.master     = convertor->master;
+        opal_convertor_prepare_for_send(&conv, convertor->pDesc, 1, NULL);
+        opal_convertor_get_packed_size(&conv, &max_data);
+        opal_convertor_to_iov(&conv, (struct iovec **)&convertor->pDesc->cached_iovec,
+                              (uint32_t *)&convertor->pDesc->cached_iovec_count, &max_data);
+        OBJ_DESTRUCT(&conv);
+    }
+    *iov = convertor->pDesc->cached_iovec;
+    *iov_count = convertor->pDesc->cached_iovec_count;
+
+    return OPAL_SUCCESS;
 }

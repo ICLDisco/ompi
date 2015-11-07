@@ -28,8 +28,7 @@ struct opal_datatype_cuda_kernel_function_table {
     void* (*opal_ddt_cuda_malloc_gpu_buffer_p)(size_t size, int gpu_id);
     void (*opal_ddt_cuda_d2dcpy_async_p)(void* dst, const void* src, size_t count);
     void (*opal_ddt_cuda_d2dcpy_p)(void* dst, const void* src, size_t count);
-    void* (*opal_ddt_cuda_iov_dist_init_p)(void);
-    void (*opal_ddt_cuda_iov_dist_fini_p)(void *cuda_iov_dist);
+    void (*opal_ddt_cached_cuda_iov_fini_p)(void *cached_cuda_iov);
     int32_t (*opal_ddt_generic_simple_pack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
     int32_t (*opal_ddt_generic_simple_unpack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
     int32_t (*opal_ddt_generic_simple_pack_function_cuda_vector_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
@@ -56,7 +55,7 @@ void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id);
 void opal_cuda_free_gpu_buffer(void *addr, int gpu_id);
 void opal_cuda_d2dcpy(void* dst, const void* src, size_t count);
 void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count);
-void* opal_cuda_iov_dist_init(void);
-void opal_cuda_iov_dist_fini(void *cuda_iov_dist);
+void* opal_cached_cuda_iov_init(void);
+void opal_cached_cuda_iov_fini(void *cached_cuda_iov);
 
 #endif

@@ -652,6 +652,8 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     int32_t length = 0, done1 = 0, done2 = 0;
     TIMER_DATA_TYPE start, end, unpack_start, unpack_end;
     long total_time, unpack_time = 0;
+    int j, t_error = 0;
+    unsigned char *mat_char;
 
     dt_length = compute_buffer_length(pdt, count);
     printf("length %lu\n", dt_length);
@@ -746,7 +748,18 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
 
         if( done1 == 0 ) {
             done1 = opal_convertor_pack( send_convertor, &iov, &iov_count, &max_data );
+            
         }
+#if defined (TEST_CHAR)
+        mat_char = (unsigned char *)ptemp;
+        for (j = 0; j < max_data; j++) {
+            if (mat_char[j] != 'a') {
+                t_error ++;
+                printf("error %d, %c\n", j, mat_char[j]);
+            }
+        }
+        printf("total error %d\n", t_error);
+#endif
 
         if( done2 == 0 ) {
             GET_TIME( unpack_start );
@@ -1067,22 +1080,22 @@ int main( int argc, char* argv[] )
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
     int mat_size = 500;
-    for (mat_size = 6000; mat_size <= 6000; mat_size +=500) {
+    for (mat_size = 2000; mat_size <= 2000; mat_size +=500) {
         pdt = upper_matrix(mat_size);
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 1; i <= 2; i++) {
-    //            local_copy_with_convertor(pdt, 1, 1024*1024*200, mat_size);
+            for (i = 1; i <= 1; i++) {
+                local_copy_with_convertor(pdt, 1, 40000000, mat_size);
             }
         }
     }
     
     ompi_datatype_t *column, *matt;
     mat_size = 1000;
-    ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
-    ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
-    ompi_datatype_commit( &matt );
-    local_copy_with_convertor_mat(matt, 1, 200000000, mat_size);
+ //   ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
+ //   ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
+ //   ompi_datatype_commit( &matt );
+ //   local_copy_with_convertor_mat(matt, 1, 200000000, mat_size);
     
     
     int packed_size = 256;
@@ -1138,7 +1151,7 @@ int main( int argc, char* argv[] )
         pdt = create_vector_type( MPI_DOUBLE, 1000, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 0; i < 1; i++) {
-                 vector_ddt( pdt, 1, pdt, 1, 2000000 , 1000, blk_len, blk_len*2);
+        //         vector_ddt( pdt, 1, pdt, 1, 2000000 , 1000, blk_len, blk_len*2);
      //          vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
@@ -1216,13 +1229,13 @@ int main( int argc, char* argv[] )
         }
     }
     
-    for (blk_len = 2000; blk_len <= 2000; blk_len += 500) {
+    for (blk_len = 51; blk_len <= 51; blk_len += 500) {
         printf( ">>--------------------------------------------<<\n" );
         printf( "Vector data-type (60000 times %d double stride 512)\n", blk_len );
         pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 0; i < 4; i++) {
-        //          vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
+            for (i = 0; i < 1; i++) {
+      //           vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
     //             vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
