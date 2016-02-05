@@ -36,7 +36,7 @@ ddt_test_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/
 ddt_benchmark_SOURCES = ddt_benchmark.c ddt_lib.c ddt_lib.h
 ddt_benchmark_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)
 ddt_benchmark_CFLAGS = -I/mnt/sw/cuda/include -g -O0
-ddt_benchmark_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/cuda/libmca_common_cuda.la -L/mnt/sw/cuda/lib64 -lcudart
+ddt_benchmark_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/cuda/libmca_common_cuda.la -L/shared/apps/cuda/CUDA-v7.5.18/lib64 -lcudart
 
 #ddt_test_old_SOURCES = ddt_test_old.c ddt_lib.c ddt_lib.h
 #ddt_test_old_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)

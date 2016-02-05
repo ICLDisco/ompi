@@ -197,24 +197,27 @@ static void fill_vectors(double* vp, int itera, int contig, int gap)
     for (i = (itera-1)*gap; i < (itera-1)*gap+contig; i++) {
         vp[i] = 1.0;
     }
-    
-    // printf("vector generated:\n");
-    // for (i = 0; i < (itera-1)*gap+contig; i++) {
-    //     printf("%1.f ", vp[i]);
-    // }
-    printf("\n");
+   /* 
+     printf("vector generated:\n");
+     for (i = 0; i < (itera-1)*gap+contig; i++) {
+         printf("%1.f ", vp[i]);
+         if ((i+1) % gap == 0) printf("\n");
+     }
+    printf("\n");*/
 }
 
 static void verify_vectors(double *vp, int itera, int contig, int gap)
 {
     int i, j;
     int error = 0;
+    int count = 0;
     for (i = 0; i < itera-1; i++) {
         for (j = i*gap; j < (i+1)*gap; j++) {
             if (j >= i*gap && j < i*gap+contig) {
                 if (vp[j] != 1.0) {
                     error ++;
                 }
+                count ++;
             } 
         }
     }
@@ -222,15 +225,19 @@ static void verify_vectors(double *vp, int itera, int contig, int gap)
         if (vp[i] != 1.0) {
             error ++;
         }
+        count ++;
     }
-    // printf("vector received:\n");
-    // for (i = 0; i < (itera-1)*gap+contig; i++) {
-    //     printf("%1.f ", vp[i]);
-    // }
-    if (error != 0) {
-        printf("%d error is found\n", error);
+/*
+     printf("vector received:\n");
+     for (i = 0; i < (itera-1)*gap+contig; i++) {
+         printf("%1.f ", vp[i]);
+         if ((i+1) % gap == 0) printf("\n");
+     }
+  */
+     if (error != 0) {
+        printf("%d errors out of %d\n", error, count);
     } else {
-        printf("no error is found\n");
+        printf("no errors out of %d\n", count);
     }
 }
 
@@ -248,9 +255,12 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
     TIMER_DATA_TYPE start, end, unpack_start, unpack_end;
     long total_time, unpack_time = 0;
     size_t slength, rlength;
+    int shift_n = 0;
 
-    rlength = compute_buffer_length(recv_type, recv_count);
-    slength = compute_buffer_length(send_type, send_count);
+    rlength = compute_buffer_length(recv_type, recv_count) + sizeof(double)*shift_n;
+    slength = compute_buffer_length(send_type, send_count) + sizeof(double)*shift_n;
+    
+    cudaSetDevice(0);
 
 #if defined (DDT_TEST_CUDA)
     cudaError_t error = cudaMalloc((void **)&psrc, slength);
@@ -259,6 +269,7 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
         exit(-1);
     }
     cudaMemset(psrc, 0, slength);
+    psrc += sizeof(double)*shift_n;
     printf("cudamalloc psrc %p\n", psrc);
     
     error = cudaMalloc((void **)&pdst, rlength);
@@ -267,6 +278,7 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
         exit(-1);
     }
     cudaMemset(pdst, 0, rlength); 
+    pdst += sizeof(double)*shift_n;
     printf("cudamalloc pdst %p\n", pdst);
     
     error = cudaMallocHost((void **)&ptemp, chunk);
@@ -275,6 +287,7 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
         exit(-1);
     }
     memset(ptemp, 0, chunk);
+    ptemp += sizeof(double)*shift_n;
     printf("cudamallochost ptemp %p\n", ptemp);
     
     error = cudaMallocHost((void **)&phost, slength);
@@ -295,7 +308,18 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
     memset(pdst, 0, rlength);
 #endif
     
-#if defined (DDT_TEST_CUDA)
+    error = cudaMallocHost((void **)&psrc_host, slength);
+    error = cudaMallocHost((void **)&pdst_host, rlength);
+ //   psrc_host = malloc(slength);
+ //   pdst_host = malloc(rlength);
+    printf("cudamallochost phost \n");
+    
+    memset(psrc_host, 0, slength);
+    memset(pdst_host, 0, rlength);
+    pdst_host += sizeof(double)*shift_n;
+    psrc_host += sizeof(double)*shift_n;
+    slength -= sizeof(double)*shift_n;
+    rlength -= sizeof(double)*shift_n;
     if (itera > 0) {
         fill_vectors((double *)phost, itera, contig, gap);
     }
@@ -567,6 +591,14 @@ static void fill_upper_matrix(void *matt, int msize)
         blklens[i] = msize - i;
         displs[i] = i*msize + i;
     }
+    /*int ct = 0;
+    for (i = 0; i < msize; i++) {
+        blklens[i] = msize - ct*160;
+        displs[i] = i*msize + ct*160;
+        if (i % 160 == 0 && i != 0) {
+            ct++;
+        }
+    }*/
     for (i = 0; i < msize; i++) {
         start = displs[i];
         end = start + blklens[i];
@@ -581,13 +613,14 @@ static void fill_upper_matrix(void *matt, int msize)
     free(blklens);
     free(displs);
 
-   // printf("matrix generate\n");
-   // for (i = 0; i < msize; i++) {
-   //     for (j = 0; j < msize; j++) {
-   //         printf(" %1.f ", mat[i*msize+j]);
-   //     }
-   //     printf("\n");
-   // }
+    /*
+    printf("matrix generate\n");
+    for (i = 0; i < msize; i++) {
+        for (j = 0; j < msize; j++) {
+            printf(" %1.f ", mat[i*msize+j]);
+        }
+        printf("\n");
+    }*/
 }
 
 static void verify_mat_result(void *matt, int msize)
@@ -611,6 +644,14 @@ static void verify_mat_result(void *matt, int msize)
         blklens[i] = msize - i;
         displs[i] = i*msize + i;
     }
+    /*int ct = 0;
+    for (i = 0; i < msize; i++) {
+        blklens[i] = msize - ct*160;
+        displs[i] = i*msize + ct*160;
+        if (i % 160 == 0 && i != 0) {
+            ct++;
+        }
+    }*/
     for (i = 0; i < msize; i++) {
         start = displs[i];
         end = start + blklens[i];
@@ -626,15 +667,15 @@ static void verify_mat_result(void *matt, int msize)
     }
     free(blklens);
     free(displs);
-    
-    // printf("matrix received\n");
-    // for (i = 0; i < msize; i++) {
-    //     for (j = 0; j < msize; j++) {
-    //         printf(" %1.f ", mat[i*msize+j]);
-    //     }
-    //     printf("\n");
-    // }
-    
+   /* 
+     printf("matrix received\n");
+     for (i = 0; i < msize; i++) {
+         for (j = 0; j < msize; j++) {
+             printf(" %1.f ", mat[i*msize+j]);
+         }
+         printf("\n");
+     }
+    */
     if (error != 0) {
         printf("error is found %d\n", error);
     } else {
@@ -654,8 +695,9 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     long total_time, unpack_time = 0;
     int j, t_error = 0;
     unsigned char *mat_char;
+    int shift_n = 0;
 
-    dt_length = compute_buffer_length(pdt, count);
+    dt_length = compute_buffer_length(pdt, count) + sizeof(double) * shift_n;
     printf("length %lu\n", dt_length);
 
     cudaSetDevice(1);
@@ -666,6 +708,7 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
         printf("CUDA error: %s\n", cudaGetErrorString(error));
         exit(-1);
     }
+    psrc += sizeof(double) * shift_n;
     cudaMemset(psrc, 0, dt_length);
     printf("cudamalloc psrc %p\n", psrc);
     
@@ -674,6 +717,7 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
         printf("CUDA error: %s\n", cudaGetErrorString(error));
         exit(-1);
     }
+    pdst += sizeof(double) * shift_n;
     cudaMemset(pdst, 0, dt_length); 
     printf("cudamalloc pdst %p\n", pdst);
     
@@ -682,6 +726,7 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
         printf("CUDA error: %s\n", cudaGetErrorString(error));
         exit(-1);
     }
+    ptemp += sizeof(double) * shift_n;
     memset(ptemp, 0, chunk);
     printf("cudamallochost ptemp %p\n", ptemp);
     
@@ -690,6 +735,7 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
         printf("CUDA error: %s\n", cudaGetErrorString(error));
         exit(-1);
     }
+    phost += sizeof(double) * shift_n;
     memset(phost, 0, dt_length);
     printf("cudamallochost phost %p\n", phost);
 #else
@@ -702,6 +748,7 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
 #endif
 
 #if defined (DDT_TEST_CUDA)
+    dt_length -= sizeof(double) * shift_n;
     if (msize > 0) {
         fill_upper_matrix(phost, msize);
     }
@@ -760,6 +807,11 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
         }
         printf("total error %d\n", t_error);
 #endif
+      /*  double *mat_d = (double *)ptemp;
+        for (j = 0; j < max_data/sizeof(double); j++) {
+            printf("%1.f ", mat_d[j]);
+        }*/
+      //  printf("max data %d, ptemp %p \n", max_data, ptemp);
 
         if( done2 == 0 ) {
             GET_TIME( unpack_start );
@@ -792,6 +844,10 @@ clean_and_return:
     if( NULL != recv_convertor ) OBJ_RELEASE( recv_convertor );
 
 #if defined (DDT_TEST_CUDA)
+    psrc -= sizeof(double) * shift_n;
+    pdst -= sizeof(double) * shift_n;
+    ptemp -= sizeof(double) * shift_n;
+    phost -= sizeof(double) * shift_n;
     if( NULL != pdst ) cudaFree( pdst );
     if( NULL != psrc ) cudaFree( psrc );
     if( NULL != ptemp ) cudaFreeHost( ptemp );
@@ -1080,12 +1136,12 @@ int main( int argc, char* argv[] )
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
     int mat_size = 500;
-    for (mat_size = 2000; mat_size <= 2000; mat_size +=500) {
+    for (mat_size = 1000; mat_size <= 4000; mat_size +=1000) {
         pdt = upper_matrix(mat_size);
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 1; i <= 1; i++) {
-                local_copy_with_convertor(pdt, 1, 40000000, mat_size);
+            for (i = 1; i <= 5; i++) {
+               //  local_copy_with_convertor(pdt, 1, 200000000, mat_size);
             }
         }
     }
@@ -1145,13 +1201,13 @@ int main( int argc, char* argv[] )
     }
     
     
-    for (blk_len = 1000; blk_len <= 1000; blk_len += 2) {
+    for (blk_len = 4000; blk_len <= 4000; blk_len += 2000) {
         printf( ">>--------------------------------------------<<\n" );
         printf( "Vector data-type (1024 times %d double stride 512)\n", blk_len );
-        pdt = create_vector_type( MPI_DOUBLE, 1000, blk_len, blk_len*2);
+        pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 0; i < 1; i++) {
-        //         vector_ddt( pdt, 1, pdt, 1, 2000000 , 1000, blk_len, blk_len*2);
+            for (i = 0; i < 4; i++) {
+                 vector_ddt( pdt, 1, pdt, 1, 1024*1024*200 , blk_len, blk_len, blk_len*2);
      //          vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }

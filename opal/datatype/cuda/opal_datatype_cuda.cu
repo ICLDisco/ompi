@@ -358,7 +358,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     uint32_t count_desc, nb_blocks_per_description, residue_desc;
     uint32_t thread_per_block, nb_blocks_used;
     size_t length_per_iovec;
-    uint8_t alignment;
+    uint32_t alignment;
     ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
     ddt_cuda_iov_total_cached_t* cached_cuda_iov = NULL;
     ddt_cuda_iov_dist_cached_t *cached_cuda_iov_dist_d = NULL;
@@ -389,14 +389,14 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     cuda_iov_pipeline_block = current_cuda_device->cuda_iov_pipeline_block[0];
     cuda_iov_dist_h = cuda_iov_pipeline_block->cuda_iov_dist_cached_h;
     cuda_stream_iov = cuda_iov_pipeline_block->cuda_stream;
-    thread_per_block = CUDA_WARP_SIZE * 5;
+    thread_per_block = CUDA_WARP_SIZE * 64;
 
     for (i = 0; i < ddt_iov_count; i++) {
         length_per_iovec = ddt_iov[i].iov_len;
         ncontig_disp_base = (size_t)(ddt_iov[i].iov_base);
     
         /* block size is either multiple of ALIGNMENT_DOUBLE or residule */
-        alignment = ALIGNMENT_DOUBLE;
+        alignment = ALIGNMENT_DOUBLE * 1;
 
         count_desc = length_per_iovec / alignment;
         residue_desc = length_per_iovec % alignment;

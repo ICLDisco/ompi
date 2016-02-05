@@ -463,7 +463,7 @@ void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
 #if OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL
     cudaMemcpy2DAsync(_destination, _end_loop->size, _source, _loop->extent, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice, cuda_streams->opal_cuda_stream[0]);
 #else
-    pack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK, 0, cuda_streams->opal_cuda_stream[0]>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
+    pack_contiguous_loop_cuda_kernel_global<<<32, 8*THREAD_PER_BLOCK, 0, cuda_streams->opal_cuda_stream[0]>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
 #endif /* OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL */
 
 #if !defined(OPAL_DATATYPE_CUDA_DRY_RUN)    
@@ -1095,6 +1095,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
 
         cudaMemcpyAsync(cuda_iov_dist_d_current, cuda_iov_dist_h_current, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, *cuda_stream_iov);
         opal_generic_simple_pack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, *cuda_stream_iov>>>(cuda_iov_dist_d_current, 0, nb_blocks_used, 0, 0, nb_blocks_used, source_base, destination_base);
+        //cudaStreamSynchronize(*cuda_stream_iov);
         cuda_err = cudaEventRecord(cuda_iov_pipeline_block->cuda_event, *cuda_stream_iov);
         opal_cuda_check_error(cuda_err);
         iov_pipeline_block_id ++;
@@ -1146,8 +1147,8 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
 
     cuda_streams->current_stream_id = 0;
     destination_base = destination;
-    thread_per_block = CUDA_WARP_SIZE * 5;
-    nb_blocks = 256;
+    thread_per_block = CUDA_WARP_SIZE * 8;
+    nb_blocks = 4;
     source_base = (unsigned char*)pConvertor->pBaseBuf; 
     
     /* cuda iov is not cached, start to cache iov */
@@ -1211,12 +1212,19 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
 #endif
     opal_datatype_type_extent(pConvertor->pDesc, &ddt_extent);
     DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack kernel launched src_base %p, dst_base %p, nb_blocks %ld, extent %ld\n", source_base, destination_base, nb_blocks_used, ddt_extent ); );
+#if defined(OPAL_DATATYPE_CUDA_TIMING)
+    GET_TIME(start);
+#endif    
     opal_generic_simple_pack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, *cuda_stream_iov>>>(cached_cuda_iov_dist_d, pConvertor->current_cuda_iov_pos, cached_cuda_iov_count, ddt_extent, convertor_current_count, nb_blocks_used, source_base, destination_base);
     pConvertor->current_cuda_iov_pos += nb_blocks_used;
     pConvertor->current_cuda_iov_pos = pConvertor->current_cuda_iov_pos % cached_cuda_iov->cuda_iov_count;
 
     cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
-    
+#if defined(OPAL_DATATYPE_CUDA_TIMING)    
+    GET_TIME( end );
+    total_time = ELAPSED_TIME( start, end );
+    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: Pack kernel %ld microsec\n", total_time); );
+#endif    
     return OPAL_SUCCESS;
 }
 

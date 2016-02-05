@@ -34,9 +34,9 @@
 #define DUMP_DATA_AFTER_COMMIT 0x00000001
 #define CHECK_PACK_UNPACK      0x00000002
 
-//#define TEST_DOUBLE
+#define TEST_DOUBLE
 //#define TEST_FLOAT
-#define TEST_CHAR
+//#define TEST_CHAR
 
 
 extern uint32_t outputFlags;

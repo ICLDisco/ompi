@@ -17,7 +17,7 @@
 #define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_D2H   0
 #define OPAL_DATATYPE_VECTOR_USE_ZEROCPY   0
 #define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
-#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL   1
+#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL   0
 #define OPAL_DATATYPE_CUDA_IOV_CACHE    1
 
 
@@ -40,6 +40,10 @@
 #define ALIGNMENT_CHAR      1
 #define NUM_CUDA_IOV_PER_DDT    150000
 #define IOV_PIPELINE_SIZE   1000
+#define KERNEL_UNROLL       16
+#define UNROLL_16           16
+#define UNROLL_8            8
+#define UNROLL_4            4
 
 #define TIMER_DATA_TYPE struct timeval
 #define GET_TIME(TV)   gettimeofday( &(TV), NULL )

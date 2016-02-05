@@ -363,6 +363,14 @@ ompi_datatype_t* upper_matrix( unsigned int mat_size )
         disp[i] = i * mat_size + i;
         blocklen[i] = mat_size - i;
     }
+    /*int ct = 0;
+    for (i = 0; i < mat_size; i++) {
+        blocklen[i] = mat_size - ct*160;
+        disp[i] = i*mat_size + ct*160;
+        if (i % 160 == 0 && i != 0) {
+            ct++;
+        }
+    }*/
 #if defined (TEST_DOUBLE)
     ompi_datatype_create_indexed( mat_size, blocklen, disp, &ompi_mpi_double.dt,
                              &upper );
