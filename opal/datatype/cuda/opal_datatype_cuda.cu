@@ -217,9 +217,16 @@ int32_t opal_ddt_cuda_kernel_init(void)
     
         /* init cuda stream */
         ddt_cuda_stream_t *cuda_streams = (ddt_cuda_stream_t *)malloc(sizeof(ddt_cuda_stream_t));
-        ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
         for (j = 0; j < NB_STREAMS; j++) {
-            cudaStreamCreate(&(cuda_streams->opal_cuda_stream[j]));
+            cudaStreamCreate(&(cuda_streams->ddt_cuda_stream[j]));
+        }
+        cuda_streams->current_stream_id = 0;
+        cuda_devices[i].cuda_streams = cuda_streams;
+        cudaEventCreate(&(cuda_devices[i].memcpy_event), cudaEventDisableTiming);
+        
+        /* init iov pipeline blocks */
+        ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
+        for (j = 0; j < NB_PIPELINE_BLOCKS; j++) {
             cuda_iov_pipeline_block = (ddt_cuda_iov_pipeline_block_t *)malloc(sizeof(ddt_cuda_iov_pipeline_block_t));
             cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h)), sizeof(ddt_cuda_iov_dist_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
             cudaMalloc((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d)), sizeof(ddt_cuda_iov_dist_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
@@ -228,14 +235,11 @@ int32_t opal_ddt_cuda_kernel_init(void)
             } else {
                 cuda_iov_pipeline_block->cuda_iov_dist_cached_h = NULL;
             }
-            cuda_iov_pipeline_block->cuda_stream = &(cuda_streams->opal_cuda_stream[0]);
-            cuda_iov_pipeline_block->cuda_stream_id = 0;
-            cudaEventCreate(&(cuda_iov_pipeline_block->cuda_event), cudaEventDisableTiming);
+            // cuda_iov_pipeline_block->cuda_stream = &(cuda_streams->opal_cuda_stream[0]);
+            // cuda_iov_pipeline_block->cuda_stream_id = 0;
+            cudaEventCreateWithFlags(&(cuda_iov_pipeline_block->cuda_event), cudaEventDisableTiming);
             cuda_devices[i].cuda_iov_pipeline_block[j] = cuda_iov_pipeline_block;
         }
-        cuda_streams->current_stream_id = 0;
-        cuda_devices[i].cuda_streams = cuda_streams;
-        cudaEventCreate(&(cuda_devices[i].memcpy_event), cudaEventDisableTiming);
     }
     current_cuda_device = &(cuda_devices[0]);
     
@@ -262,7 +266,7 @@ int32_t opal_ddt_cuda_kernel_fini(void)
         /* destory cuda stream and iov*/
         ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
         for (j = 0; j < NB_STREAMS; j++) {
-            cudaStreamDestroy(cuda_devices[i].cuda_streams->opal_cuda_stream[j]);
+            cudaStreamDestroy(cuda_devices[i].cuda_streams->ddt_cuda_stream[j]);
             cuda_iov_pipeline_block = cuda_devices[i].cuda_iov_pipeline_block[j];
             if (cuda_iov_pipeline_block != NULL) {
                 if (cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h != NULL) {
@@ -279,7 +283,6 @@ int32_t opal_ddt_cuda_kernel_fini(void)
                 }
                 cudaEventDestroy(cuda_iov_pipeline_block->cuda_event);
                 cuda_iov_pipeline_block->cuda_stream = NULL;
-                cuda_iov_pipeline_block->cuda_stream_id = -1;
                 free(cuda_iov_pipeline_block);
                 cuda_iov_pipeline_block = NULL;
             }
@@ -369,6 +372,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     size_t ncontig_disp_base;
     size_t contig_disp = 0;
     uint32_t *cached_cuda_iov_nb_bytes_list_h = NULL;
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     
     opal_datatype_t *datatype = (opal_datatype_t *)pConvertor->pDesc;
     
@@ -387,6 +391,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     cached_cuda_iov_nb_bytes_list_h = cached_cuda_iov->nb_bytes_h;
     nb_blocks_used = 0;
     cuda_iov_pipeline_block = current_cuda_device->cuda_iov_pipeline_block[0];
+    cuda_iov_pipeline_block->cuda_stream = &(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
     cuda_iov_dist_h = cuda_iov_pipeline_block->cuda_iov_dist_cached_h;
     cuda_stream_iov = cuda_iov_pipeline_block->cuda_stream;
     thread_per_block = CUDA_WARP_SIZE * 64;
@@ -735,13 +740,25 @@ void opal_cuda_check_error(cudaError_t err)
 
 void opal_ddt_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
 {
-    cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->opal_cuda_stream[0]);
+    cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
 }
 
 void opal_ddt_cuda_d2dcpy(void* dst, const void* src, size_t count)
 {
-    cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->opal_cuda_stream[0]);
-    cudaStreamSynchronize(current_cuda_device->cuda_streams->opal_cuda_stream[0]);
+    cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
+    cudaStreamSynchronize(current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
+}
+
+void opal_ddt_cuda_set_cuda_stream()
+{
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
+    cuda_streams->current_stream_id ++;
+    cuda_streams->current_stream_id = cuda_streams->current_stream_id & (NB_STREAMS-1);
+}
+
+int32_t opal_ddt_cuda_get_cuda_stream()
+{
+    return current_cuda_device->cuda_streams->current_stream_id;
 }
 
 void opal_dump_cuda_list(ddt_cuda_list_t *list)

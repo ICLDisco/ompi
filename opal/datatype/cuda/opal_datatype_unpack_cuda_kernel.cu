@@ -171,9 +171,9 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
         if (nb_tasks_per_block >= 4) {
             WARP_SIZE = 32;
         } else if (nb_tasks_per_block == 1) {
-            WARP_SIZE = blockDim.x;
+            WARP_SIZE = 32;//blockDim.x;
         } else {
-            WARP_SIZE = 64;
+            WARP_SIZE = 32;
         }
         nb_warp_per_block = blockDim.x / WARP_SIZE;
      //   printf("cuda_iov_count %d, ddt_extent %d, current_count %d, ddt_size %d\n", cuda_iov_count, ddt_extent, current_count, ddt_size);

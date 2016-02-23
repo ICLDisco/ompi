@@ -1223,11 +1223,12 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 struct iovec iov;
                 uint32_t iov_count = 1;
                 size_t max_data;
+                opal_cuda_set_cuda_stream();
                 if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && remote_device != local_device) {
                     unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(size, 0);
                     opal_cuda_d2dcpy_async(unpack_convertor->gpu_buffer_ptr, remote_memory_address, size);
                     iov.iov_base = unpack_convertor->gpu_buffer_ptr;
-                    opal_output(0, "start D2D copy src %p, dst %p, size %lu\n", remote_memory_address, unpack_convertor->gpu_buffer_ptr, size);
+                    opal_output(0, "start D2D copy src %p, dst %p, size %lu, stream id %d\n", remote_memory_address, unpack_convertor->gpu_buffer_ptr, size, opal_cuda_get_cuda_stream());
                 } else {
                     iov.iov_base = unpack_convertor->gpu_buffer_ptr;
                 }

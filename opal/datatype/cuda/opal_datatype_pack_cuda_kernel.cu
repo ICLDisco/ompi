@@ -412,9 +412,9 @@ __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_di
         if (nb_tasks_per_block >= 4) {
             WARP_SIZE = 32;
         } else if (nb_tasks_per_block == 1) {
-            WARP_SIZE = blockDim.x;
+            WARP_SIZE = 32;//blockDim.x;
         } else {
-            WARP_SIZE = 64;
+            WARP_SIZE = 32;
         }
         nb_warp_per_block = blockDim.x / WARP_SIZE;
  //       nb_warp_per_block = 1;

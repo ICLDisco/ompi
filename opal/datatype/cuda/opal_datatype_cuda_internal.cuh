@@ -30,7 +30,8 @@
 #define THREAD_PER_BLOCK    32
 #define CUDA_WARP_SIZE      32
 #define TASK_PER_THREAD     2
-#define NB_STREAMS          8
+#define NB_STREAMS          4
+#define NB_PIPELINE_BLOCKS  4
 #define CUDA_NB_IOV         1024*20
 #define CUDA_IOV_LEN        1024*1204
 #define CUDA_MAX_NB_BLOCKS  1024
@@ -51,8 +52,8 @@
 
 
 typedef struct {
-    cudaStream_t opal_cuda_stream[NB_STREAMS];
-    uint32_t current_stream_id;
+    cudaStream_t ddt_cuda_stream[NB_STREAMS];
+    int32_t current_stream_id;
 } ddt_cuda_stream_t;
 
 typedef struct {
@@ -79,7 +80,6 @@ typedef struct {
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_d;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
     cudaStream_t *cuda_stream;
-    int32_t cuda_stream_id;
     cudaEvent_t cuda_event;
 } ddt_cuda_iov_pipeline_block_t;
 
@@ -104,7 +104,7 @@ typedef struct {
     size_t buffer_free_size;
     size_t buffer_used_size;
     ddt_cuda_stream_t *cuda_streams;
-    ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block[NB_STREAMS];
+    ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block[NB_PIPELINE_BLOCKS];
     cudaEvent_t memcpy_event;
 } ddt_cuda_device_t;
 
