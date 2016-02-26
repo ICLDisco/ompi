@@ -148,61 +148,174 @@ __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
 
 #else
 
-#define SEG_ADD(s) \
-    l += s; \
-    while (l >= lines) { \
-	l -= lines; \
-	c += width; \
-    }
-
-__global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t lines,
-                                                         size_t nb_size,
-                                                         OPAL_PTRDIFF_TYPE nb_extent,
-                                                         unsigned char * b_source,
-                                                         unsigned char * b_destination )
+__global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
+                                                         size_t size,
+                                                         OPAL_PTRDIFF_TYPE extent,
+                                                         unsigned char* source,
+                                                         unsigned char* destination )
 {
-    uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
-    uint32_t num_threads = gridDim.x * blockDim.x;
-  
-    //size_t lines = (size_t)lines;
-    size_t size = nb_size / 8;
-    size_t extent = nb_extent / 8;
-    uint64_t * source = (uint64_t *) b_source;
-    uint64_t *destination = (uint64_t *) b_destination;
-    uint64_t val[KERNEL_UNROLL];
+    uint32_t i, u, tid, num_threads, warp_id, tid_per_warp, nb_warps, nb_warps_x, nb_warps_y, pos_x, pos_y, size_last_y, size_last_x;
+    uint32_t size_nb, extent_nb;
+    uint64_t *_source_tmp, *_destination_tmp, *source_64, *destination_64, *_source_left_tmp, *_destination_left_tmp;
+    uint64_t val[UNROLL_16];
     
-    int col = 0;
-    for (int width = 32; width > 0 && col < size; width >>= 1) {
-    	while (size-col >= width) {
-    	    const int warp_id = tid / width;
-    	    const int warp_tid = tid & (width-1);
-    	    const int warp_nb = num_threads / width;
-    	    const int c = col + warp_tid;
-            int l = warp_id * KERNEL_UNROLL;
-    	    uint64_t *src = source + c;
-    	    uint64_t *dst = destination + c;
-    	    for (int b=0; b<lines/(KERNEL_UNROLL*warp_nb); b++) {
-    		    #pragma unroll
-    		    for (int u=0; u<KERNEL_UNROLL; u++) {
-    		        val[u] = *(src+(l+u)*extent);
-    		    }
-    		    #pragma unroll
-    		    for (int u=0; u<KERNEL_UNROLL; u++) {
-    		        dst[(l+u)*size] = val[u];
-    		    }
-    		    l += warp_nb * KERNEL_UNROLL;
-    	    }
-    	    /* Finish non-unrollable case */
-    	    for (int u=0; u<KERNEL_UNROLL && l<lines; u++) {
-    		    dst[l*size] = *(src+l*extent);
-    		    l++;
-    	    }		
-    	    col += width;
-    	}
+    tid = threadIdx.x + blockIdx.x * blockDim.x;
+    num_threads = gridDim.x * blockDim.x;
+    warp_id = tid / CUDA_WARP_SIZE;
+    tid_per_warp = threadIdx.x & (CUDA_WARP_SIZE-1);
+    nb_warps = num_threads / CUDA_WARP_SIZE;
+    
+    extent_nb = extent / 8;
+    size_nb = size / 8;
+    source_64 = (uint64_t*)source;
+    destination_64 = (uint64_t*)destination;
+    
+    nb_warps_x = size_nb / CUDA_WARP_SIZE;
+    size_last_x = size_nb & (CUDA_WARP_SIZE-1);
+    if ( size_last_x != 0) {
+        nb_warps_x ++;
+    } else {
+        size_last_x = CUDA_WARP_SIZE;
     }
-
+    nb_warps_y = copy_loops / UNROLL_16;
+    size_last_y = copy_loops & (UNROLL_16-1);
+    if ( size_last_y != 0) {
+        nb_warps_y ++;
+    } else {
+        size_last_y = UNROLL_16;
+    }
+    // if (threadIdx.x == 0) {
+    //     printf("warp_id %u, nb_warps_x %u, nb_warps_y %u, tid_per_warps %u, nb_warps %u\n", warp_id, nb_warps_x, nb_warps_y, tid_per_warp, nb_warps);
+    // }
     
+    const uint32_t extent_nb_times_UNROLL_16 =  extent_nb * UNROLL_16;
+    const uint32_t size_nb_times_UNROLL_16 = size_nb * UNROLL_16;
+    source_64 += tid_per_warp;
+    destination_64 += tid_per_warp;
+    
+    for (i = warp_id; i < (nb_warps_x-1) * (nb_warps_y-1); i += nb_warps) {
+        pos_x = i / (nb_warps_y-1);
+        pos_y = i % (nb_warps_y-1);
+        _source_tmp = source_64 + pos_y * extent_nb_times_UNROLL_16 + pos_x * CUDA_WARP_SIZE;
+        _destination_tmp = destination_64 + pos_y * size_nb_times_UNROLL_16 + pos_x * CUDA_WARP_SIZE;
+        #pragma unroll
+        for (u = 0; u < UNROLL_16; u++) {
+            val[u] = *(_source_tmp + u * extent_nb);
+        }
+        #pragma unroll
+        for (uint32_t u = 0; u < UNROLL_16; u++) {
+            *(_destination_tmp + u * size_nb) = val[u];
+        }
+    }
+    if (tid_per_warp < size_last_x) {
+        pos_x = nb_warps_x - 1;
+        _source_left_tmp = source_64 + pos_x * CUDA_WARP_SIZE;
+        _destination_left_tmp = destination_64 + pos_x * CUDA_WARP_SIZE;
+        for (i = warp_id; i < nb_warps_y-1; i += nb_warps) {
+            _source_tmp = _source_left_tmp + i * extent_nb_times_UNROLL_16;
+            _destination_tmp = _destination_left_tmp + i * size_nb_times_UNROLL_16;
+            #pragma unroll
+            for (u = 0; u < UNROLL_16; u++) {
+                val[u] = *(_source_tmp + u * extent_nb);
+            }
+            #pragma unroll
+            for (uint32_t u = 0; u < UNROLL_16; u++) {
+                *(_destination_tmp + u * size_nb) = val[u];
+            }
+        }
+    }
+    
+    pos_y = nb_warps_y - 1;
+    _source_left_tmp = source_64 + pos_y * extent_nb_times_UNROLL_16;
+    _destination_left_tmp = destination_64 + pos_y * size_nb_times_UNROLL_16;
+    if (size_last_y == UNROLL_16) {
+        for (i = warp_id; i < nb_warps_x-1; i += nb_warps) {
+            _source_tmp = _source_left_tmp + i * CUDA_WARP_SIZE;
+            _destination_tmp = _destination_left_tmp + i * CUDA_WARP_SIZE;
+            #pragma unroll
+            for (u = 0; u < UNROLL_16; u++) {
+                val[u] = *(_source_tmp + u * extent_nb);
+            }
+            #pragma unroll
+            for (uint32_t u = 0; u < UNROLL_16; u++) {
+                *(_destination_tmp + u * size_nb) = val[u];
+            }  
+        } 
+    } else {
+        for (i = warp_id; i < nb_warps_x-1; i += nb_warps) {
+            _source_tmp = _source_left_tmp + i * CUDA_WARP_SIZE;
+            _destination_tmp = _destination_left_tmp + i * CUDA_WARP_SIZE;
+            for (u = 0; u < size_last_y; u++) {
+                *(_destination_tmp + u * size_nb) = *(_source_tmp + u * extent_nb);
+            }
+        }
+    }
+    
+    if (warp_id == 0 && tid_per_warp < size_last_x) {
+        _source_tmp = source_64 + (nb_warps_y-1) * extent_nb_times_UNROLL_16 + (nb_warps_x-1) * CUDA_WARP_SIZE;
+        _destination_tmp = destination_64 + (nb_warps_y-1) * size_nb_times_UNROLL_16 + (nb_warps_x-1) * CUDA_WARP_SIZE;
+        for (u = 0; u < size_last_y; u++) {
+            *(_destination_tmp + u * size_nb) = *(_source_tmp + u * extent_nb);
+        }
+    }
 }
+
+
+// #define SEG_ADD(s) \
+//     l += s; \
+//     while (l >= lines) { \
+//     l -= lines; \
+//     c += width; \
+//     }
+//
+// __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t lines,
+//                                                          size_t nb_size,
+//                                                          OPAL_PTRDIFF_TYPE nb_extent,
+//                                                          unsigned char * b_source,
+//                                                          unsigned char * b_destination )
+// {
+//     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
+//     uint32_t num_threads = gridDim.x * blockDim.x;
+//
+//     //size_t lines = (size_t)lines;
+//     size_t size = nb_size / 8;
+//     size_t extent = nb_extent / 8;
+//     uint64_t * source = (uint64_t *) b_source;
+//     uint64_t *destination = (uint64_t *) b_destination;
+//     uint64_t val[KERNEL_UNROLL];
+//
+//     int col = 0;
+//     for (int width = 32; width > 0 && col < size; width >>= 1) {
+//         while (size-col >= width) {
+//             const int warp_id = tid / width;
+//             const int warp_tid = tid & (width-1);
+//             const int warp_nb = num_threads / width;
+//             const int c = col + warp_tid;
+//             int l = warp_id * KERNEL_UNROLL;
+//             uint64_t *src = source + c;
+//             uint64_t *dst = destination + c;
+//             for (int b=0; b<lines/(KERNEL_UNROLL*warp_nb); b++) {
+//                 #pragma unroll
+//                 for (int u=0; u<KERNEL_UNROLL; u++) {
+//                     val[u] = *(src+(l+u)*extent);
+//                 }
+//                 #pragma unroll
+//                 for (int u=0; u<KERNEL_UNROLL; u++) {
+//                     dst[(l+u)*size] = val[u];
+//                 }
+//                 l += warp_nb * KERNEL_UNROLL;
+//             }
+//             /* Finish non-unrollable case */
+//             for (int u=0; u<KERNEL_UNROLL && l<lines; u++) {
+//                 dst[l*size] = *(src+l*extent);
+//                 l++;
+//             }
+//             col += width;
+//         }
+//     }
+//
+//
+// }
 
 /*
 #define COLOFF_INC(jump, width, ext) \
