@@ -168,13 +168,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
         if (blockIdx.x < nb_blocks_used % gridDim.x) {
             nb_tasks_per_block ++;
         }
-        if (nb_tasks_per_block >= 4) {
-            WARP_SIZE = 32;
-        } else if (nb_tasks_per_block == 1) {
-            WARP_SIZE = 32;//blockDim.x;
-        } else {
-            WARP_SIZE = 32;
-        }
+        WARP_SIZE = 32;
         nb_warp_per_block = blockDim.x / WARP_SIZE;
      //   printf("cuda_iov_count %d, ddt_extent %d, current_count %d, ddt_size %d\n", cuda_iov_count, ddt_extent, current_count, ddt_size);
     }
@@ -214,7 +208,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
         } else {
             alignment = ALIGNMENT_CHAR;
         }
-        
+        //alignment = ALIGNMENT_DOUBLE;
         copy_count = _nb_bytes / alignment;
    /*     
         if (threadIdx.x == 0 && nb_tasks != 0) {

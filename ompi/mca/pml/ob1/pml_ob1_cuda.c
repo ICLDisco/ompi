@@ -71,7 +71,6 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                         size_t size) {
     int rc;
     int32_t local_device = 0;
-#if OPAL_CUDA_SUPPORT_41
 
     sendreq->req_send.req_base.req_convertor.flags &= ~CONVERTOR_CUDA;
     struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
