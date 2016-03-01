@@ -873,6 +873,9 @@ struct mca_btl_base_descriptor_t* mca_btl_smcuda_prepare_src(
     iov.iov_base =
         (IOVBASE_TYPE*)(((unsigned char*)(frag->segment.seg_addr.pval)) + reserve);
 
+    if (opal_datatype_cuda_kernel_support) {
+        convertor->flags &= ~CONVERTOR_CUDA_ASYNC;
+    }
     rc = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
     if( OPAL_UNLIKELY(rc < 0) ) {
         MCA_BTL_SMCUDA_FRAG_RETURN(frag);
@@ -1210,7 +1213,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
             printf("local addr %p, pbase %p\n", local_address, unpack_convertor->pBaseBuf);
             
             if (remote_device != local_device && !OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {
-                unpack_convertor->gpu_buffer_ptr = NULL;  
+                unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(mca_btl_smcuda.super.btl_cuda_ddt_pipeline_depth * mca_btl_smcuda_component.cuda_ddt_pipeline_size, 0);  
             } else {
                 unpack_convertor->gpu_buffer_ptr = remote_memory_address;   
             }
@@ -1223,7 +1226,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 struct iovec iov;
                 uint32_t iov_count = 1;
                 size_t max_data;
-                opal_cuda_set_cuda_stream();
+                opal_cuda_set_cuda_stream(0);
                 if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && remote_device != local_device) {
                     unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(size, 0);
                     opal_cuda_d2dcpy_async(unpack_convertor->gpu_buffer_ptr, remote_memory_address, size);
@@ -1235,6 +1238,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 iov.iov_len = size;
                 max_data = size;
                 opal_convertor_unpack(unpack_convertor, &iov, &iov_count, &max_data );
+                opal_cuda_sync_cuda_stream(0);
                 opal_cuda_free_gpu_buffer(unpack_convertor->gpu_buffer_ptr, 0);
                 done = 1;
             }
@@ -1480,6 +1484,11 @@ int mca_btl_smcuda_alloc_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint
 void mca_btl_smcuda_free_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex)
 {
     assert(endpoint->smcuda_ddt_clone[lindex].lindex == lindex);
+    cuda_ddt_smfrag_event_list_t *ddt_cuda_events = &(endpoint->smcuda_ddt_clone[lindex].ddt_cuda_events);
+    ddt_cuda_events->cuda_kernel_event_list = NULL;
+    opal_cuda_free_event(ddt_cuda_events->loc);
+    ddt_cuda_events->loc = -1;
+    ddt_cuda_events->nb_events = -1;
     endpoint->smcuda_ddt_clone[lindex].lindex = -1;
     endpoint->smcuda_ddt_clone_avail ++;
 }
@@ -1491,6 +1500,7 @@ void mca_btl_smcuda_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint,
                                    mca_btl_base_descriptor_t *frag,
                                    int lindex, int remote_device, int local_device)
 {
+    cuda_ddt_smfrag_event_list_t *ddt_cuda_events = &(endpoint->smcuda_ddt_clone[lindex].ddt_cuda_events);
     endpoint->smcuda_ddt_clone[lindex].pack_convertor = pack_convertor;
     endpoint->smcuda_ddt_clone[lindex].unpack_convertor = unpack_convertor;
     endpoint->smcuda_ddt_clone[lindex].current_unpack_convertor_pBaseBuf = unpack_convertor->pBaseBuf;
@@ -1499,6 +1509,8 @@ void mca_btl_smcuda_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint,
     endpoint->smcuda_ddt_clone[lindex].remote_device = remote_device;
     endpoint->smcuda_ddt_clone[lindex].local_device = local_device;
     endpoint->smcuda_ddt_clone[lindex].frag = frag;
+    ddt_cuda_events->cuda_kernel_event_list = opal_cuda_alloc_event(mca_btl_smcuda.super.btl_cuda_ddt_pipeline_depth, &(ddt_cuda_events->loc));
+    ddt_cuda_events->nb_events = mca_btl_smcuda.super.btl_cuda_ddt_pipeline_depth;
 }
 
 #endif /* OPAL_CUDA_SUPPORT */

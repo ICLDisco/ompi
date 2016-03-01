@@ -141,6 +141,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                     opal_output(0, "Failed to get the GPU device ID, rc=%d\n", rc);
                     return rc;
                 }
+                convertor->flags &= ~CONVERTOR_CUDA_ASYNC;
                 mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, convertor, 1, local_device); 
     
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,

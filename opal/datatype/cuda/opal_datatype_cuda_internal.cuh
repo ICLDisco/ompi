@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sys/time.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 //#include "opal_datatype_orig_internal.h"
 
@@ -30,7 +32,7 @@
 #define THREAD_PER_BLOCK    32
 #define CUDA_WARP_SIZE      32
 #define TASK_PER_THREAD     2
-#define NB_STREAMS          4
+#define NB_STREAMS          8
 #define NB_PIPELINE_BLOCKS  4
 #define CUDA_NB_IOV         1024*20
 #define CUDA_IOV_LEN        1024*1204
@@ -45,11 +47,17 @@
 #define UNROLL_16           16
 #define UNROLL_8            8
 #define UNROLL_4            4
+#define MAX_CUDA_EVENTS     16
 
 #define TIMER_DATA_TYPE struct timeval
 #define GET_TIME(TV)   gettimeofday( &(TV), NULL )
 #define ELAPSED_TIME(TSTART, TEND)  (((TEND).tv_sec - (TSTART).tv_sec) * 1000000 + ((TEND).tv_usec - (TSTART).tv_usec))
 
+
+typedef struct {
+    cudaEvent_t cuda_event;
+    int32_t event_type;
+} ddt_cuda_event_t;
 
 typedef struct {
     cudaStream_t ddt_cuda_stream[NB_STREAMS];
@@ -79,7 +87,7 @@ typedef struct {
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_h;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_d;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
-    cudaStream_t *cuda_stream;
+    cudaStream_t cuda_stream;
     cudaEvent_t cuda_event;
 } ddt_cuda_iov_pipeline_block_t;
 
@@ -114,6 +122,8 @@ extern ddt_cuda_device_t *current_cuda_device;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
+extern ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
+extern cudaStream_t outer_stream; 
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 

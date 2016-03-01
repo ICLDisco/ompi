@@ -557,6 +557,16 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
     bytes_received = mca_pml_ob1_compute_segment_length_base (segments, num_segments,
                                                               sizeof(mca_pml_ob1_frag_hdr_t));
     data_offset     = hdr->hdr_frag.hdr_frag_offset;
+    
+    opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
+    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
+        opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_htod_stream());
+        if (convertor->gpu_buffer_ptr == NULL) {
+            printf("!!!!!!!!!!malloc size %lu\n", btl->btl_max_send_size);
+            convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(btl->btl_max_send_size, 0);
+            convertor->gpu_buffer_size = btl->btl_max_send_size;
+        }
+    }
 
     MCA_PML_OB1_RECV_REQUEST_UNPACK( recvreq,
                                      segments,
@@ -565,6 +575,8 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                                      data_offset,
                                      bytes_received,
                                      bytes_delivered );
+                                     
+    opal_cuda_set_outer_cuda_stream(NULL);
     /* Store the receive request in unused context pointer. */
     des->des_context = (void *)recvreq;
     /* Store the amount of bytes in unused cbdata pointer */
@@ -573,6 +585,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
      * checks the stream events.  If we get an error, abort.  Should get message
      * from CUDA code about what went wrong. */
     result = mca_common_cuda_record_htod_event("pml", des);
+    printf("!!!!!!!!!!!record h2d\n");
     if (OMPI_SUCCESS != result) {
         opal_output(0, "%s:%d FATAL", __FILE__, __LINE__);
         ompi_rte_abort(-1, NULL);
@@ -607,6 +620,14 @@ void mca_pml_ob1_recv_request_frag_copy_finished( mca_btl_base_module_t* btl,
             recvreq->req_rdma_offset < recvreq->req_send_offset) {
         /* schedule additional rdma operations */
         mca_pml_ob1_recv_request_schedule(recvreq, NULL);
+    }
+    if(recvreq->req_bytes_received >= recvreq->req_recv.req_bytes_packed) {
+        opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
+        if (convertor->gpu_buffer_ptr != NULL) {
+            printf("!!!!!!!!!!!!!!!!!!!!!!!i free buffer %p\n", convertor->gpu_buffer_ptr);
+            opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
+            convertor->gpu_buffer_ptr = NULL;
+        }    
     }
 }
 #endif /* OPAL_CUDA_SUPPORT */

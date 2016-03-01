@@ -1606,14 +1606,19 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
 
     iov.iov_len = max_data;
     iov.iov_base = (IOVBASE_TYPE *) ( (unsigned char*) ptr + reserve );
-    (void) opal_convertor_pack(convertor, &iov, &iov_count, &max_data);
+    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
+        opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_dtoh_stream());
+    }
+    opal_convertor_pack(convertor, &iov, &iov_count, &max_data);
+    opal_cuda_set_outer_cuda_stream(NULL);
 
 #if OPAL_CUDA_SUPPORT /* CUDA_ASYNC_SEND */
     /* If the convertor is copying the data asynchronously, then record an event
      * that will trigger the callback when it completes.  Mark descriptor as async.
      * No need for this in the case we are not sending any GPU data. */
     if ((convertor->flags & CONVERTOR_CUDA_ASYNC) && (0 != max_data)) {
-        mca_common_cuda_record_dtoh_event("btl_openib", (mca_btl_base_descriptor_t *)frag);
+        printf("!!!!!!!!!!!!!!!!!!!!record d2h\n");
+        mca_common_cuda_record_dtoh_event("btl_openib", (mca_btl_base_descriptor_t *)frag, convertor);
         to_base_frag(frag)->base.des_flags = flags | MCA_BTL_DES_FLAGS_CUDA_COPY_ASYNC;
     }
 #endif /* OPAL_CUDA_SUPPORT */

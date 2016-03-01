@@ -539,6 +539,14 @@ typedef struct {
 #define CUDA_DDT_PACK_TO_BLOCK      5
 #define CUDA_UNPACK_NO              6
 
+
+/* event for pack/unpack */
+typedef struct {
+    int32_t loc;
+    int32_t nb_events;
+    void *cuda_kernel_event_list;
+} cuda_ddt_smfrag_event_list_t; 
+    
 /* package save pack/unpack convertor and cbfunc */
 typedef struct {
     struct opal_convertor_t *pack_convertor;
@@ -549,7 +557,14 @@ typedef struct {
     int remote_device;
     int local_device;
     mca_btl_base_descriptor_t *frag;
+    cuda_ddt_smfrag_event_list_t ddt_cuda_events;
 } cuda_ddt_clone_t;
+
+typedef struct {
+    mca_btl_base_module_t* btl;
+    struct mca_btl_base_endpoint_t *endpoint;
+    cuda_ddt_hdr_t sig_msg;
+} btl_smcuda_ddt_callback_t;
 
 #define SMCUDA_DT_CLONE_SIZE 20
 
