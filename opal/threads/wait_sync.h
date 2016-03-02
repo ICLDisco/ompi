@@ -17,11 +17,11 @@ BEGIN_C_DECLS
 
 typedef struct ompi_wait_sync_t {
     int count;
+    int status;
     pthread_cond_t condition;
     pthread_mutex_t lock;
     struct ompi_wait_sync_t *next;
     struct ompi_wait_sync_t *prev;
-    int status;
 } ompi_wait_sync_t;
 
 #define REQUEST_PENDING        (void*)0L
@@ -66,8 +66,8 @@ OPAL_DECLSPEC int sync_wait_st(ompi_wait_sync_t *sync);
 #define WAIT_SYNC_INIT(sync,c)                        \
     do {                                              \
        (sync)->count = c;                             \
-       (sync)->next = NULL;                           \
-       (sync)->prev = NULL;                           \
+       (sync)->next = sync;                           \
+       (sync)->prev = sync;                           \
        (sync)->status = 0;                            \
        PTHREAD_COND_INIT(&(sync)->condition, NULL);   \
        PTHREAD_MUTEX_INIT(&(sync)->lock, NULL);       \

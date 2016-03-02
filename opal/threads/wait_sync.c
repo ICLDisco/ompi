@@ -12,7 +12,7 @@
 #include "wait_sync.h"
 
 static opal_mutex_t wait_sync_lock = OPAL_MUTEX_STATIC_INIT;
-static ompi_wait_sync_t* wait_sync_list = NULL;
+static volatile ompi_wait_sync_t* wait_sync_list = NULL;
 
 #define WAIT_SYNC_PASS_OWNERSHIP(who)                  \
     do {                                               \
@@ -24,7 +24,7 @@ static ompi_wait_sync_t* wait_sync_list = NULL;
 
 int sync_wait_st(ompi_wait_sync_t *sync)
 {
-    while(sync->count > 0){
+    while(sync->count > 0) {
         opal_progress();
     }
     return OPAL_SUCCESS;
@@ -40,12 +40,11 @@ int sync_wait_mt(ompi_wait_sync_t *sync)
     /* Insert sync to the list */
     OPAL_THREAD_LOCK(&wait_sync_lock);
     if( NULL == wait_sync_list ) {
-        sync->next = sync->prev = sync;
         wait_sync_list = sync;
     } else {
         sync->prev = wait_sync_list->prev;
         sync->prev->next = sync;
-        sync->next = wait_sync_list;
+        sync->next = (ompi_wait_sync_t*)wait_sync_list;
         wait_sync_list->prev = sync;
     }
     OPAL_THREAD_UNLOCK(&wait_sync_lock);
@@ -86,7 +85,7 @@ int sync_wait_mt(ompi_wait_sync_t *sync)
     if( sync == wait_sync_list ) {
         wait_sync_list = (sync == sync->next) ? NULL : sync->next;
         if( NULL != wait_sync_list )
-            WAIT_SYNC_PASS_OWNERSHIP(wait_sync_list);
+            WAIT_SYNC_PASS_OWNERSHIP((ompi_wait_sync_t*)wait_sync_list);
     }
     OPAL_THREAD_UNLOCK(&wait_sync_lock);
         
