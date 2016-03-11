@@ -114,6 +114,9 @@ struct opal_convertor_t {
 
     unsigned char *               gpu_buffer_ptr; /**< GPU buffer used for pack/unpack */
     size_t                        gpu_buffer_size;
+    size_t                        pipeline_depth;
+    size_t                        pipeline_seq;
+    size_t                        pipeline_size;
     uint32_t                      current_cuda_iov_pos;
     uint32_t                      current_iov_pos;
     size_t                        current_iov_partial_length;

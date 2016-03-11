@@ -706,7 +706,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConve
             }
             transfer_required = 1;
             free_required = 1;
-            destination = pConvertor->gpu_buffer_ptr;
+            destination = pConvertor->gpu_buffer_ptr + pConvertor->pipeline_size * pConvertor->pipeline_seq;
         }
     }   
 
@@ -736,7 +736,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConve
         } else {
             working_stream = outer_stream;
         }
-        cudaMemcpyAsync(iov[0].iov_base, pConvertor->gpu_buffer_ptr, total_packed, cudaMemcpyDeviceToHost, working_stream);
+        cudaMemcpyAsync(iov[0].iov_base, destination, total_packed, cudaMemcpyDeviceToHost, working_stream);
         if (!(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) {
             cudaStreamSynchronize(working_stream);
         }
@@ -744,7 +744,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConve
 #if defined(OPAL_DATATYPE_CUDA_TIMING) 
     GET_TIME( end );
     move_time = ELAPSED_TIME( start, end );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: DtoH memcpy in %ld microsec, transfer required %d\n", move_time, transfer_required ); );
+    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: DtoH memcpy in %ld microsec, transfer required %d, pipeline_size %lu, pipeline_seq %lu\n", move_time, transfer_required, pConvertor->pipeline_size, pConvertor->pipeline_seq ); );
 #endif
 
     iov[0].iov_len = total_packed;
@@ -1159,7 +1159,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
    // cuda_streams->current_stream_id = 0;
     destination_base = destination;
     thread_per_block = CUDA_WARP_SIZE * 8;
-    nb_blocks = 2;
+    nb_blocks = 64;
     source_base = (unsigned char*)pConvertor->pBaseBuf; 
     
     /* cuda iov is not cached, start to cache iov */

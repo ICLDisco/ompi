@@ -551,6 +551,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
     size_t bytes_received = 0, data_offset = 0;
     size_t bytes_delivered __opal_attribute_unused__; /* is being set to zero in MCA_PML_OB1_RECV_REQUEST_UNPACK */
     mca_pml_ob1_hdr_t* hdr = (mca_pml_ob1_hdr_t*)segments->seg_addr.pval;
+    void *cuda_stream = NULL;
 
     OPAL_OUTPUT((-1, "start_frag_copy frag=%p", (void *)des));
 
@@ -560,12 +561,27 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
     
     opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
     if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
-        opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_htod_stream());
-        if (convertor->gpu_buffer_ptr == NULL) {
-            printf("!!!!!!!!!!malloc size %lu\n", btl->btl_max_send_size);
-            convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(btl->btl_max_send_size, 0);
-            convertor->gpu_buffer_size = btl->btl_max_send_size;
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == true) {
+            opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_htod_stream());
+           // opal_cuda_set_cuda_stream(convertor->pipeline_seq);
+        //    cuda_stream = opal_cuda_get_current_cuda_stream();
+            if (convertor->gpu_buffer_ptr == NULL) {
+                size_t buffer_size = 0;
+                convertor->pipeline_size = btl->btl_max_send_size;
+                convertor->pipeline_depth = mca_pml_ob1.recv_pipeline_depth;
+                if (convertor->local_size > convertor->pipeline_size) {
+                    buffer_size = convertor->pipeline_size * convertor->pipeline_depth;
+                } else {
+                    buffer_size = convertor->local_size;
+                }
+                printf("!!!!!!!!!!malloc size %lu\n", buffer_size);
+                convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+                convertor->gpu_buffer_size = buffer_size;
+                convertor->pipeline_seq = 0;
+            }
         }
+        convertor->flags |= CONVERTOR_CUDA;
     }
 
     MCA_PML_OB1_RECV_REQUEST_UNPACK( recvreq,
@@ -575,8 +591,16 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                                      data_offset,
                                      bytes_received,
                                      bytes_delivered );
-                                     
-    opal_cuda_set_outer_cuda_stream(NULL);
+         
+    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == true) {                            
+            opal_cuda_set_outer_cuda_stream(NULL);
+            convertor->pipeline_seq ++;
+            convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
+        }
+        convertor->flags |= CONVERTOR_CUDA;
+    }
     /* Store the receive request in unused context pointer. */
     des->des_context = (void *)recvreq;
     /* Store the amount of bytes in unused cbdata pointer */
@@ -584,7 +608,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
     /* Then record an event that will get triggered by a PML progress call which
      * checks the stream events.  If we get an error, abort.  Should get message
      * from CUDA code about what went wrong. */
-    result = mca_common_cuda_record_htod_event("pml", des);
+    result = mca_common_cuda_record_htod_event("pml", des, cuda_stream);
     printf("!!!!!!!!!!!record h2d\n");
     if (OMPI_SUCCESS != result) {
         opal_output(0, "%s:%d FATAL", __FILE__, __LINE__);

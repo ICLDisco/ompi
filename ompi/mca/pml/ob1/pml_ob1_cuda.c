@@ -114,12 +114,12 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
     } else {
         /* Do not send anything with first rendezvous message as copying GPU
          * memory into RNDV message is expensive. */
+        unsigned char *base;
+        size_t buffer_size = 0;
         sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
         if ((mca_pml_ob1_rdma_cuda_avail(sendreq->req_endpoint) != 0) && 
             (opal_datatype_cuda_kernel_support == 1) && 
             (bml_btl->btl->btl_cuda_ddt_allow_rdma == 1)) {
-            unsigned char *base;
-            size_t buffer_size = 0;
             if (convertor->local_size > bml_btl->btl->btl_cuda_ddt_pipeline_size) {
                 buffer_size = bml_btl->btl->btl_cuda_ddt_pipeline_size * bml_btl->btl->btl_cuda_ddt_pipeline_depth;
             } else {
@@ -151,11 +151,41 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                     mca_pml_ob1_free_rdma_resources(sendreq);
                 }
             } else {
+                if (bml_btl->btl->btl_cuda_max_send_size != 0) {
+                    convertor->pipeline_size = bml_btl->btl->btl_cuda_max_send_size;
+                } else {
+                    convertor->pipeline_size = bml_btl->btl->btl_max_send_size;    
+                }
+                convertor->pipeline_depth = mca_pml_ob1.send_pipeline_depth;
+                if (convertor->local_size > convertor->pipeline_size) {
+                    buffer_size = convertor->pipeline_size * convertor->pipeline_depth;
+                } else {
+                    buffer_size = convertor->local_size;
+                }
+                base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+                convertor->gpu_buffer_ptr = base;
+                convertor->gpu_buffer_size = buffer_size;
+                convertor->pipeline_seq = 0;
                 rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
             }
 
             
         } else {
+            if (bml_btl->btl->btl_cuda_max_send_size != 0) {
+                convertor->pipeline_size = bml_btl->btl->btl_cuda_max_send_size;
+            } else {
+                convertor->pipeline_size = bml_btl->btl->btl_max_send_size;    
+            }
+            convertor->pipeline_depth = mca_pml_ob1.send_pipeline_depth;
+            if (convertor->local_size > convertor->pipeline_size) {
+                buffer_size = convertor->pipeline_size * convertor->pipeline_depth;
+            } else {
+                buffer_size = convertor->local_size;
+            }
+            base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+            convertor->gpu_buffer_ptr = base;
+            convertor->gpu_buffer_size = buffer_size;
+            convertor->pipeline_seq = 0;
             rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
         }
     }

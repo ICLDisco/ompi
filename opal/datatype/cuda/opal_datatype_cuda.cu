@@ -716,7 +716,7 @@ void* opal_ddt_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
         cuda_list_push_head(&device->buffer_used, ptr);
         device->buffer_used_size += size;
         device->buffer_free_size -= size;
-        DT_CUDA_DEBUG( opal_cuda_output( 2, "Malloc GPU buffer %p, dev_id %d.\n", addr, dev_id); );
+        DT_CUDA_DEBUG( opal_cuda_output( 2, "Malloc GPU buffer %p, size %lu, dev_id %d.\n", addr, size, dev_id); );
         return addr;
     }
     return NULL;
@@ -751,7 +751,7 @@ void opal_ddt_cuda_free_gpu_buffer(void *addr, int gpu_id)
     cuda_list_item_merge_by_addr(&device->buffer_free, ptr);
     device->buffer_free_size += size;
     device->buffer_used_size -= size;
-    DT_CUDA_DEBUG( opal_cuda_output( 2, "Free GPU buffer %p.\n", addr); );
+    DT_CUDA_DEBUG( opal_cuda_output( 2, "Free GPU buffer %p, size %lu\n", addr, size); );
 }
 
 void opal_cuda_check_error(cudaError_t err)

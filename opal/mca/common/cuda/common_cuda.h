@@ -62,9 +62,11 @@ OPAL_DECLSPEC int mca_common_cuda_record_ipc_event(char *msg,
                                                struct mca_btl_base_descriptor_t *frag);
 OPAL_DECLSPEC int mca_common_cuda_record_dtoh_event(char *msg,
                                                     struct mca_btl_base_descriptor_t *frag,
-                                                    opal_convertor_t *convertor);
+                                                    opal_convertor_t *convertor,
+                                                    void *cuda_stream);
 OPAL_DECLSPEC int mca_common_cuda_record_htod_event(char *msg,
-                                                    struct mca_btl_base_descriptor_t *frag);
+                                                    struct mca_btl_base_descriptor_t *frag,
+                                                    void *cuda_stream);
 OPAL_DECLSPEC int mca_common_cuda_record_pack_event(char *msg, void *callback_frag, void *pack_stream);
 OPAL_DECLSPEC int mca_common_cuda_record_unpack_event(char *msg, void *callback_frag, void *unpack_stream);
 

@@ -1517,7 +1517,7 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
  * Record an event and save the frag.  This is called by the sending side and
  * is used to queue an event when a htod copy has been initiated.
  */
-int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_t *frag, opal_convertor_t *convertor)
+int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_t *frag, opal_convertor_t *convertor, void *cuda_stream)
 {
     CUresult result;
 
@@ -1540,7 +1540,11 @@ int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_
         }
     }
 
-    result = cuFunc.cuEventRecord(cuda_event_dtoh_array[cuda_event_dtoh_first_avail], dtohStream);
+    if (cuda_stream == NULL) {
+        result = cuFunc.cuEventRecord(cuda_event_dtoh_array[cuda_event_dtoh_first_avail], dtohStream);
+    } else {
+        result = cuFunc.cuEventRecord(cuda_event_dtoh_array[cuda_event_dtoh_first_avail], (CUstream)cuda_stream);
+    }
     if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
         opal_show_help("help-mpi-common-cuda.txt", "cuEventRecord failed",
                        true, OPAL_PROC_MY_HOSTNAME, result);
@@ -1565,7 +1569,7 @@ int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_
  * Record an event and save the frag.  This is called by the receiving side and
  * is used to queue an event when a dtoh copy has been initiated.
  */
-int mca_common_cuda_record_htod_event(char *msg, struct mca_btl_base_descriptor_t *frag)
+int mca_common_cuda_record_htod_event(char *msg, struct mca_btl_base_descriptor_t *frag, void *cuda_stream)
 {
     CUresult result;
 
@@ -1589,7 +1593,11 @@ int mca_common_cuda_record_htod_event(char *msg, struct mca_btl_base_descriptor_
         }
     }
 
-    result = cuFunc.cuEventRecord(cuda_event_htod_array[cuda_event_htod_first_avail], htodStream);
+    if (cuda_stream == NULL) {
+        result = cuFunc.cuEventRecord(cuda_event_htod_array[cuda_event_htod_first_avail], htodStream);
+    } else {
+        result = cuFunc.cuEventRecord(cuda_event_htod_array[cuda_event_htod_first_avail], (CUstream)cuda_stream);
+    }
     if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
         opal_show_help("help-mpi-common-cuda.txt", "cuEventRecord failed",
                        true, OPAL_PROC_MY_HOSTNAME, result);

@@ -1589,6 +1589,7 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
     uint32_t iov_count = 1;
     size_t max_data = *size;
     void *ptr;
+    void *cuda_stream = NULL;
 
     assert(MCA_BTL_NO_ORDER == order);
 
@@ -1607,10 +1608,24 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
     iov.iov_len = max_data;
     iov.iov_base = (IOVBASE_TYPE *) ( (unsigned char*) ptr + reserve );
     if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
-        opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_dtoh_stream());
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == true) {
+              opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_dtoh_stream());
+    //        opal_cuda_set_cuda_stream(convertor->pipeline_seq);
+       //     cuda_stream = opal_cuda_get_current_cuda_stream();
+        }
+        convertor->flags |= CONVERTOR_CUDA;
     }
     opal_convertor_pack(convertor, &iov, &iov_count, &max_data);
-    opal_cuda_set_outer_cuda_stream(NULL);
+    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == true) {
+            opal_cuda_set_outer_cuda_stream(NULL);
+            convertor->pipeline_seq ++;
+            convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
+        }
+        convertor->flags |= CONVERTOR_CUDA;
+    }
 
 #if OPAL_CUDA_SUPPORT /* CUDA_ASYNC_SEND */
     /* If the convertor is copying the data asynchronously, then record an event
@@ -1618,7 +1633,7 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
      * No need for this in the case we are not sending any GPU data. */
     if ((convertor->flags & CONVERTOR_CUDA_ASYNC) && (0 != max_data)) {
         printf("!!!!!!!!!!!!!!!!!!!!record d2h\n");
-        mca_common_cuda_record_dtoh_event("btl_openib", (mca_btl_base_descriptor_t *)frag, convertor);
+        mca_common_cuda_record_dtoh_event("btl_openib", (mca_btl_base_descriptor_t *)frag, convertor, cuda_stream);
         to_base_frag(frag)->base.des_flags = flags | MCA_BTL_DES_FLAGS_CUDA_COPY_ASYNC;
     }
 #endif /* OPAL_CUDA_SUPPORT */
