@@ -1235,9 +1235,8 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     pConvertor->current_cuda_iov_pos += nb_blocks_used;
     pConvertor->current_cuda_iov_pos = pConvertor->current_cuda_iov_pos % cached_cuda_iov->cuda_iov_count;
 
-    if (!(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) { /* RMDA pack treat as SYNC */
-//        cudaStreamSynchronize(cuda_stream_iov);
-    }
+     //cudaStreamSynchronize(cuda_stream_iov);
+
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     GET_TIME( end );
     total_time = ELAPSED_TIME( start, end );

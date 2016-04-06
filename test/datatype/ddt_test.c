@@ -260,7 +260,7 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
     rlength = compute_buffer_length(recv_type, recv_count) + sizeof(double)*shift_n;
     slength = compute_buffer_length(send_type, send_count) + sizeof(double)*shift_n;
     
-    cudaSetDevice(0);
+    cudaSetDevice(2);
 
 #if defined (DDT_TEST_CUDA)
     cudaError_t error = cudaMalloc((void **)&psrc, slength);
@@ -366,17 +366,17 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
         if( done1 == 0 ) {
             done1 = opal_convertor_pack( send_convertor, &iov, &iov_count, &max_data );
         }
-        
-        // int i,j = 0;
-        // printf("buffer received\n");
-        // double *mat_temp = (double*)ptemp;
-        // for (i = 0; i < itera; i++) {
-        //     for (j = 0; j < contig; j++) {
-        //         printf(" %1.f ", mat_temp[i*itera+j]);
-        //     }
-        //     printf("\n");
-        // }
-
+    /*    
+         int i,j = 0;
+         printf("buffer received\n");
+         double *mat_temp = (double*)ptemp;
+         for (i = 0; i < itera; i++) {
+             for (j = 0; j < contig; j++) {
+                 printf(" %1.f ", mat_temp[i*itera+j]);
+             }
+             printf("\n");
+         }
+*/
         if( done2 == 0 ) {
             GET_TIME( unpack_start );
             done2 = opal_convertor_unpack( recv_convertor, &iov, &iov_count, &max_data );
@@ -877,13 +877,13 @@ static void fill_matrix(void *matt, int msize)
         mat[i] = i;
     }
 
-   // printf("matrix generate\n");
-   // for (i = 0; i < msize; i++) {
-   //     for (j = 0; j < msize; j++) {
-   //         printf(" %1.f ", mat[i*msize+j]);
-   //     }
-   //     printf("\n");
-   // }
+    printf("matrix generate\n");
+    for (i = 0; i < msize; i++) {
+        for (j = 0; j < msize; j++) {
+            printf(" %1.f ", mat[i*msize+j]);
+        }
+        printf("\n");
+    }
 }
 
 static void verify_mat(void *matt, int msize)
@@ -909,13 +909,13 @@ static void verify_mat(void *matt, int msize)
         }
     }
     
-    // printf("matrix received\n");
-    // for (i = 0; i < msize; i++) {
-    //     for (j = 0; j < msize; j++) {
-    //         printf(" %1.f ", mat[i*msize+j]);
-    //     }
-    //     printf("\n");
-    // }
+     printf("matrix received\n");
+     for (i = 0; i < msize; i++) {
+         for (j = 0; j < msize; j++) {
+             printf(" %1.f ", mat[i*msize+j]);
+         }
+         printf("\n");
+     }
     
     if (error != 0) {
         printf("error is found %d\n", error);
@@ -1201,7 +1201,7 @@ int main( int argc, char* argv[] )
     }
     
     
-    for (blk_len = 1000; blk_len <= 4000; blk_len += 2000) {
+    for (blk_len = 1000; blk_len <= 1000; blk_len += 2000) {
         printf( ">>--------------------------------------------<<\n" );
         printf( "Vector data-type (1024 times %d double stride 512)\n", blk_len );
         pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);

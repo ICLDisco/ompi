@@ -75,10 +75,6 @@
 #include "btl_smcuda_frag.h"
 #include "btl_smcuda_fifo.h"
 
-#include "ompi/mca/bml/bml.h"
-#include "ompi/mca/pml/ob1/pml_ob1_rdmafrag.h"
-#include "ompi/mca/pml/base/pml_base_request.h"
-
 #if OPAL_CUDA_SUPPORT
 static struct mca_btl_base_registration_handle_t *mca_btl_smcuda_register_mem (
     struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t *endpoint, void *base,
@@ -86,6 +82,10 @@ static struct mca_btl_base_registration_handle_t *mca_btl_smcuda_register_mem (
 
 static int mca_btl_smcuda_deregister_mem (struct mca_btl_base_module_t* btl,
                                           struct mca_btl_base_registration_handle_t *handle);
+                                          
+static int mca_btl_smcuda_register_convertor (struct mca_btl_base_module_t* btl,
+                                              struct mca_btl_base_registration_handle_t *handle,
+                                              struct opal_convertor_t* convertor);
                                           
 inline static int mca_btl_smcuda_cuda_ddt_start_pack(struct mca_btl_base_module_t *btl, 
                                                      struct mca_btl_base_endpoint_t *endpoint,
@@ -108,6 +108,7 @@ mca_btl_smcuda_t mca_btl_smcuda = {
 #if OPAL_CUDA_SUPPORT
         .btl_register_mem = mca_btl_smcuda_register_mem,
         .btl_deregister_mem = mca_btl_smcuda_deregister_mem,
+        .btl_register_convertor = mca_btl_smcuda_register_convertor,
 #endif /* OPAL_CUDA_SUPPORT */
         .btl_send = mca_btl_smcuda_send,
         .btl_sendi = mca_btl_smcuda_sendi,
@@ -1107,6 +1108,34 @@ static int mca_btl_smcuda_deregister_mem (struct mca_btl_base_module_t* btl,
     return OPAL_SUCCESS;
 }
 
+static int mca_btl_smcuda_register_convertor (struct mca_btl_base_module_t* btl,
+                                              struct mca_btl_base_registration_handle_t *handle,
+                                              struct opal_convertor_t *convertor)
+{
+    printf("Hello, i register convertor, %p\n", (void*)convertor);
+    mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t *)((intptr_t) handle - offsetof (mca_mpool_common_cuda_reg_t, data));
+    
+    int32_t local_device = 0;
+    if (convertor->flags & CONVERTOR_CUDA) {
+    
+        int rc = mca_common_cuda_get_device(&local_device);
+        if (rc != 0) {
+            opal_output(0, "Failed to get the GPU device ID, rc= %d\n", rc);
+            return rc;
+        } 
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == false) {
+            cuda_reg->data.pack_unpack_required = 0;
+        } else {
+            cuda_reg->data.pack_unpack_required = 1;
+        }
+        convertor->flags |= CONVERTOR_CUDA;
+        cuda_reg->data.gpu_device = local_device;
+        cuda_reg->data.convertor = convertor;
+    }
+    return OPAL_SUCCESS;
+}
+
 int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     struct mca_btl_base_endpoint_t *ep, void *local_address,
     uint64_t remote_address, struct mca_btl_base_registration_handle_t *local_handle,
@@ -1189,26 +1218,21 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     mca_common_wait_stream_synchronize(&rget_reg);
     
     /* datatype RDMA */
-    mca_pml_ob1_rdma_frag_t *frag_ob1 = cbdata;
-    mca_bml_base_btl_t *bml_btl = frag_ob1->rdma_bml;
-    mca_pml_base_request_t *req = (mca_pml_base_request_t*) frag_ob1->rdma_req;
-    opal_convertor_t* unpack_convertor = &req->req_convertor;
+    opal_convertor_t* unpack_convertor = local_handle->reg_data.convertor;
+    uint8_t unpack_required = local_handle->reg_data.pack_unpack_required;
 
-    if ((unpack_convertor->flags & CONVERTOR_CUDA) &&
-        (bml_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET)) {
-        unpack_convertor->flags &= ~CONVERTOR_CUDA;
-        uint8_t pack_required = remote_handle->reg_data.pack_required;
+    if (unpack_convertor->flags & CONVERTOR_CUDA) {
+        uint8_t pack_required = remote_handle->reg_data.pack_unpack_required;
         int lindex = -1;
         int remote_device = remote_handle->reg_data.gpu_device;
-        opal_convertor_t* pack_convertor = remote_handle->reg_data.pack_convertor;
+        opal_convertor_t* pack_convertor = remote_handle->reg_data.convertor;
         int local_device = 0;
         rc = mca_common_cuda_get_device(&local_device);
         if (rc != 0) {
             opal_output(0, "Failed to get the GPU device ID, rc=%d", rc);
             return rc;
         }
-        if(opal_convertor_need_buffers(unpack_convertor) == true) {
-            unpack_convertor->flags |= CONVERTOR_CUDA;
+        if(unpack_required) {
             
             printf("local addr %p, pbase %p\n", local_address, unpack_convertor->pBaseBuf);
             
@@ -1228,6 +1252,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 size_t max_data;
                 opal_cuda_set_cuda_stream(0);
                 if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && remote_device != local_device) {
+                    opal_cuda_free_gpu_buffer(unpack_convertor->gpu_buffer_ptr, 0);
                     unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(size, 0);
                     opal_cuda_d2dcpy_async(unpack_convertor->gpu_buffer_ptr, remote_memory_address, size);
                     iov.iov_base = unpack_convertor->gpu_buffer_ptr;
@@ -1243,7 +1268,6 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 done = 1;
             }
         } else {
-            unpack_convertor->flags |= CONVERTOR_CUDA;
             if (pack_required) {
                 lindex = mca_btl_smcuda_alloc_cuda_ddt_clone(ep);
                 if (remote_device == local_device || OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {

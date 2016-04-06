@@ -874,6 +874,20 @@ typedef struct mca_btl_base_registration_handle_t *(*mca_btl_base_module_registe
 typedef int (*mca_btl_base_module_deregister_mem_fn_t)(
     struct mca_btl_base_module_t* btl, struct mca_btl_base_registration_handle_t *handle);
 
+
+/**
+ * @brief register a convertor
+ *
+ * @param btl (IN)         BTL module region was registered with
+ * @param handle (IN)      BTL registration handle to register
+ * @param convertor (IN)   convertor needs to be registered
+ *
+ * This function register the necessary convertor information. No need to 
+ * deregister since handle will be deregistered by mem deregisteration
+ */
+typedef int (*mca_btl_base_module_register_convertor_fn_t)(
+    struct mca_btl_base_module_t* btl, struct mca_btl_base_registration_handle_t *handle, struct opal_convertor_t *convertor);
+
 /**
  * Initiate an asynchronous send.
  * Completion Semantics: the descriptor has been queued for a send operation
@@ -1220,6 +1234,9 @@ struct mca_btl_base_module_t {
     /* new memory registration functions */
     mca_btl_base_module_register_mem_fn_t   btl_register_mem;   /**< memory registration function (NULL if not needed) */
     mca_btl_base_module_deregister_mem_fn_t btl_deregister_mem; /**< memory deregistration function (NULL if not needed) */
+    
+    /* convertor registration functions */
+    mca_btl_base_module_register_convertor_fn_t btl_register_convertor; /**< convertor registration function (NULL if not needed) */
 
     /** the mpool associated with this btl (optional) */
     mca_mpool_base_module_t*             btl_mpool;

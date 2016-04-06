@@ -751,6 +751,7 @@ void mca_pml_ob1_recv_request_progress_rget( mca_pml_ob1_recv_request_t* recvreq
         mca_bml_base_register_mem (rdma_bml, data_ptr, bytes_remaining, flags, &recvreq->local_handle);
         /* It is not an error if the memory region can not be registered here. The registration will
          * be attempted again for each get fragment. */
+        mca_bml_base_register_convertor(rdma_bml, recvreq->local_handle, &recvreq->req_recv.req_base.req_convertor);
     }
 
     /* The while loop adds a fragmentation mechanism. The variable bytes_remaining holds the num
