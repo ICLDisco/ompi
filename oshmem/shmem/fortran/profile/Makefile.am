@@ -61,6 +61,7 @@ nodist_liboshmem_fortran_pshmem_la_SOURCES = \
 	pshmem_iput8_f.c \
 	pshmem_logical_iput_f.c \
 	pshmem_real_iput_f.c \
+	pshmem_put_nb_f.c \
 	pshmem_character_get_f.c \
 	pshmem_complex_get_f.c \
 	pshmem_double_get_f.c \
@@ -83,6 +84,7 @@ nodist_liboshmem_fortran_pshmem_la_SOURCES = \
 	pshmem_integer_iget_f.c \
 	pshmem_logical_iget_f.c \
 	pshmem_real_iget_f.c \
+	pshmem_get_nb_f.c \
 	pshmem_swap_f.c \
 	pshmem_int4_swap_f.c \
 	pshmem_int8_swap_f.c \
@@ -112,6 +114,7 @@ nodist_liboshmem_fortran_pshmem_la_SOURCES = \
 	pshmem_prod_to_all_f.c \
 	pshmem_collect_f.c \
 	pshmem_broadcast_f.c \
+	pshmem_alltoall_f.c \
 	pshmem_lock_f.c \
 	pshmem_cache_f.c \
 	pshmem_int4_inc_f.c \
