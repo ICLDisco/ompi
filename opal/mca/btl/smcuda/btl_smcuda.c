@@ -1509,8 +1509,8 @@ void mca_btl_smcuda_free_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint
 {
     assert(endpoint->smcuda_ddt_clone[lindex].lindex == lindex);
     cuda_ddt_smfrag_event_list_t *ddt_cuda_events = &(endpoint->smcuda_ddt_clone[lindex].ddt_cuda_events);
+    opal_cuda_free_event(ddt_cuda_events->cuda_kernel_event_list, ddt_cuda_events->nb_events);
     ddt_cuda_events->cuda_kernel_event_list = NULL;
-    opal_cuda_free_event(ddt_cuda_events->loc);
     ddt_cuda_events->loc = -1;
     ddt_cuda_events->nb_events = -1;
     endpoint->smcuda_ddt_clone[lindex].lindex = -1;

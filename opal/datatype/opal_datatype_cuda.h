@@ -37,7 +37,7 @@ struct opal_datatype_cuda_kernel_function_table {
     void (*opal_ddt_cuda_set_outer_cuda_stream_p)(void *stream);
     void (*opal_ddt_cuda_set_callback_current_stream_p)(void *callback_func, void *callback_data);
     void* (*opal_ddt_cuda_alloc_event_p)(int32_t nb_events, int32_t *loc);
-    void (*opal_ddt_cuda_free_event_p)(int32_t loc);
+    void (*opal_ddt_cuda_free_event_p)(void *cuda_event_list, int32_t nb_events);
     int32_t (*opal_ddt_cuda_event_query_p)(void *cuda_event_list, int32_t i);
     int32_t (*opal_ddt_cuda_event_sync_p)(void *cuda_event_list, int32_t i);
     int32_t (*opal_ddt_cuda_event_record_p)(void *cuda_event_list, int32_t i);
@@ -79,7 +79,7 @@ void opal_cuda_sync_cuda_stream(int stream_id);
 void opal_cuda_set_outer_cuda_stream(void *stream);
 void opal_cuda_set_callback_current_stream(void *callback_func, void *callback_data);
 void* opal_cuda_alloc_event(int32_t nb_events, int32_t *loc);
-void opal_cuda_free_event(int32_t loc);
+void opal_cuda_free_event(void *cuda_event_list, int32_t nb_events);
 int32_t opal_cuda_event_query(void *cuda_event_list, int32_t i);
 int32_t opal_cuda_event_sync(void *cuda_event_list, int32_t i);
 int32_t opal_cuda_event_record(void *cuda_event_list, int32_t i);

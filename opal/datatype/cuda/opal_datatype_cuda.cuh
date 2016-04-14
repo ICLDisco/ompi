@@ -141,7 +141,7 @@ void opal_ddt_cuda_set_callback_current_stream(void *callback_func, void *callba
 
 void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc);
 
-void opal_ddt_cuda_free_event(int32_t loc);
+void opal_ddt_cuda_free_event(void *cuda_event_list, int32_t nb_events);
 
 int32_t opal_ddt_cuda_event_query(void *cuda_event_list, int32_t i);
 

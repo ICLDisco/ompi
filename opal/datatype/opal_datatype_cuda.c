@@ -480,10 +480,10 @@ void* opal_cuda_alloc_event(int32_t nb_events, int32_t *loc)
     }
 }
 
-void opal_cuda_free_event(int32_t loc)
+void opal_cuda_free_event(void *cuda_event_list, int32_t nb_events)
 {
     if (cuda_kernel_table.opal_ddt_cuda_free_event_p != NULL) {
-        cuda_kernel_table.opal_ddt_cuda_free_event_p(loc);
+        cuda_kernel_table.opal_ddt_cuda_free_event_p(cuda_event_list, nb_events);
     } else {
         opal_output(0, "opal_ddt_cuda_free_event function pointer is NULL\n");
     }

@@ -32,8 +32,9 @@
 #define THREAD_PER_BLOCK    32
 #define CUDA_WARP_SIZE      32
 #define TASK_PER_THREAD     2
-#define NB_STREAMS          8
-#define NB_PIPELINE_BLOCKS  4
+#define NB_STREAMS          4
+#define NB_PIPELINE_NON_CACHED_BLOCKS  4
+#define NB_CACHED_BLOCKS    4
 #define CUDA_NB_IOV         1024*20
 #define CUDA_IOV_LEN        1024*1204
 #define CUDA_MAX_NB_BLOCKS  1024
@@ -86,10 +87,15 @@ typedef struct {
 typedef struct {
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_h;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_d;
+    cudaStream_t cuda_stream;
+    cudaEvent_t cuda_event;
+} ddt_cuda_iov_pipeline_block_non_cached_t;
+
+typedef struct {
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
     cudaStream_t cuda_stream;
     cudaEvent_t cuda_event;
-} ddt_cuda_iov_pipeline_block_t;
+} ddt_cuda_iov_process_block_cached_t;
 
 typedef struct ddt_cuda_buffer{
     unsigned char* gpu_addr;
@@ -112,7 +118,10 @@ typedef struct {
     size_t buffer_free_size;
     size_t buffer_used_size;
     ddt_cuda_stream_t *cuda_streams;
-    ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block[NB_PIPELINE_BLOCKS];
+    ddt_cuda_iov_pipeline_block_non_cached_t *cuda_iov_pipeline_block_non_cached[NB_PIPELINE_NON_CACHED_BLOCKS];
+    ddt_cuda_iov_process_block_cached_t *cuda_iov_process_block_cached[NB_CACHED_BLOCKS];
+    uint32_t cuda_iov_process_block_cached_first_avail;
+    uint32_t cuda_iov_pipeline_block_non_cached_first_avail;
     cudaEvent_t memcpy_event;
 } ddt_cuda_device_t;
 

@@ -1201,7 +1201,7 @@ int main( int argc, char* argv[] )
     }
     
     
-    for (blk_len = 1000; blk_len <= 1000; blk_len += 2000) {
+    for (blk_len = 2000; blk_len <= 2000; blk_len += 2000) {
         printf( ">>--------------------------------------------<<\n" );
         printf( "Vector data-type (1024 times %d double stride 512)\n", blk_len );
         pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);
