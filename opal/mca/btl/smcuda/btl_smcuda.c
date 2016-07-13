@@ -1112,7 +1112,7 @@ static int mca_btl_smcuda_register_convertor (struct mca_btl_base_module_t* btl,
                                               struct mca_btl_base_registration_handle_t *handle,
                                               struct opal_convertor_t *convertor)
 {
-    printf("Hello, i register convertor, %p\n", (void*)convertor);
+ //   printf("Hello, i register convertor, %p\n", (void*)convertor);
     mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t *)((intptr_t) handle - offsetof (mca_mpool_common_cuda_reg_t, data));
     
     int32_t local_device = 0;
@@ -1206,7 +1206,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     offset = (size_t) ((intptr_t) remote_address - (intptr_t) reg_ptr->base.base);
     remote_memory_address = (unsigned char *)reg_ptr->base.alloc_base + offset;
     if (0 != offset) {
-        printf("!!!!!!offset %lu, ra %p, base %p, remote %p\n", offset, (void*)remote_address, (void*)reg_ptr->base.base, remote_memory_address);
+    //    printf("!!!!!!offset %lu, ra %p, base %p, remote %p\n", offset, (void*)remote_address, (void*)reg_ptr->base.base, remote_memory_address);
         opal_output(-1, "OFFSET=%d", (int)offset);
     }
 

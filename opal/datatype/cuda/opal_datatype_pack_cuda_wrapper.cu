@@ -1092,6 +1092,11 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
         cuda_stream_iov = cuda_iov_pipeline_block_non_cached->cuda_stream;
         cuda_err = cudaEventSynchronize(cuda_iov_pipeline_block_non_cached->cuda_event);
         opal_cuda_check_error(cuda_err);
+#if OPAL_DATATYPE_IOV_UNIFIED_MEM
+        cuda_err = cudaStreamAttachMemAsync(cuda_stream_iov, cuda_iov_dist_h_current, 0, cudaMemAttachHost);
+        opal_cuda_check_error(cuda_err);
+        cudaStreamSynchronize(cuda_stream_iov);
+#endif
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
         GET_TIME(start);
@@ -1104,8 +1109,13 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
         total_time = ELAPSED_TIME( start, end );
         DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: Pack src %p to dest %p, iov is prepared in %ld microsec, kernel submitted to CUDA stream %d, nb_blocks %d\n", source_base, destination_base, total_time,  cuda_streams->current_stream_id, nb_blocks_used); );
 #endif
-
+#if OPAL_DATATYPE_IOV_UNIFIED_MEM
+        //cuda_err = cudaStreamAttachMemAsync(cuda_stream_iov, cuda_iov_dist_d_current);
+        //opal_cuda_check_error(cuda_err);
+        //cudaStreamSynchronize(cuda_stream_iov);
+#else
         cudaMemcpyAsync(cuda_iov_dist_d_current, cuda_iov_dist_h_current, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, cuda_stream_iov);
+#endif
         opal_generic_simple_pack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, cuda_stream_iov>>>(cuda_iov_dist_d_current, 0, nb_blocks_used, 0, 0, nb_blocks_used, source_base, destination_base);
         //cudaStreamSynchronize(*cuda_stream_iov);
         cuda_err = cudaEventRecord(cuda_iov_pipeline_block_non_cached->cuda_event, cuda_stream_iov);
