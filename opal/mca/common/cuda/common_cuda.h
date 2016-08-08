@@ -99,7 +99,7 @@ OPAL_DECLSPEC void mca_common_cuda_fini(void);
 OPAL_DECLSPEC int mca_common_cuda_create_event(uint64_t **event);
 OPAL_DECLSPEC int mca_common_cuda_record_event(uint64_t *event);
 OPAL_DECLSPEC int mca_common_cuda_query_event(uint64_t *event);
-OPAL_DECLSPEC int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_mpool_common_cuda_reg_data_t *handle);
+OPAL_DECLSPEC int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_rcache_common_cuda_reg_data_t *handle);
 OPAL_DECLSPEC int mca_common_cuda_memp2pcpy(void *dest, const void *src, size_t size);
 #if OPAL_CUDA_GDR_SUPPORT
 OPAL_DECLSPEC bool mca_common_cuda_previously_freed_memory(mca_rcache_base_registration_t *reg);

@@ -2002,7 +2002,7 @@ int mca_common_cuda_query_event(uint64_t *event)
     }
 }
 
-int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_mpool_common_cuda_reg_data_t *handle)
+int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_rcache_common_cuda_reg_data_t *handle)
 {
     // CUipcEventHandle evtHandle;
     // CUresult result;

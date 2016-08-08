@@ -1086,12 +1086,12 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
     
     opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
-    mca_mpool_common_cuda_reg_t *rget_reg_ptr = NULL;
-    mca_mpool_common_cuda_reg_t rget_reg;
+    mca_rcache_common_cuda_reg_t *rget_reg_ptr = NULL;
+    mca_rcache_common_cuda_reg_t rget_reg;
     rget_reg_ptr= &rget_reg;
     memset(&rget_reg, 0, sizeof(rget_reg));
     memcpy(rget_reg.data.memHandle, recv_msg.mem_handle, sizeof(recv_msg.mem_handle));
-    cuda_openmemhandle(NULL, 0, (mca_mpool_base_registration_t *)&rget_reg, NULL);
+    cuda_openmemhandle(NULL, 0, (mca_rcache_base_registration_t *)&rget_reg, NULL);
     size_t offset = (size_t) ((intptr_t)remote_address - (intptr_t)remote_base);
     unsigned char *remote_memory_address = (unsigned char *)rget_reg_ptr->base.alloc_base + offset;
     convertor->gpu_buffer_ptr = remote_memory_address;

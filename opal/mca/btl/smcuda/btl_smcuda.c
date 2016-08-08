@@ -1112,8 +1112,8 @@ static int mca_btl_smcuda_register_convertor (struct mca_btl_base_module_t* btl,
                                               struct mca_btl_base_registration_handle_t *handle,
                                               struct opal_convertor_t *convertor)
 {
- //   printf("Hello, i register convertor, %p\n", (void*)convertor);
-    mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t *)((intptr_t) handle - offsetof (mca_mpool_common_cuda_reg_t, data));
+    printf("Hello, i register convertor, %p\n", (void*)convertor);
+    mca_rcache_common_cuda_reg_t *cuda_reg = (mca_rcache_common_cuda_reg_t *)((intptr_t) handle - offsetof (mca_rcache_common_cuda_reg_t, data));
     
     int32_t local_device = 0;
     if (convertor->flags & CONVERTOR_CUDA) {
@@ -1272,10 +1272,10 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 lindex = mca_btl_smcuda_alloc_cuda_ddt_clone(ep);
                 if (remote_device == local_device || OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {
                     /* now we are able to let sender pack directly to my memory */
-                    mca_mpool_common_cuda_reg_t loc_reg;
-                    mca_mpool_common_cuda_reg_t *loc_reg_ptr = &loc_reg;
+                    mca_rcache_common_cuda_reg_t loc_reg;
+                    mca_rcache_common_cuda_reg_t *loc_reg_ptr = &loc_reg;
                     cuda_ddt_put_hdr_t put_msg;
-                    if (OPAL_SUCCESS != cuda_getmemhandle(local_address, size, (mca_mpool_base_registration_t *)&loc_reg, NULL)) {
+                    if (OPAL_SUCCESS != cuda_getmemhandle(local_address, size, (mca_rcache_base_registration_t *)&loc_reg, NULL)) {
                         mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, pack_convertor, unpack_convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                            lindex, remote_device, local_device);
                     }
