@@ -134,6 +134,9 @@ static inline void cuda_list_insert_before(ddt_cuda_list_t *list, ddt_cuda_buffe
     assert(item->next == NULL && item->prev == NULL);
     item->next = next;
     item->prev = next->prev;
+    if (next->prev != NULL) {
+        next->prev->next = item;
+    }
     next->prev = item;
     if (list->head == next) {
         list->head = item;
