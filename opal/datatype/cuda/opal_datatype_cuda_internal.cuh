@@ -131,8 +131,7 @@ extern ddt_cuda_device_t *current_cuda_device;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
-extern ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
-extern cudaStream_t outer_stream; 
+extern cudaStream_t cuda_outer_stream; 
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 

@@ -118,7 +118,7 @@ static bool stage_three_init_complete = false;
 static bool common_cuda_initialized = false;
 static bool common_cuda_mca_parames_registered = false;
 static int mca_common_cuda_verbose;
-static int mca_common_cuda_output = 0;
+int mca_common_cuda_output = 0;
 bool mca_common_cuda_enabled = false;
 static bool mca_common_cuda_register_memory = true;
 static bool mca_common_cuda_warning = false;

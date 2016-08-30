@@ -46,6 +46,7 @@ struct mca_rcache_common_cuda_reg_t {
 };
 typedef struct mca_rcache_common_cuda_reg_t mca_rcache_common_cuda_reg_t;
 extern bool mca_common_cuda_enabled;
+extern int mca_common_cuda_output;
 
 OPAL_DECLSPEC void mca_common_cuda_register_mca_variables(void);
 

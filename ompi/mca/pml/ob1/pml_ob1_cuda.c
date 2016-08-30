@@ -40,9 +40,6 @@
 
 #include "opal/datatype/opal_datatype_cuda.h"
 #include "opal/mca/common/cuda/common_cuda.h"
-#include "opal/mca/btl/smcuda/btl_smcuda.h"
-
-#define CUDA_DDT_WITH_RDMA 1
 
 size_t mca_pml_ob1_rdma_cuda_btls(
     mca_bml_base_endpoint_t* bml_endpoint,
@@ -94,7 +91,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                                                             
             rc = mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_endpoint, sendreq->req_rdma, sendreq->req_rdma_cnt, convertor); 
             if (rc != 0) {
-                opal_output(0, "Failed to register convertor, rc= %d\n", rc);
+                OPAL_OUTPUT_VERBOSE((0, mca_common_cuda_output, "Failed to register convertor, rc= %d\n", rc));
                 return rc;
             }  
             rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
@@ -128,7 +125,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             convertor->gpu_buffer_ptr = base;
             convertor->gpu_buffer_size = buffer_size;
             sendreq->req_send.req_bytes_packed = convertor->local_size;
-            opal_output(0, "malloc GPU BUFFER %p for pack, local size %lu, pipeline size %lu, depth %d\n", base, convertor->local_size, bml_btl->btl->btl_cuda_ddt_pipeline_size, bml_btl->btl->btl_cuda_ddt_pipeline_depth);
+            OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "RDMA malloc GPU BUFFER %p for pack, local size %lu, pipeline size %lu, depth %d\n", base, convertor->local_size, bml_btl->btl->btl_cuda_ddt_pipeline_size, bml_btl->btl->btl_cuda_ddt_pipeline_depth));
             if( 0 != (sendreq->req_rdma_cnt = (uint32_t)mca_pml_ob1_rdma_cuda_btls(
                                                                            sendreq->req_endpoint,
                                                                            base,
@@ -138,7 +135,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                 convertor->flags &= ~CONVERTOR_CUDA_ASYNC;
                 rc = mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_endpoint, sendreq->req_rdma, sendreq->req_rdma_cnt, convertor); 
                 if (rc != 0) {
-                    opal_output(0, "Failed to register convertor, rc= %d\n", rc);
+                    OPAL_OUTPUT_VERBOSE((0, mca_common_cuda_output, "Failed to register convertor, rc= %d\n", rc));
                     return rc;
                 }
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
@@ -160,13 +157,12 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                     buffer_size = convertor->local_size;
                 }
                 base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+                OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Copy in/out malloc GPU buffer %p, pipeline_size %d\n", base, convertor->pipeline_size));
                 convertor->gpu_buffer_ptr = base;
                 convertor->gpu_buffer_size = buffer_size;
                 convertor->pipeline_seq = 0;
                 rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
             }
-
-            
         } else {
             if (bml_btl->btl->btl_cuda_max_send_size != 0) {
                 convertor->pipeline_size = bml_btl->btl->btl_cuda_max_send_size;
@@ -180,6 +176,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                 buffer_size = convertor->local_size;
             }
             base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+            OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Copy in/out malloc GPU buffer %p, pipeline_size %d\n", base, convertor->pipeline_size));
             convertor->gpu_buffer_ptr = base;
             convertor->gpu_buffer_size = buffer_size;
             convertor->pipeline_seq = 0;
@@ -188,8 +185,6 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
     }
     return rc;
 }
-
-
 
 size_t mca_pml_ob1_rdma_cuda_btls(
     mca_bml_base_endpoint_t* bml_endpoint,

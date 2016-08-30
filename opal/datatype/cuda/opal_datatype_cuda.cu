@@ -14,11 +14,7 @@ ddt_cuda_device_t *current_cuda_device;
 struct iovec cuda_iov[CUDA_NB_IOV];
 uint32_t cuda_iov_count;
 uint32_t cuda_iov_cache_enabled;
-ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
-cudaStream_t outer_stream;
-
-//uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
-
+cudaStream_t cuda_outer_stream;
 
 static inline ddt_cuda_buffer_t* obj_ddt_cuda_buffer_new()
 {
@@ -179,7 +175,7 @@ void opal_cuda_output(int output_id, const char *format, ...)
     }
 }
 
-int32_t opal_ddt_cuda_kernel_init(void)
+int32_t opal_datatype_cuda_kernel_init(void)
 {
     uint32_t i, j;
     int device;
@@ -275,27 +271,18 @@ int32_t opal_ddt_cuda_kernel_init(void)
         }
     }
     current_cuda_device = &(cuda_devices[0]);
-    outer_stream = NULL;
+    cuda_outer_stream = NULL;
     
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end, start_total, end_total;
     long total_time;
 #endif
-    /* init cuda event list */
-    for (i = 0; i < MAX_CUDA_EVENTS; i++) {
-        cudaEventCreateWithFlags(&(cuda_event_free_list[i].cuda_event), cudaEventDisableTiming);
-    }
-    
-    // /* init size for double, float, char */
-    // ALIGNMENT_DOUBLE = sizeof(double);
-    // ALIGNMENT_FLOAT = sizeof(float);
-    // ALIGNMENT_CHAR = sizeof(char);
     
     cudaDeviceSynchronize();
     return OPAL_SUCCESS;
 }
 
-int32_t opal_ddt_cuda_kernel_fini(void)
+int32_t opal_datatype_cuda_kernel_fini(void)
 {
     uint32_t i, j;
     
@@ -353,11 +340,11 @@ int32_t opal_ddt_cuda_kernel_fini(void)
         cudaEventDestroy(cuda_devices[i].memcpy_event);
     }
     current_cuda_device = NULL;
-    outer_stream = NULL;
+    cuda_outer_stream = NULL;
     return OPAL_SUCCESS;
 }
 
-void* opal_ddt_cached_cuda_iov_init(uint32_t size) 
+void* opal_datatype_cuda_cached_cuda_iov_init(uint32_t size) 
 {
 #if OPAL_DATATYPE_CUDA_IOV_CACHE 
     ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *)malloc(sizeof(ddt_cuda_iov_total_cached_t));
@@ -379,7 +366,7 @@ void* opal_ddt_cached_cuda_iov_init(uint32_t size)
 #endif /* OPAL_DATATYPE_CUDA_IOV_CACHE */
 }
 
-void opal_ddt_cached_cuda_iov_fini(void* cached_cuda_iov) 
+void opal_datatype_cuda_cached_cuda_iov_fini(void* cached_cuda_iov) 
 {
 #if OPAL_DATATYPE_CUDA_IOV_CACHE
     ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *) cached_cuda_iov;
@@ -399,25 +386,24 @@ void opal_ddt_cached_cuda_iov_fini(void* cached_cuda_iov)
 #endif /* OPAL_DATATYPE_CUDA_IOV_CACHE */
 }
 
-static inline int32_t opal_ddt_cached_cuda_iov_isfull(ddt_cuda_iov_total_cached_t *cached_cuda_iov, ddt_cuda_iov_dist_cached_t **cuda_iov_dist_h, uint32_t nb_blocks_used)
+static inline int32_t opal_datatype_cuda_cached_cuda_iov_isfull(ddt_cuda_iov_total_cached_t *cached_cuda_iov, ddt_cuda_iov_dist_cached_t **cuda_iov_dist_h, uint32_t nb_blocks_used)
 {
     if (nb_blocks_used < cached_cuda_iov->cuda_iov_count) {
         return 0;
-    } else {
-realloc_cuda_iov:
-        cached_cuda_iov->nb_bytes_h = (uint32_t *)realloc(cached_cuda_iov->nb_bytes_h, sizeof(uint32_t)*cached_cuda_iov->cuda_iov_count*2);
-        assert(cached_cuda_iov->nb_bytes_h != NULL);
-        cached_cuda_iov->cuda_iov_count *= 2;
-        if (nb_blocks_used >= cached_cuda_iov->cuda_iov_count) {
-            goto realloc_cuda_iov;
-        }
-        return 1;
     }
+realloc_cuda_iov:
+    cached_cuda_iov->nb_bytes_h = (uint32_t *)realloc(cached_cuda_iov->nb_bytes_h, sizeof(uint32_t)*cached_cuda_iov->cuda_iov_count*2);
+    assert(cached_cuda_iov->nb_bytes_h != NULL);
+    cached_cuda_iov->cuda_iov_count *= 2;
+    if (nb_blocks_used >= cached_cuda_iov->cuda_iov_count) {
+        goto realloc_cuda_iov;
+    }
+    return 1;
 }
 
 /* cached_cuda_iov_d is not ready until explicitlt sync with cuda stream 0 
 */
-int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov_count)
+int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov_count)
 {
     uint32_t i, j;
     uint32_t count_desc, nb_blocks_per_description, residue_desc;
@@ -446,7 +432,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     }
     
     
-    cached_cuda_iov = (ddt_cuda_iov_total_cached_t *)opal_ddt_cached_cuda_iov_init(NUM_CUDA_IOV_PER_DDT);
+    cached_cuda_iov = (ddt_cuda_iov_total_cached_t *)opal_datatype_cuda_cached_cuda_iov_init(NUM_CUDA_IOV_PER_DDT);
     if (cached_cuda_iov == NULL) {
         DT_CUDA_DEBUG ( opal_cuda_output(0, "Can not init cuda iov\n"););
         return OPAL_ERROR;
@@ -461,10 +447,10 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     cuda_err = cudaEventSynchronize(cuda_iov_process_block_cached->cuda_event);
     opal_cuda_check_error(cuda_err);
     
-    if (outer_stream == NULL) {
+    if (cuda_outer_stream == NULL) {
         cuda_iov_process_block_cached->cuda_stream = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
     } else {
-        cuda_iov_process_block_cached->cuda_stream = outer_stream;
+        cuda_iov_process_block_cached->cuda_stream = cuda_outer_stream;
     }
     cuda_iov_dist_h = cuda_iov_process_block_cached->cuda_iov_dist_cached_h;
     cuda_stream_iov = cuda_iov_process_block_cached->cuda_stream;
@@ -481,7 +467,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
         residue_desc = length_per_iovec % alignment;
         nb_blocks_per_description = (count_desc + thread_per_block - 1) / thread_per_block;
         DT_CUDA_DEBUG ( opal_cuda_output(10, "Cache cuda IOV description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
-        if (opal_ddt_cached_cuda_iov_isfull(cached_cuda_iov, &(cuda_iov_process_block_cached->cuda_iov_dist_cached_h), nb_blocks_used + nb_blocks_per_description + 1)) {
+        if (opal_datatype_cuda_cached_cuda_iov_isfull(cached_cuda_iov, &(cuda_iov_process_block_cached->cuda_iov_dist_cached_h), nb_blocks_used + nb_blocks_per_description + 1)) {
             cached_cuda_iov_nb_bytes_list_h = cached_cuda_iov->nb_bytes_h;
             cuda_iov_dist_h = (ddt_cuda_iov_dist_cached_t *)realloc(cuda_iov_dist_h, sizeof(ddt_cuda_iov_dist_cached_t)*cached_cuda_iov->cuda_iov_count);
             assert(cuda_iov_dist_h != NULL);
@@ -537,7 +523,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     return OPAL_SUCCESS;
 }
 
-uint8_t opal_ddt_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iovec *ddt_iov, ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current, uint32_t ddt_iov_start_pos, uint32_t ddt_iov_end_pos, size_t *buffer_size, uint32_t *nb_blocks_used, size_t *total_converted, size_t *contig_disp_out, uint32_t *current_ddt_iov_pos)
+uint8_t opal_datatype_cuda_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iovec *ddt_iov, ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current, uint32_t ddt_iov_start_pos, uint32_t ddt_iov_end_pos, size_t *buffer_size, uint32_t *nb_blocks_used, size_t *total_converted, size_t *contig_disp_out, uint32_t *current_ddt_iov_pos)
 {
     size_t ncontig_disp_base;
     size_t contig_disp = 0;
@@ -616,7 +602,7 @@ uint8_t opal_ddt_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iove
         
 }
 
-void opal_ddt_get_cached_cuda_iov(struct opal_convertor_t *convertor, ddt_cuda_iov_total_cached_t **cached_cuda_iov)
+void opal_datatype_cuda_get_cached_cuda_iov(struct opal_convertor_t *convertor, ddt_cuda_iov_total_cached_t **cached_cuda_iov)
 {
     opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
     if (datatype->cached_cuda_iov == NULL) {
@@ -626,7 +612,7 @@ void opal_ddt_get_cached_cuda_iov(struct opal_convertor_t *convertor, ddt_cuda_i
     }                 
 }
 
-void opal_ddt_set_cuda_iov_cached(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
+void opal_datatype_cuda_set_cuda_iov_cached(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
 {
     opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
     assert(datatype->cached_cuda_iov != NULL);
@@ -635,7 +621,7 @@ void opal_ddt_set_cuda_iov_cached(struct opal_convertor_t *convertor, uint32_t c
     tmp->cuda_iov_is_cached = 1;
 }
 
-uint8_t opal_ddt_cuda_iov_is_cached(struct opal_convertor_t *convertor)
+uint8_t opal_datatype_cuda_cuda_iov_is_cached(struct opal_convertor_t *convertor)
 {
     opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
     if (datatype->cached_cuda_iov == NULL) {
@@ -645,7 +631,7 @@ uint8_t opal_ddt_cuda_iov_is_cached(struct opal_convertor_t *convertor)
     return tmp->cuda_iov_is_cached;
 }
 
-void opal_ddt_set_cuda_iov_position(struct opal_convertor_t *convertor, size_t ddt_offset, const uint32_t *cached_cuda_iov_nb_bytes_list_h, const uint32_t cuda_iov_count)
+void opal_datatype_cuda_set_cuda_iov_position(struct opal_convertor_t *convertor, size_t ddt_offset, const uint32_t *cached_cuda_iov_nb_bytes_list_h, const uint32_t cuda_iov_count)
 {
     uint32_t i;
     size_t iov_size = 0;
@@ -673,7 +659,7 @@ void opal_ddt_set_cuda_iov_position(struct opal_convertor_t *convertor, size_t d
     }
 }
 
-void opal_ddt_set_ddt_iov_position(struct opal_convertor_t *convertor, size_t ddt_offset, const struct iovec *ddt_iov, const uint32_t ddt_iov_count)
+void opal_datatype_cuda_set_ddt_iov_position(struct opal_convertor_t *convertor, size_t ddt_offset, const struct iovec *ddt_iov, const uint32_t ddt_iov_count)
 {
     uint32_t i;
     size_t iov_size = 0;
@@ -701,7 +687,7 @@ void opal_ddt_set_ddt_iov_position(struct opal_convertor_t *convertor, size_t dd
     }
 }
 
-void opal_ddt_check_cuda_iov_is_full(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
+void opal_datatype_cuda_check_cuda_iov_is_full(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
 {
 #if 0
     opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
@@ -720,7 +706,8 @@ void opal_ddt_check_cuda_iov_is_full(struct opal_convertor_t *convertor, uint32_
 #endif
 }
 
-int32_t opal_ddt_cuda_is_gpu_buffer(const void *ptr)
+/* following function will be called outside the cuda kernel lib */
+int32_t opal_datatype_cuda_is_gpu_buffer(const void *ptr)
 {
     int res;
     CUmemorytype memType;
@@ -736,7 +723,7 @@ int32_t opal_ddt_cuda_is_gpu_buffer(const void *ptr)
     return (memType == CU_MEMORYTYPE_DEVICE) ? 1 : 0;
 }
 
-void* opal_ddt_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
+void* opal_datatype_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
 {
     int dev_id;
     cudaGetDevice(&dev_id);
@@ -775,7 +762,7 @@ void* opal_ddt_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
     return NULL;
 }
 
-void opal_ddt_cuda_free_gpu_buffer(void *addr, int gpu_id)
+void opal_datatype_cuda_free_gpu_buffer(void *addr, int gpu_id)
 {
     ddt_cuda_device_t *device = &cuda_devices[gpu_id];
     ddt_cuda_buffer_t *ptr = device->buffer_used.head;
@@ -814,62 +801,61 @@ void opal_cuda_check_error(cudaError_t err)
     }
 }
 
-void opal_ddt_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
+void opal_datatype_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
 {
     cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
 }
 
-void opal_ddt_cuda_d2dcpy(void* dst, const void* src, size_t count)
+void opal_datatype_cuda_d2dcpy(void* dst, const void* src, size_t count)
 {
     cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
     cudaStreamSynchronize(current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
 }
 
-void opal_ddt_cuda_set_cuda_stream(int stream_id)
+void opal_datatype_cuda_set_cuda_stream(int stream_id)
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     cuda_streams->current_stream_id = stream_id;
 }
 
-int32_t opal_ddt_cuda_get_cuda_stream()
+int32_t opal_datatype_cuda_get_cuda_stream()
 {
     return current_cuda_device->cuda_streams->current_stream_id;
 }
 
-void *opal_ddt_cuda_get_current_cuda_stream()
+void *opal_datatype_cuda_get_current_cuda_stream()
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     return (void*)cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
 }
 
-void opal_ddt_cuda_sync_current_cuda_stream()
+void opal_datatype_cuda_sync_current_cuda_stream()
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
 }
 
-void opal_ddt_cuda_sync_cuda_stream(int stream_id)
+void opal_datatype_cuda_sync_cuda_stream(int stream_id)
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[stream_id]);
 }
 
-void opal_ddt_cuda_set_outer_cuda_stream(void *stream)
+void opal_datatype_cuda_set_outer_cuda_stream(void *stream)
 {
-    outer_stream = (cudaStream_t)stream;
+    cuda_outer_stream = (cudaStream_t)stream;
 }
 
-void opal_ddt_cuda_set_callback_current_stream(void *callback_func, void *callback_data)
+void opal_datatype_cuda_set_callback_current_stream(void *callback_func, void *callback_data)
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     cudaStreamAddCallback(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id], (cudaStreamCallback_t)callback_func, (void *)callback_data, 0);
 }
 
-void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc)
+void* opal_datatype_cuda_alloc_event(int32_t nb_events, int32_t *loc)
 {
     int i;
     *loc = 0;
-    //return (void*)&(cuda_event_free_list[0]);
     ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)malloc(sizeof(ddt_cuda_event_t) * nb_events);
     for (i = 0; i < nb_events; i++) {
         cudaEventCreateWithFlags(&(event_list[i].cuda_event), cudaEventDisableTiming);
@@ -877,7 +863,7 @@ void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc)
     return (void*)event_list;
 }
 
-void opal_ddt_cuda_free_event(void *cuda_event_list, int32_t nb_events)
+void opal_datatype_cuda_free_event(void *cuda_event_list, int32_t nb_events)
 {
     ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
     int i;
@@ -888,7 +874,7 @@ void opal_ddt_cuda_free_event(void *cuda_event_list, int32_t nb_events)
     return;
 }
 
-int32_t opal_ddt_cuda_event_query(void *cuda_event_list, int32_t i)
+int32_t opal_datatype_cuda_event_query(void *cuda_event_list, int32_t i)
 {
     ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
     cudaError_t rv = cudaEventQuery(event_list[i].cuda_event);
@@ -902,7 +888,7 @@ int32_t opal_ddt_cuda_event_query(void *cuda_event_list, int32_t i)
     }
 }
 
-int32_t opal_ddt_cuda_event_sync(void *cuda_event_list, int32_t i)
+int32_t opal_datatype_cuda_event_sync(void *cuda_event_list, int32_t i)
 {
     ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
     cudaError_t rv = cudaEventSynchronize(event_list[i].cuda_event);
@@ -914,7 +900,7 @@ int32_t opal_ddt_cuda_event_sync(void *cuda_event_list, int32_t i)
     }
 }
 
-int32_t opal_ddt_cuda_event_record(void *cuda_event_list, int32_t i)
+int32_t opal_datatype_cuda_event_record(void *cuda_event_list, int32_t i)
 {
     ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;

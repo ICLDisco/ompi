@@ -129,11 +129,6 @@ struct opal_datatype_t {
                                       the maximum number of datatypes of all top layers.
                                       Reason being is that Fortran is not at the OPAL layer. */
     /* --- cacheline 6 boundary (384 bytes) was 8 bytes ago --- */
-    struct iovec*      iov;
-    int                iov_count;
-    size_t             max_data;
-    /* size: 416, cachelines: 7, members: 18 */
-    /* last cacheline: 32 bytes */
 
     struct iovec*      cached_iovec;
     uint32_t           cached_iovec_count;

@@ -575,7 +575,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                 } else {
                     buffer_size = convertor->local_size;
                 }
-                printf("!!!!!!!!!!malloc size %lu\n", buffer_size);
+                OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Malloc GPU buffer size %lu for frag_copy_start\n", buffer_size));
                 convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
                 convertor->gpu_buffer_size = buffer_size;
                 convertor->pipeline_seq = 0;
@@ -609,7 +609,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
      * checks the stream events.  If we get an error, abort.  Should get message
      * from CUDA code about what went wrong. */
     result = mca_common_cuda_record_htod_event("pml", des, cuda_stream);
-    printf("!!!!!!!!!!!record h2d\n");
+    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Record h2d cuda event\n"));
     if (OMPI_SUCCESS != result) {
         opal_output(0, "%s:%d FATAL", __FILE__, __LINE__);
         ompi_rte_abort(-1, NULL);
@@ -648,7 +648,7 @@ void mca_pml_ob1_recv_request_frag_copy_finished( mca_btl_base_module_t* btl,
     if(recvreq->req_bytes_received >= recvreq->req_recv.req_bytes_packed) {
         opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
         if (convertor->gpu_buffer_ptr != NULL) {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!i free buffer %p\n", convertor->gpu_buffer_ptr);
+            OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Free GPU pack/unpack buffer %p\n", convertor->gpu_buffer_ptr));
             opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
         }    

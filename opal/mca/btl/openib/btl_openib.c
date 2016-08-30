@@ -1632,7 +1632,7 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
      * that will trigger the callback when it completes.  Mark descriptor as async.
      * No need for this in the case we are not sending any GPU data. */
     if ((convertor->flags & CONVERTOR_CUDA_ASYNC) && (0 != max_data)) {
-        printf("!!!!!!!!!!!!!!!!!!!!record d2h\n");
+        OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Record d2h cuda event\n"));
         mca_common_cuda_record_dtoh_event("btl_openib", (mca_btl_base_descriptor_t *)frag, convertor, cuda_stream);
         to_base_frag(frag)->base.des_flags = flags | MCA_BTL_DES_FLAGS_CUDA_COPY_ASYNC;
     }
