@@ -30,6 +30,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/datatype/ompi_datatype.h"
 #include "ompi/memchecker.h"
+#include "opal/runtime/ompi_software_events.h"
 
 #if OMPI_BUILD_MPI_PROFILING
 #if OPAL_HAVE_WEAK_SYMBOLS
@@ -40,11 +41,12 @@
 
 static const char FUNC_NAME[] = "MPI_Send";
 
-
 int MPI_Send(const void *buf, int count, MPI_Datatype type, int dest,
              int tag, MPI_Comm comm)
 {
     int rc = MPI_SUCCESS;
+
+    SW_EVENT_RECORD(OMPI_SEND, 1);
 
     MEMCHECKER(
         memchecker_datatype(type);
@@ -76,5 +78,6 @@ int MPI_Send(const void *buf, int count, MPI_Datatype type, int dest,
 
     OPAL_CR_ENTER_LIBRARY();
     rc = MCA_PML_CALL(send(buf, count, type, dest, tag, MCA_PML_BASE_SEND_STANDARD, comm));
+
     OMPI_ERRHANDLER_RETURN(rc, comm, rc, FUNC_NAME);
 }

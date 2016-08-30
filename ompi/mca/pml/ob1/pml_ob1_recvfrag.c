@@ -39,6 +39,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/peruse/peruse-internal.h"
 #include "ompi/memchecker.h"
+#include "opal/runtime/ompi_software_events.h"
 
 #include "pml_ob1.h"
 #include "pml_ob1_comm.h"
@@ -231,6 +232,14 @@ void mca_pml_ob1_recv_frag_callback_match(mca_btl_base_module_t* btl,
                                    &iov_count,
                                    &bytes_received );
             match->req_bytes_received = bytes_received;
+
+            if(match->req_recv.req_base.req_tag >= 0){
+                SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_USER, (long long)(bytes_received));
+            }
+            else{
+                SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_MPI, (long long)(bytes_received));
+            }
+
             /*
              *  Unpacking finished, make the user buffer unaccessable again.
              */
@@ -536,6 +545,9 @@ match_one(mca_btl_base_module_t *btl,
           mca_pml_ob1_comm_proc_t *proc,
           mca_pml_ob1_recv_frag_t* frag)
 {
+    opal_timer_t usecs = 0;
+    SW_EVENT_TIMER_START(OMPI_MATCH_TIME, &usecs);
+
     mca_pml_ob1_recv_request_t *match;
     mca_pml_ob1_comm_t *comm = (mca_pml_ob1_comm_t *)comm_ptr->c_pml_comm;
 
@@ -573,19 +585,31 @@ match_one(mca_btl_base_module_t *btl,
                                                        num_segments);
                 /* this frag is already processed, so we want to break out
                    of the loop and not end up back on the unexpected queue. */
+                SW_EVENT_TIMER_STOP(OMPI_MATCH_TIME, &usecs);
+                /*SW_EVENT_RECORD(OMPI_MATCH_TIME, (long long)usecs);*/
+
                 return NULL;
             }
 
             PERUSE_TRACE_COMM_EVENT(PERUSE_COMM_MSG_MATCH_POSTED_REQ,
                                     &(match->req_recv.req_base), PERUSE_RECV);
+            SW_EVENT_TIMER_STOP(OMPI_MATCH_TIME, &usecs);
+            /*SW_EVENT_RECORD(OMPI_MATCH_TIME, (long long)usecs);*/
+
             return match;
         }
 
         /* if no match found, place on unexpected queue */
         append_frag_to_list(&proc->unexpected_frags, btl, hdr, segments,
                             num_segments, frag);
+
+        SW_EVENT_RECORD(OMPI_UNEXPECTED, 1);
+
         PERUSE_TRACE_MSG_EVENT(PERUSE_COMM_MSG_INSERT_IN_UNEX_Q, comm_ptr,
                                hdr->hdr_src, hdr->hdr_tag, PERUSE_RECV);
+        SW_EVENT_TIMER_STOP(OMPI_MATCH_TIME, &usecs);
+        /*SW_EVENT_RECORD(OMPI_MATCH_TIME, (long long)usecs);*/
+
         return NULL;
     } while(true);
 }
@@ -593,6 +617,9 @@ match_one(mca_btl_base_module_t *btl,
 static mca_pml_ob1_recv_frag_t* check_cantmatch_for_match(mca_pml_ob1_comm_proc_t *proc)
 {
     mca_pml_ob1_recv_frag_t *frag;
+    opal_timer_t usecs = 0;
+
+    SW_EVENT_TIMER_START(OMPI_OOS_MATCH_TIME, &usecs);
 
     /* search the list for a fragment from the send with sequence
      * number next_msg_seq_expected
@@ -609,8 +636,15 @@ static mca_pml_ob1_recv_frag_t* check_cantmatch_for_match(mca_pml_ob1_comm_proc_
             continue;
 
         opal_list_remove_item(&proc->frags_cant_match, (opal_list_item_t*)frag);
+
+        SW_EVENT_TIMER_STOP(OMPI_OOS_MATCH_TIME, &usecs);
+        /*SW_EVENT_RECORD(OMPI_OOS_MATCH_TIME, (long long)usecs);*/
+
         return frag;
     }
+
+    SW_EVENT_TIMER_STOP(OMPI_OOS_MATCH_TIME, &usecs);
+    /*SW_EVENT_RECORD(OMPI_OOS_MATCH_TIME, (long long)usecs);*/
 
     return NULL;
 }
@@ -776,6 +810,9 @@ wrong_seq:
      */
     append_frag_to_list(&proc->frags_cant_match, btl, hdr, segments,
                         num_segments, NULL);
+
+    SW_EVENT_RECORD(OMPI_OUT_OF_SEQUENCE, 1);
+
     OB1_MATCHING_UNLOCK(&comm->matching_lock);
     return OMPI_SUCCESS;
 }

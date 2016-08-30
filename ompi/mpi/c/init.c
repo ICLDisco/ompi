@@ -25,6 +25,7 @@
 #include <stdlib.h>
 
 #include "opal/util/show_help.h"
+#include "opal/runtime/ompi_software_events.h"
 #include "ompi/mpi/c/bindings.h"
 #include "ompi/communicator/communicator.h"
 #include "ompi/errhandler/errhandler.h"
@@ -46,6 +47,8 @@ int MPI_Init(int *argc, char ***argv)
     int provided;
     char *env;
     int required = MPI_THREAD_SINGLE;
+
+    SW_EVENT_INIT();
 
     /* check for environment overrides for required thread level.  If
        there is, check to see that it is a valid/supported thread level.

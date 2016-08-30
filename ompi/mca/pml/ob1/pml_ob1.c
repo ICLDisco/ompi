@@ -36,6 +36,7 @@
 #include "opal_stdint.h"
 #include "opal/mca/btl/btl.h"
 #include "opal/mca/btl/base/base.h"
+#include "opal/runtime/ompi_software_events.h"
 
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/pml/base/base.h"
@@ -195,6 +196,7 @@ int mca_pml_ob1_add_comm(ompi_communicator_t* comm)
     mca_pml_ob1_recv_frag_t *frag, *next_frag;
     mca_pml_ob1_comm_proc_t* pml_proc;
     mca_pml_ob1_match_hdr_t* hdr;
+    opal_timer_t usecs = 0;
 
     if (NULL == pml_comm) {
         return OMPI_ERR_OUT_OF_RESOURCE;
@@ -264,15 +266,17 @@ int mca_pml_ob1_add_comm(ompi_communicator_t* comm)
              * situation as the cant_match is only checked when a new fragment is received from
              * the network.
              */
+            SW_EVENT_TIMER_START(OMPI_OOS_MATCH_TIME, &usecs);
             OPAL_LIST_FOREACH(frag, &pml_proc->frags_cant_match, mca_pml_ob1_recv_frag_t) {
-               hdr = &frag->hdr.hdr_match;
-               /* If the message has the next expected seq from that proc...  */
-               if(hdr->hdr_seq != pml_proc->expected_sequence)
-                   continue;
-
-               opal_list_remove_item(&pml_proc->frags_cant_match, (opal_list_item_t*)frag);
-               goto add_fragment_to_unexpected;
-           }
+                hdr = &frag->hdr.hdr_match;
+                /* If the message has the next expected seq from that proc...  */
+                if(hdr->hdr_seq != pml_proc->expected_sequence)
+                    continue;
+                
+                opal_list_remove_item(&pml_proc->frags_cant_match, (opal_list_item_t*)frag);
+                goto add_fragment_to_unexpected;
+            }
+            SW_EVENT_TIMER_STOP(OMPI_OOS_MATCH_TIME, &usecs);
         } else {
             opal_list_append( &pml_proc->frags_cant_match, (opal_list_item_t*)frag );
         }
@@ -659,6 +663,7 @@ int mca_pml_ob1_send_fin( ompi_proc_t* proc,
 
     /* queue request */
     rc = mca_bml_base_send( bml_btl, fin, MCA_PML_OB1_HDR_TYPE_FIN );
+
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             MCA_PML_OB1_PROGRESS_PENDING(bml_btl);

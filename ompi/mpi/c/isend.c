@@ -31,6 +31,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/request/request.h"
 #include "ompi/memchecker.h"
+#include "opal/runtime/ompi_software_events.h"
 
 #if OMPI_BUILD_MPI_PROFILING
 #if OPAL_HAVE_WEAK_SYMBOLS
@@ -41,11 +42,12 @@
 
 static const char FUNC_NAME[] = "MPI_Isend";
 
-
 int MPI_Isend(const void *buf, int count, MPI_Datatype type, int dest,
               int tag, MPI_Comm comm, MPI_Request *request)
 {
     int rc = MPI_SUCCESS;
+
+    SW_EVENT_RECORD(OMPI_ISEND, 1);
 
     MEMCHECKER(
         memchecker_datatype(type);
@@ -87,6 +89,7 @@ int MPI_Isend(const void *buf, int count, MPI_Datatype type, int dest,
     );
     rc = MCA_PML_CALL(isend(buf, count, type, dest, tag,
                             MCA_PML_BASE_SEND_STANDARD, comm, request));
+
     OMPI_ERRHANDLER_RETURN(rc, comm, rc, FUNC_NAME);
 }
 

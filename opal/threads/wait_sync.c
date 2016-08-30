@@ -94,8 +94,10 @@ int ompi_sync_wait_mt(ompi_wait_sync_t *sync)
     /* In case I am the progress manager, pass the duties on */
     if( sync == wait_sync_list ) {
         wait_sync_list = (sync == sync->next) ? NULL : sync->next;
-        if( NULL != wait_sync_list )
+        if( NULL != wait_sync_list ){
+            /* This is a possible placement for a progress switch counter */
             WAIT_SYNC_PASS_OWNERSHIP(wait_sync_list);
+        }
     }
     OPAL_THREAD_UNLOCK(&wait_sync_lock);
 

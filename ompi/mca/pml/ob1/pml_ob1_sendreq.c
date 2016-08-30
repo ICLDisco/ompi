@@ -29,6 +29,7 @@
 #include "ompi_config.h"
 #include "opal/prefetch.h"
 #include "opal/mca/mpool/mpool.h"
+#include "opal/runtime/ompi_software_events.h"
 #include "ompi/constants.h"
 #include "ompi/mca/pml/pml.h"
 #include "pml_ob1.h"
@@ -38,7 +39,6 @@
 #include "pml_ob1_recvreq.h"
 #include "ompi/mca/bml/base/base.h"
 #include "ompi/memchecker.h"
-
 
 OBJ_CLASS_INSTANCE(mca_pml_ob1_send_range_t, opal_free_list_item_t,
         NULL, NULL);
@@ -350,6 +350,7 @@ mca_pml_ob1_copy_frag_completion( mca_btl_base_module_t* btl,
      * we just abort.  In theory, a new queue could be created to hold this
      * fragment and then attempt to send it out on another BTL. */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_FRAG);
+
     if(OPAL_UNLIKELY(rc < 0)) {
         opal_output(0, "%s:%d FATAL", __FILE__, __LINE__);
         ompi_rte_abort(-1, NULL);
@@ -449,6 +450,30 @@ int mca_pml_ob1_send_request_start_buffered(
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RNDV);
+
+#ifdef SOFTWARE_EVENTS_ENABLE
+    volatile int64_t bytes_sent;
+    unsigned int i;
+    if(attached_event[OMPI_BYTES_SENT_USER] == 1){
+        if(sendreq->req_send.req_base.req_tag >= 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent);
+        }
+    }
+    if(attached_event[OMPI_BYTES_SENT_MPI] == 1){
+        if(sendreq->req_send.req_base.req_tag < 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent);
+        }
+    }
+#endif
+
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_rndv_completion_request( bml_btl, sendreq, req_bytes_delivered);
@@ -495,6 +520,16 @@ int mca_pml_ob1_send_request_start_copy( mca_pml_ob1_send_request_t* sendreq,
                                  MCA_BTL_DES_FLAGS_PRIORITY | MCA_BTL_DES_FLAGS_BTL_OWNERSHIP,
                                  MCA_PML_OB1_HDR_TYPE_MATCH,
                                  &des);
+        
+        if(rc == OPAL_SUCCESS){
+            if(sendreq->req_send.req_base.req_tag >= 0){
+                SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, size);
+            }
+            else{
+                SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, size);
+            }
+        }
+
         if( OPAL_LIKELY(OMPI_SUCCESS == rc) ) {
             /* signal request completion */
             send_request_pml_complete(sendreq);
@@ -567,6 +602,30 @@ int mca_pml_ob1_send_request_start_copy( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send_status(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
+
+#ifdef SOFTWARE_EVENTS_ENABLE
+    volatile int64_t bytes_sent;
+    unsigned int i;
+    if(attached_event[OMPI_BYTES_SENT_USER] == 1){
+        if(sendreq->req_send.req_base.req_tag >= 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent - OMPI_PML_OB1_MATCH_HDR_LEN);
+        }
+    }
+    if(attached_event[OMPI_BYTES_SENT_MPI] == 1){
+        if(sendreq->req_send.req_base.req_tag < 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent - OMPI_PML_OB1_MATCH_HDR_LEN);
+        }
+    }
+#endif
+
     if( OPAL_LIKELY( rc >= OPAL_SUCCESS ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_match_completion_free_request( bml_btl, sendreq );
@@ -627,6 +686,30 @@ int mca_pml_ob1_send_request_start_prepare( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
+
+#ifdef SOFTWARE_EVENTS_ENABLE
+    volatile int64_t bytes_sent;
+    unsigned int i;
+    if(attached_event[OMPI_BYTES_SENT_USER] == 1){
+        if(sendreq->req_send.req_base.req_tag >= 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent);
+        }
+    }
+    if(attached_event[OMPI_BYTES_SENT_MPI] == 1){
+        if(sendreq->req_send.req_base.req_tag < 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent);
+        }
+    }
+#endif
+
     if( OPAL_LIKELY( rc >= OPAL_SUCCESS ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_match_completion_free_request( bml_btl, sendreq );
@@ -731,6 +814,30 @@ int mca_pml_ob1_send_request_start_rdma( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RGET);
+
+#ifdef SOFTWARE_EVENTS_ENABLE
+    volatile int64_t bytes_sent;
+    unsigned int i;
+    if(attached_event[OMPI_BYTES_SENT_USER] == 1){
+        if(sendreq->req_send.req_base.req_tag >= 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent);
+        }
+    }
+    if(attached_event[OMPI_BYTES_SENT_MPI] == 1){
+        if(sendreq->req_send.req_base.req_tag < 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent);
+        }
+    }
+#endif
+
     if (OPAL_UNLIKELY(rc < 0)) {
         mca_bml_base_free(bml_btl, des);
         return rc;
@@ -811,6 +918,30 @@ int mca_pml_ob1_send_request_start_rndv( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RNDV);
+
+#ifdef SOFTWARE_EVENTS_ENABLE
+    volatile int64_t bytes_sent;
+    unsigned int i;
+    if(attached_event[OMPI_BYTES_SENT_USER] == 1){
+        if(sendreq->req_send.req_base.req_tag >= 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent);
+        }
+    }
+    if(attached_event[OMPI_BYTES_SENT_MPI] == 1){
+        if(sendreq->req_send.req_base.req_tag < 0){
+            bytes_sent = 0;
+            for(i = 0; i < des->des_segment_count; i++){
+                bytes_sent += des->des_segments[i].seg_len;
+            }
+            SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent);
+        }
+    }
+#endif
+
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_rndv_completion_request( bml_btl, sendreq, size );
@@ -1055,6 +1186,30 @@ cannot_pack:
 
         /* initiate send - note that this may complete before the call returns */
         rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_FRAG);
+
+#ifdef SOFTWARE_EVENTS_ENABLE
+        volatile int64_t bytes_sent;
+        unsigned int i;
+        if(attached_event[OMPI_BYTES_SENT_USER] == 1){
+            if(sendreq->req_send.req_base.req_tag >= 0){
+                bytes_sent = 0;
+                for(i = 0; i < des->des_segment_count; i++){
+                    bytes_sent += des->des_segments[i].seg_len;
+                }
+                SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent);
+            }
+        }
+        if(attached_event[OMPI_BYTES_SENT_MPI] == 1){
+            if(sendreq->req_send.req_base.req_tag < 0){
+                bytes_sent = 0;
+                for(i = 0; i < des->des_segment_count; i++){
+                    bytes_sent += des->des_segments[i].seg_len;
+                }
+                SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent);
+            }
+        }
+#endif
+
         if( OPAL_LIKELY(rc >= 0) ) {
             /* update state */
             range->range_btls[btl_idx].length -= size;
@@ -1177,6 +1332,10 @@ int mca_pml_ob1_send_request_put_frag( mca_pml_ob1_rdma_frag_t *frag )
     rc = mca_bml_base_put (bml_btl, frag->local_address, frag->remote_address, local_handle,
                            (mca_btl_base_registration_handle_t *) frag->remote_handle, frag->rdma_length,
                            0, MCA_BTL_NO_ORDER, mca_pml_ob1_put_completion, frag);
+
+    /* Count the bytes put even though they probably haven't been sent yet */
+    SW_EVENT_RECORD(OMPI_BYTES_PUT, frag->rdma_length);
+
     if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
         mca_pml_ob1_send_request_put_frag_failed (frag, rc);
         return rc;

@@ -27,6 +27,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/memchecker.h"
 #include "ompi/request/request.h"
+#include "opal/runtime/ompi_software_events.h"
 
 #if OMPI_BUILD_MPI_PROFILING
 #if OPAL_HAVE_WEAK_SYMBOLS
@@ -37,11 +38,12 @@
 
 static const char FUNC_NAME[] = "MPI_Recv";
 
-
 int MPI_Recv(void *buf, int count, MPI_Datatype type, int source,
              int tag, MPI_Comm comm, MPI_Status *status)
 {
     int rc = MPI_SUCCESS;
+
+    SW_EVENT_RECORD(OMPI_RECV, 1);
 
     MEMCHECKER(
         memchecker_datatype(type);
@@ -77,5 +79,6 @@ int MPI_Recv(void *buf, int count, MPI_Datatype type, int source,
     OPAL_CR_ENTER_LIBRARY();
 
     rc = MCA_PML_CALL(recv(buf, count, type, source, tag, comm, status));
+
     OMPI_ERRHANDLER_RETURN(rc, comm, rc, FUNC_NAME);
 }

@@ -33,6 +33,7 @@
 #include "ompi/errhandler/errhandler.h"
 #include "ompi/datatype/ompi_datatype.h"
 #include "ompi/memchecker.h"
+#include "opal/runtime/ompi_software_events.h"
 
 #if OMPI_BUILD_MPI_PROFILING
 #if OPAL_HAVE_WEAK_SYMBOLS
@@ -50,6 +51,8 @@ int MPI_Alltoall(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
 {
     int err;
     size_t recvtype_size;
+
+    SW_EVENT_RECORD(OMPI_ALLTOALL, 1);
 
     MEMCHECKER(
         memchecker_comm(comm);

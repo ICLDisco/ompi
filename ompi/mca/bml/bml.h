@@ -286,6 +286,7 @@ static inline int mca_bml_base_send_status( mca_bml_base_btl_t* bml_btl,
     mca_btl_base_module_t* btl = bml_btl->btl;
 
     des->des_context = (void*) bml_btl;
+
     return btl->btl_send(btl, bml_btl->btl_endpoint, des, tag);
 }
 
@@ -300,6 +301,7 @@ static inline int  mca_bml_base_sendi( mca_bml_base_btl_t* bml_btl,
                                        mca_btl_base_descriptor_t** descriptor )
 {
     mca_btl_base_module_t* btl = bml_btl->btl;
+
     return btl->btl_sendi(btl, bml_btl->btl_endpoint,
                           convertor, header, header_size,
                           payload_size, order, flags, tag, descriptor);

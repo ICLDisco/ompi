@@ -36,7 +36,9 @@ headers += \
         runtime/opal_cr.h \
         runtime/opal_info_support.h \
         runtime/opal_params.h \
-        runtime/opal_progress_threads.h
+        runtime/opal_progress_threads.h \
+        runtime/ompi_software_events.h \
+		runtime/papi_sde_interface.h
 
 lib@OPAL_LIB_PREFIX@open_pal_la_SOURCES += \
         runtime/opal_progress.c \
@@ -45,4 +47,6 @@ lib@OPAL_LIB_PREFIX@open_pal_la_SOURCES += \
         runtime/opal_params.c \
         runtime/opal_cr.c \
         runtime/opal_info_support.c \
-        runtime/opal_progress_threads.c
+        runtime/opal_progress_threads.c \
+        runtime/ompi_software_events.c \
+		runtime/papi_sde_interface.c

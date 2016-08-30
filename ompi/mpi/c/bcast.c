@@ -26,6 +26,7 @@
 #include "ompi/errhandler/errhandler.h"
 #include "ompi/datatype/ompi_datatype.h"
 #include "ompi/memchecker.h"
+#include "opal/runtime/ompi_software_events.h"
 
 #if OMPI_BUILD_MPI_PROFILING
 #if OPAL_HAVE_WEAK_SYMBOLS
@@ -36,11 +37,12 @@
 
 static const char FUNC_NAME[] = "MPI_Bcast";
 
-
 int MPI_Bcast(void *buffer, int count, MPI_Datatype datatype,
               int root, MPI_Comm comm)
 {
     int err;
+
+    SW_EVENT_RECORD(OMPI_BCAST, 1);
 
     MEMCHECKER(
         memchecker_datatype(datatype);
@@ -110,5 +112,13 @@ int MPI_Bcast(void *buffer, int count, MPI_Datatype datatype,
 
     err = comm->c_coll->coll_bcast(buffer, count, datatype, root, comm,
                                   comm->c_coll->coll_bcast_module);
+
+    if(ompi_comm_rank(comm) == root){
+        SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, count * sizeof(datatype) * ((int)ompi_comm_size(comm)-1));
+    }
+    else{
+        SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_MPI, count * sizeof(datatype));
+    }
+
     OMPI_ERRHANDLER_RETURN(err, comm, err, FUNC_NAME);
 }
