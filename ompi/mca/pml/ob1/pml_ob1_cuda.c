@@ -132,12 +132,13 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                                                            sendreq->req_send.req_bytes_packed,
                                                                            sendreq->req_rdma))) {
     
-                convertor->flags &= ~CONVERTOR_CUDA_ASYNC;
+                //convertor->flags &= ~CONVERTOR_CUDA_ASYNC;
                 rc = mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_endpoint, sendreq->req_rdma, sendreq->req_rdma_cnt, convertor); 
                 if (rc != 0) {
                     OPAL_OUTPUT_VERBOSE((0, mca_common_cuda_output, "Failed to register convertor, rc= %d\n", rc));
                     return rc;
                 }
+                convertor->flags |= CONVERTOR_CUDA_ASYNC;
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                          sendreq->req_send.req_bytes_packed);
     
