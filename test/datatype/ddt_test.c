@@ -1065,7 +1065,7 @@ int main( int argc, char* argv[] )
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 1; i <= 5; i++) {
-               //  local_copy_with_convertor(pdt, 1, 200000000, mat_size);
+                  local_copy_with_convertor(pdt, 1, 200000000, mat_size);
             }
         }
     }
@@ -1156,7 +1156,7 @@ int main( int argc, char* argv[] )
         pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 0; i < 4; i++) {
-                 vector_ddt( pdt, 1, pdt, 1, 1024*1024*200 , blk_len, blk_len, blk_len*2);
+         //        vector_ddt( pdt, 1, pdt, 1, 1024*1024*200 , blk_len, blk_len, blk_len*2);
      //          vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
