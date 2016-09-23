@@ -294,7 +294,6 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
                            (void*)pConvertor, (void*)pConvertor->pBaseBuf,
                            (void*)iov[0].iov_base, (unsigned long)iov[0].iov_len, *out_size ); );
 
-    opal_output(0, "I am in simple pack, max_data %lu, iov_len %lu\n", *max_data, iov[0].iov_len);
     description = pConvertor->use_desc->desc;
 
     /* For the first step we have to add both displacement to the source. After in the
@@ -389,7 +388,6 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
     *out_size = iov_count;
     if( pConvertor->bConverted == pConvertor->local_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
-        opal_output(0, "total packed %lu\n", pConvertor->bConverted);
         return 1;
     }
     /* Save the global position for the next round */

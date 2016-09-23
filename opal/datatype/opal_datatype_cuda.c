@@ -89,6 +89,12 @@ void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf, 
     convertor->current_iov_pos = 0;
     convertor->current_iov_partial_length = 0;
     convertor->current_count = 0;
+
+    convertor->pipeline_depth = 0;
+    convertor->pipeline_seq = 0;
+    convertor->pipeline_size = 0;
+    convertor->gpu_buffer_ptr = NULL;
+    convertor->gpu_buffer_size = 0;
 }
 
 /* Checks the type of pointer

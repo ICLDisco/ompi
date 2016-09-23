@@ -277,7 +277,6 @@ opal_generic_simple_unpack_function( opal_convertor_t* pConvertor,
     size_t iov_len_local;
     uint32_t iov_count;
 
-    printf("i am in simple unpack, max_data %lu, iov len %lu\n", *max_data, iov[0].iov_len);
     DO_DEBUG( opal_output( 0, "opal_convertor_generic_simple_unpack( %p, {%p, %lu}, %u )\n",
                            (void*)pConvertor, (void*)iov[0].iov_base, (unsigned long)iov[0].iov_len, *out_size ); );
 
@@ -421,13 +420,6 @@ opal_generic_simple_unpack_function( opal_convertor_t* pConvertor,
     *out_size = iov_count;
     if( pConvertor->bConverted == pConvertor->remote_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
-        printf("total unpacked %lu\n", pConvertor->bConverted);
-        // double *vtmp = (double *)iov[0].iov_base;
-        // for (uint32_t i = 0; i < total_unpacked/8; i++) {
-        //     printf(" %1.f ", *vtmp);
-        //     vtmp ++;
-        // }
-        // printf("\n");
         return 1;
     }
     /* Save the global position for the next round */

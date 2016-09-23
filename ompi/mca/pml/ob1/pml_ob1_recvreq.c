@@ -594,7 +594,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
          
     if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
         convertor->flags &= ~CONVERTOR_CUDA;
-        if (opal_convertor_need_buffers(convertor) == true) {                            
+        if (opal_convertor_need_buffers(convertor) == true && convertor->pipeline_depth != 0) {                            
             opal_cuda_set_outer_cuda_stream(NULL);
             convertor->pipeline_seq ++;
             convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
