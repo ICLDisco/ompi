@@ -22,6 +22,8 @@
 # $HEADER$
 #
 
+DIST_SUBDIRS = cuda
+
 headers = \
         opal_convertor.h \
         opal_convertor_internal.h \
@@ -77,4 +79,5 @@ endif
 if OPAL_cuda_support
 libdatatype_la_SOURCES += opal_datatype_cuda.c
 headers += opal_datatype_cuda.h
+SUBDIRS      = . cuda
 endif

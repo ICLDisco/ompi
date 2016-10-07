@@ -246,6 +246,11 @@ int opal_convertor_raw_cached(struct opal_convertor_t *convertor,
                               uint32_t* iov_count)
 {
     if( NULL == convertor->pDesc->cached_iovec ) {
+        opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
+        datatype->cached_iovec       = (opal_datatype_caching_iovec_t *)malloc(sizeof(opal_datatype_caching_iovec_t));
+        datatype->cached_iovec->cached_iovec = NULL;
+        datatype->cached_iovec->cached_iovec_count = 0;
+        
         struct opal_convertor_t conv;
         size_t max_data;
 
@@ -256,12 +261,17 @@ int opal_convertor_raw_cached(struct opal_convertor_t *convertor,
         conv.master     = convertor->master;
         opal_convertor_prepare_for_send(&conv, convertor->pDesc, 1, NULL);
         opal_convertor_get_packed_size(&conv, &max_data);
-        opal_convertor_to_iov(&conv, (struct iovec **)&convertor->pDesc->cached_iovec,
-                              (uint32_t *)&convertor->pDesc->cached_iovec_count, &max_data);
+        opal_convertor_to_iov(&conv, (struct iovec **)&(datatype->cached_iovec->cached_iovec),
+                              (uint32_t *)&(datatype->cached_iovec->cached_iovec_count), &max_data);
+#if OPAL_CUDA_SUPPORT
+        datatype->cached_iovec->cached_cuda_iov = NULL;
+#endif /* OPAL_CUDA_SUPPORT */
+    
         OBJ_DESTRUCT(&conv);
     }
-    *iov = convertor->pDesc->cached_iovec;
-    *iov_count = convertor->pDesc->cached_iovec_count;
+    *iov = convertor->pDesc->cached_iovec->cached_iovec;
+    *iov_count = convertor->pDesc->cached_iovec->cached_iovec_count;
+    
 
     return OPAL_SUCCESS;
 }

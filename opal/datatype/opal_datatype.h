@@ -97,6 +97,13 @@ struct dt_type_desc_t {
 };
 typedef struct dt_type_desc_t dt_type_desc_t;
 
+typedef struct opal_datatype_caching_iovec_t {
+    struct iovec*      cached_iovec;
+    uint32_t           cached_iovec_count;
+#if OPAL_CUDA_SUPPORT
+    void*              cached_cuda_iov;
+#endif /* OPAL_CUDA_SUPPORT */
+} opal_datatype_caching_iovec_t;
 
 /*
  * The datatype description.
@@ -130,12 +137,7 @@ struct opal_datatype_t {
                                       Reason being is that Fortran is not at the OPAL layer. */
     /* --- cacheline 6 boundary (384 bytes) was 8 bytes ago --- */
 
-    struct iovec*      cached_iovec;
-    uint32_t           cached_iovec_count;
-
-#if OPAL_CUDA_SUPPORT
-    unsigned char *             cached_cuda_iov;
-#endif /* OPAL_CUDA_SUPPORT */
+    opal_datatype_caching_iovec_t* cached_iovec;
 };
 
 typedef struct opal_datatype_t opal_datatype_t;

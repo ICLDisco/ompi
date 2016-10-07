@@ -6,16 +6,15 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
 
-NVCC       = nvcc
+NVCC       = @NVCC@
 ARCH       = @AR@
 ARCHFLAGS  = cr
 STLIB     ?= opal_datatype_cuda_kernel.a
 DYLIB     ?= opal_datatype_cuda_kernel.so
-EXTLIB     = -L$(top_builddir)/opal/datatype/.libs -ldatatype -L$(top_builddir)/opal/.libs -lopen-pal -L/usr/local/cuda/lib -lcuda
+EXTLIB     = -L$(top_builddir)/opal/datatype/.libs -ldatatype -L/usr/local/cuda/lib -lcuda
 subdir     = opal/datatype/cuda
 
-CC = nvcc
-CFLAGS  = -I$(top_builddir)/opal/include -I$(top_srcdir)/opal/include -I$(top_builddir) -I$(top_srcdir)  --compiler-options '-fPIC @CFLAGS@'
+CFLAGS  = -I$(top_builddir)/opal/include -I$(top_srcdir)/opal/include -I$(top_builddir) -I$(top_srcdir)  --compiler-options '-fPIC -g'
 LDFLAGS = -shared --compiler-options '-fPIC @LDFLAGS@'
 
 SRC := \
@@ -58,3 +57,5 @@ clean:
 
 cleanall: clean
 	rm -f $(STLIB) $(DYLIB)
+
+check:
