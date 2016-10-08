@@ -53,7 +53,7 @@ install: $(DYLIB)
 	cp -f $(DYLIB) @OMPI_WRAPPER_LIBDIR@/
 
 clean:
-	rm -f $(OBJ)
+	rm -f $(OBJ) $(STLIB) $(DYLIB)
 
 cleanall: clean
 	rm -f $(STLIB) $(DYLIB)
