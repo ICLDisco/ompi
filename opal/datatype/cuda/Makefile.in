@@ -11,7 +11,7 @@ ARCH       = @AR@
 ARCHFLAGS  = cr
 STLIB     ?= opal_datatype_cuda_kernel.a
 DYLIB     ?= opal_datatype_cuda_kernel.so
-EXTLIB     = -L$(top_builddir)/opal/datatype/.libs -ldatatype -L/usr/local/cuda/lib -lcuda
+EXTLIB     = -L$(top_builddir)/opal/datatype/.libs -ldatatype
 subdir     = opal/datatype/cuda
 
 CFLAGS  = -I$(top_builddir)/opal/include -I$(top_srcdir)/opal/include -I$(top_builddir) -I$(top_srcdir)  --compiler-options '-fPIC -g'
@@ -50,6 +50,7 @@ $(DYLIB): $(OBJ)
 	$(NVCC) $(CFLAGS) $(EXTLIB) $(INC) -c $< -o $@ 
 
 install: $(DYLIB)
+	mkdir -p @OMPI_WRAPPER_LIBDIR@
 	cp -f $(DYLIB) @OMPI_WRAPPER_LIBDIR@/
 
 clean:
