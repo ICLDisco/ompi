@@ -33,7 +33,7 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
     long total_time, move_time;
 #endif
     
-    printf("buffer size %d, max_data %d\n", iov[0].iov_len, *max_data);
+//    printf("buffer size %d, max_data %d\n", iov[0].iov_len, *max_data);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start_total);
@@ -103,14 +103,14 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
 #endif
     
     if (gpu_rdma == 0 && !(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) {
-        printf("i sync &&&&&&&&&&&&&&&&&&&&&&&\n");
+        DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack sync cuda stream\n"); );
         cudaStreamSynchronize(working_stream);
     }
 
     if( pConvertor->bConverted == pConvertor->local_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
         if (pConvertor->gpu_buffer_ptr != NULL && free_required && !(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) {
-            printf("#############i free buffer here\n");
+            DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack free buffer %p\n", pConvertor->gpu_buffer_ptr); );
             opal_datatype_cuda_free_gpu_buffer(pConvertor->gpu_buffer_ptr, 0);
             pConvertor->gpu_buffer_ptr = NULL;
         }

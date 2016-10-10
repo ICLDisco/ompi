@@ -1487,7 +1487,7 @@ int mca_btl_smcuda_alloc_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint
         for (i = 0; i < endpoint->smcuda_ddt_clone_size; i++) {
             if (endpoint->smcuda_ddt_clone[i].lindex == -1) {
                 endpoint->smcuda_ddt_clone_avail --;
-                opal_output(0, "Alloc cuda ddt clone array success, lindex %d\n",i);
+                OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Alloc cuda ddt clone array success, lindex %d\n",i));
                 return i;
             }
         }

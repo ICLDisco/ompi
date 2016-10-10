@@ -722,7 +722,7 @@ int32_t opal_datatype_cuda_is_gpu_buffer(const void *ptr)
     if (res != CUDA_SUCCESS) {
         /* If we cannot determine it is device pointer,
          * just assume it is not. */
-        printf("!!!!!!! %p is not a gpu buffer. Take no-CUDA path!\n", ptr);
+        DT_CUDA_DEBUG ( opal_cuda_output(1, "!!!!!!! %p is not a gpu buffer. Take no-CUDA path!\n", ptr); );
         return 0;
     }
     /* Anything but CU_MEMORYTYPE_DEVICE is not a GPU memory */
