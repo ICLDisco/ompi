@@ -20,9 +20,9 @@ if PROJECT_OMPI
 endif
 TESTS = opal_datatype_test $(MPI_TESTS)
 
-if OPAL_cuda_support
-TESTS += ddt_benchmark
-endif
+#if OPAL_cuda_support
+#TESTS += ddt_benchmark
+#endif
 
 check_PROGRAMS = $(TESTS) $(MPI_CHECKS)
 
