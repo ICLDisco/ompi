@@ -111,7 +111,6 @@ struct cudaFunctionTable {
 typedef struct cudaFunctionTable cudaFunctionTable_t;
 static cudaFunctionTable_t cuFunc;
 
-#define NB_IPC_STREAM   4
 
 static int stage_one_init_ref_count = 0;
 static bool stage_three_init_complete = false;
@@ -123,8 +122,7 @@ bool mca_common_cuda_enabled = false;
 static bool mca_common_cuda_register_memory = true;
 static bool mca_common_cuda_warning = false;
 static opal_list_t common_cuda_memory_registrations;
-static CUstream ipcStream[NB_IPC_STREAM];
-static int current_ipc_stream_id = 0;
+static CUstream ipcStream = NULL;
 static CUstream dtohStream = NULL;
 static CUstream htodStream = NULL;
 static CUstream memcpyStream = NULL;
@@ -821,14 +819,12 @@ static int mca_common_cuda_stage_three_init(void)
     }
 
     /* Create stream for use in ipc asynchronous copies */
-    for (i = 0; i < NB_IPC_STREAM; i++) {
-        res = cuFunc.cuStreamCreate(&ipcStream[i], 0);
-        if (OPAL_UNLIKELY(res != CUDA_SUCCESS)) {
-            opal_show_help("help-mpi-common-cuda.txt", "cuStreamCreate failed",
-                           true, OPAL_PROC_MY_HOSTNAME, res);
-            rc = OPAL_ERROR;
-            goto cleanup_and_error;
-        }
+    res = cuFunc.cuStreamCreate(&ipcStream, 0);
+    if (OPAL_UNLIKELY(res != CUDA_SUCCESS)) {
+        opal_show_help("help-mpi-common-cuda.txt", "cuStreamCreate failed",
+                       true, OPAL_PROC_MY_HOSTNAME, res);
+        rc = OPAL_ERROR;
+        goto cleanup_and_error;
     }
 
     /* Create stream for use in dtoh asynchronous copies */
@@ -1010,10 +1006,8 @@ void mca_common_cuda_fini(void)
         if (NULL != cuda_event_unpack_callback_frag_array) {
             free(cuda_event_unpack_callback_frag_array);
         }
-        for (i = 0; i < NB_IPC_STREAM; i++) {
-            if ((NULL != ipcStream[i]) && ctx_ok) {
-                cuFunc.cuStreamDestroy(ipcStream[i]);
-            }
+        if ((NULL != ipcStream) && ctx_ok) {
+            cuFunc.cuStreamDestroy(ipcStream);
         }
         if ((NULL != dtohStream) && ctx_ok) {
             cuFunc.cuStreamDestroy(dtohStream);
@@ -1427,7 +1421,7 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
      * to measure the advantages of asynchronous copies. */
     if (OPAL_LIKELY(mca_common_cuda_async)) {
     //    printf("I use async memcpy\n");
-        result = cuFunc.cuMemcpyAsync((CUdeviceptr)dst, (CUdeviceptr)src, amount, ipcStream[current_ipc_stream_id]);
+        result = cuFunc.cuMemcpyAsync((CUdeviceptr)dst, (CUdeviceptr)src, amount, ipcStream);
         if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
             opal_show_help("help-mpi-common-cuda.txt", "cuMemcpyAsync failed",
                            true, dst, src, amount, result);
@@ -1438,11 +1432,7 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
                                 "CUDA: cuMemcpyAsync passed: dst=%p, src=%p, size=%d",
                                 dst, src, (int)amount);
         }
-        result = cuFunc.cuEventRecord(cuda_event_ipc_array[cuda_event_ipc_first_avail], ipcStream[current_ipc_stream_id]);
-        current_ipc_stream_id ++;
-        if (current_ipc_stream_id >= NB_IPC_STREAM) {
-            current_ipc_stream_id = 0;
-        }
+        result = cuFunc.cuEventRecord(cuda_event_ipc_array[cuda_event_ipc_first_avail], ipcStream);
         if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
             opal_show_help("help-mpi-common-cuda.txt", "cuEventRecord failed",
                            true, OPAL_PROC_MY_HOSTNAME, result);
@@ -1461,7 +1451,7 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
         *done = 0;
     } else {
         /* Mimic the async function so they use the same memcpy call. */
-        result = cuFunc.cuMemcpyAsync((CUdeviceptr)dst, (CUdeviceptr)src, amount, ipcStream[0]);
+        result = cuFunc.cuMemcpyAsync((CUdeviceptr)dst, (CUdeviceptr)src, amount, ipcStream);
         if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
             opal_show_help("help-mpi-common-cuda.txt", "cuMemcpyAsync failed",
                            true, dst, src, amount, result);
@@ -1474,7 +1464,7 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
         }
 
         /* Record an event, then wait for it to complete with calls to cuEventQuery */
-        result = cuFunc.cuEventRecord(cuda_event_ipc_array[cuda_event_ipc_first_avail], ipcStream[0]);
+        result = cuFunc.cuEventRecord(cuda_event_ipc_array[cuda_event_ipc_first_avail], ipcStream);
         if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
             opal_show_help("help-mpi-common-cuda.txt", "cuEventRecord failed",
                            true, OPAL_PROC_MY_HOSTNAME, result);
