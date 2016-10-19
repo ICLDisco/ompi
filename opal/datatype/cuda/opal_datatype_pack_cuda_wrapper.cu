@@ -43,7 +43,7 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov( opal_convertor_t* p
         transfer_required = 0;
     } else {
         buffer_size = iov[0].iov_len;
-        if (OPAL_DATATYPE_VECTOR_USE_ZEROCPY) {
+        if (OPAL_DATATYPE_USE_ZEROCPY) {
             pConvertor->gpu_buffer_ptr = NULL;
             transfer_required = 0;
             free_required = 0;

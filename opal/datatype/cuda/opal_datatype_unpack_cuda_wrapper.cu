@@ -45,7 +45,7 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
         free_required = 0;
         gpu_rdma = 1;
     } else {
-        if (OPAL_DATATYPE_VECTOR_USE_ZEROCPY) {
+        if (OPAL_DATATYPE_USE_ZEROCPY) {
             cudaHostGetDevicePointer((void **)&source, (void *)iov[0].iov_base, 0);
             pConvertor->gpu_buffer_ptr = NULL;
             free_required = 0;

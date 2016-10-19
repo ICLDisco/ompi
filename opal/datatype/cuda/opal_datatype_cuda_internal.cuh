@@ -16,10 +16,7 @@
 //#define OPAL_DATATYPE_CUDA_KERNEL_TIME
 #define OPAL_DATATYPE_CUDA_DEBUG_LEVEL  0
 #define OPAL_DATATYPE_CUDA_TIMING
-#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_D2H   0
-#define OPAL_DATATYPE_VECTOR_USE_ZEROCPY   0
-#define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
-#define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL   0
+#define OPAL_DATATYPE_USE_ZEROCPY   0
 #define OPAL_DATATYPE_CUDA_IOV_CACHE    1
 #define OPAL_DATATYPE_IOV_UNIFIED_MEM	0
 
@@ -64,13 +61,6 @@ typedef struct {
     cudaStream_t ddt_cuda_stream[NB_STREAMS];
     int32_t current_stream_id;
 } ddt_cuda_stream_t;
-
-typedef struct {
-    unsigned char* src;
-    unsigned char* dst;
-    uint32_t nb_elements;
-    uint8_t element_alignment;
-} ddt_cuda_iov_dist_non_cached_t;
 
 typedef struct {
     size_t ncontig_disp;
@@ -132,32 +122,12 @@ extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
 extern cudaStream_t cuda_outer_stream; 
-
-//extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
-
-        
+      
 #if defined (OPAL_DATATYPE_CUDA_DEBUG) 
 #define DBGPRINT(fmt, ...) printf(fmt, __VA_ARGS__) 
 #else 
 #define DBGPRINT(fmt, ...) 
 #endif 
-
-__global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
-                                                         size_t size,
-                                                         OPAL_PTRDIFF_TYPE extent,
-                                                         unsigned char* source,
-                                                         unsigned char* destination );
-                                                         
-__global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
-                                                           size_t size,
-                                                           OPAL_PTRDIFF_TYPE extent,
-                                                           unsigned char* source,
-                                                           unsigned char* destination );
-                                                           
-
-__global__ void opal_generic_simple_pack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used);
-
-__global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used);
 
 __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uint32_t cuda_iov_count, uint32_t ddt_extent, uint32_t current_count, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
 
