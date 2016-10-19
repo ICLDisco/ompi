@@ -273,11 +273,6 @@ int32_t opal_datatype_cuda_kernel_init(void)
     current_cuda_device = &(cuda_devices[0]);
     cuda_outer_stream = NULL;
     
-#if defined(OPAL_DATATYPE_CUDA_TIMING)
-    TIMER_DATA_TYPE start, end, start_total, end_total;
-    long total_time;
-#endif
-    
     cudaDeviceSynchronize();
     return OPAL_SUCCESS;
 }
@@ -693,25 +688,6 @@ void opal_datatype_cuda_set_ddt_iov_position(struct opal_convertor_t *convertor,
     }
 }
 
-void opal_datatype_cuda_check_cuda_iov_is_full(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
-{
-#if 0
-    opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
-    assert(datatype->cached_cuda_iov_dist != NULL);
-    if (datatype->cached_cuda_iov_count < cuda_iov_count) {
-        printf("cuda count %d, new count %d\n", datatype->cached_cuda_iov_count, cuda_iov_count);
-  //      assert(0);
-        void *old_iov = datatype->cached_cuda_iov_dist;
-        void *new_iov = opal_ddt_cuda_iov_dist_init(datatype->cached_cuda_iov_count + NUM_CUDA_IOV_PER_DDT);
-        assert(new_iov != NULL);
-        cudaMemcpy(new_iov, old_iov, datatype->cached_cuda_iov_count * sizeof(ddt_cuda_iov_dist_cached_t), cudaMemcpyDeviceToDevice);
-        datatype->cached_cuda_iov_dist = new_iov;
-        datatype->cached_cuda_iov_count += NUM_CUDA_IOV_PER_DDT;
-        opal_ddt_cuda_iov_dist_fini(old_iov);
-    }
-#endif
-}
-
 /* following function will be called outside the cuda kernel lib */
 int32_t opal_datatype_cuda_is_gpu_buffer(const void *ptr)
 {
@@ -850,12 +826,6 @@ void opal_datatype_cuda_sync_cuda_stream(int stream_id)
 void opal_datatype_cuda_set_outer_cuda_stream(void *stream)
 {
     cuda_outer_stream = (cudaStream_t)stream;
-}
-
-void opal_datatype_cuda_set_callback_current_stream(void *callback_func, void *callback_data)
-{
-    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
-    cudaStreamAddCallback(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id], (cudaStreamCallback_t)callback_func, (void *)callback_data, 0);
 }
 
 void* opal_datatype_cuda_alloc_event(int32_t nb_events, int32_t *loc)
