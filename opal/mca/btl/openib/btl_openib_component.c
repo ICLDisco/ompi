@@ -3782,6 +3782,7 @@ static int btl_openib_component_progress(void)
         while (local_count < 10 && (1 == progress_one_cuda_dtoh_event(&frag, &convertor))) {
             if (convertor != NULL) {
                 if ((convertor->flags & CONVERTOR_COMPLETED) && (convertor->gpu_buffer_ptr != NULL)) {
+                    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Free GPU pack buffer %p in openib dtoh\n", convertor->gpu_buffer_ptr));
                     opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
                     convertor->gpu_buffer_ptr = NULL;
                 }
