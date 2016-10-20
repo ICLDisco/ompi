@@ -304,7 +304,6 @@ ompi_coll_base_bcast_intra_chain( void* buffer,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:bcast_intra_chain rank %d fo %d ss %5d typelng %lu segcount %d",
                  ompi_comm_rank(comm), chains, segsize, (unsigned long)typelng, segcount));
 
-    printf("&&&&&&&& im using chain\n");
     return ompi_coll_base_bcast_intra_generic( buffer, count, datatype, root, comm, module,
                                                 segcount, data->cached_chain );
 }

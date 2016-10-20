@@ -1403,7 +1403,7 @@ int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
     MCA_BTL_SMCUDA_FRAG_ALLOC_EAGER(frag);
     if( OPAL_UNLIKELY(NULL == frag) ) {
         opal_output(0, "no frag for send unpack sig\n");
-        return OPAL_ERR_OUT_OF_RESOURCE;;
+        return OPAL_ERR_OUT_OF_RESOURCE;
     }
 
     /* Fill in fragment fields. */
@@ -1425,7 +1425,7 @@ int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl,
     MCA_BTL_SMCUDA_FRAG_ALLOC_EAGER(frag);
     if( OPAL_UNLIKELY(NULL == frag) ) {
         opal_output(0, "no frag for send pack sig\n");
-        return OPAL_ERR_OUT_OF_RESOURCE;;
+        return OPAL_ERR_OUT_OF_RESOURCE;
     }
 
     /* Fill in fragment fields. */
@@ -1447,7 +1447,7 @@ int mca_btl_smcuda_send_cuda_put_sig(struct mca_btl_base_module_t* btl,
     MCA_BTL_SMCUDA_FRAG_ALLOC_EAGER(frag);
     if( OPAL_UNLIKELY(NULL == frag) ) {
         opal_output(0, "no frag for send put sig\n");
-        return OPAL_ERR_OUT_OF_RESOURCE;;
+        return OPAL_ERR_OUT_OF_RESOURCE;
     }
 
     /* Fill in fragment fields. */
@@ -1468,14 +1468,15 @@ inline static int mca_btl_smcuda_cuda_ddt_start_pack(struct mca_btl_base_module_
 {
     cuda_ddt_hdr_t send_msg;
     mca_btl_smcuda_cuda_ddt_clone(endpoint, pack_convertor, unpack_convertor, remote_gpu_address, (mca_btl_base_descriptor_t *)frag, 
-                                        lindex, remote_device, local_device);
+                                  lindex, remote_device, local_device);
     send_msg.lindex = lindex;
     send_msg.packed_size = 0;
     send_msg.seq = 0;
     send_msg.msg_type = CUDA_DDT_PACK_START;
     send_msg.pack_convertor = pack_convertor;
-    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "smcuda btl start pack, remote_gpu_address %p, frag %p, lindex %d, remote_device %d, local_device %d\n",
-                (void*)remote_gpu_address, (void*)frag, lindex, remote_device, local_device));
+    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
+                         "smcuda btl start pack, remote_gpu_address %p, frag %p, lindex %d, remote_device %d, local_device %d\n",
+                         (void*)remote_gpu_address, (void*)frag, lindex, remote_device, local_device));
     mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, &send_msg);
     return OPAL_SUCCESS;
 }
@@ -1487,7 +1488,8 @@ int mca_btl_smcuda_alloc_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint
         for (i = 0; i < endpoint->smcuda_ddt_clone_size; i++) {
             if (endpoint->smcuda_ddt_clone[i].lindex == -1) {
                 endpoint->smcuda_ddt_clone_avail --;
-                OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Alloc cuda ddt clone array success, lindex %d\n",i));
+                OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
+                                     "Alloc cuda ddt clone array success, lindex %d\n",i));
                 return i;
             }
         }

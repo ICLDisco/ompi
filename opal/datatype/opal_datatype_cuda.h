@@ -10,7 +10,7 @@
 #ifndef _OPAL_DATATYPE_CUDA_H
 #define _OPAL_DATATYPE_CUDA_H
 
-#define OPAL_DATATYPE_CUDA_VERBOSE_LEVEL	5
+#define OPAL_DATATYPE_CUDA_VERBOSE_LEVEL    5
 
 /* Structure to hold CUDA support functions that gets filled in when the
  * common cuda code is initialized.  This removes any dependency on <cuda.h>

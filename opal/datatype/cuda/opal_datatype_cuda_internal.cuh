@@ -1,3 +1,10 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
+/*
+ * Copyright (c) 2014-2016 The University of Tennessee and The University
+ *                         of Tennessee Research Foundation.  All rights
+ *                         reserved.
+ */
+
 #ifndef OPAL_DATATYPE_CUDA_INTERNAL_H_HAS_BEEN_INCLUDED
 #define OPAL_DATATYPE_CUDA_INTERNAL_H_HAS_BEEN_INCLUDED
 
@@ -6,9 +13,6 @@
 #include <sys/time.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-
-//#include "opal_datatype_orig_internal.h"
-
 
 /* OPAL_CUDA */
 // #define OPAL_DATATYPE_CUDA_DRY_RUN
@@ -129,9 +133,25 @@ extern cudaStream_t cuda_outer_stream;
 #define DBGPRINT(fmt, ...) 
 #endif 
 
-__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uint32_t cuda_iov_count, uint32_t ddt_extent, uint32_t current_count, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
+__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist,
+                                                                 uint32_t cuda_iov_pos,
+                                                                 uint32_t cuda_iov_count,
+                                                                 uint32_t ddt_extent,
+                                                                 uint32_t current_count,
+                                                                 int nb_blocks_used,
+                                                                 unsigned char* source_base,
+                                                                 unsigned char* destination_base);
 
-__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uint32_t cuda_iov_count, uint32_t ddt_extent, uint32_t current_count, int nb_blocks_used, unsigned char* destination_base, unsigned char* source_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end);
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist,
+                                                                   uint32_t cuda_iov_pos,
+                                                                   uint32_t cuda_iov_count,
+                                                                   uint32_t ddt_extent,
+                                                                   uint32_t current_count,
+                                                                   int nb_blocks_used,
+                                                                   unsigned char* destination_base,
+                                                                   unsigned char* source_base,
+                                                                   size_t cuda_iov_partial_length_start,
+                                                                   size_t cuda_iov_partial_length_end);
 
 void opal_cuda_output(int output_id, const char *format, ...);
 

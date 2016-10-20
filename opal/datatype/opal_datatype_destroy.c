@@ -21,7 +21,7 @@
 #include "opal_config.h"
 #include "opal/constants.h"
 #include "opal/datatype/opal_datatype.h"
-#include "opal/datatype/opal_datatype_internal.h"  
+#include "opal/datatype/opal_datatype_internal.h"
 
 int32_t opal_datatype_destroy( opal_datatype_t** dt )
 {

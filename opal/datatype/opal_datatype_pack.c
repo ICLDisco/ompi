@@ -321,7 +321,7 @@ opal_generic_simple_pack_function( opal_convertor_t* pConvertor,
             while( pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA ) {
                 /* now here we have a basic datatype */
                 PACK_PREDEFINED_DATATYPE( pConvertor, pElem, count_desc,
-                                        conv_ptr, iov_ptr, iov_len_local );
+                                          conv_ptr, iov_ptr, iov_len_local );
                 if( 0 == count_desc ) {  /* completed */
                     conv_ptr = pConvertor->pBaseBuf + pStack->disp;
                     pos_desc++;  /* advance to the next data */

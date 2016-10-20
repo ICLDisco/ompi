@@ -1,8 +1,14 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
+/*
+ * Copyright (c) 2014-2016 The University of Tennessee and The University
+ *                         of Tennessee Research Foundation.  All rights
+ *                         reserved.
+ */
+
 #ifndef OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED
 #define OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED
 
-extern "C"
-{
+BEGIN_C_DECLS
     
 int32_t opal_datatype_cuda_kernel_init(void);
 
@@ -18,7 +24,10 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
                                                                uint32_t* out_size,
                                                                size_t* max_data ); 
                                                           
-int32_t opal_datatype_cuda_generic_simple_pack_function_iov_non_cached( opal_convertor_t* pConvertor, unsigned char *destination, size_t buffer_size, size_t *total_packed);                                        
+int32_t opal_datatype_cuda_generic_simple_pack_function_iov_non_cached( opal_convertor_t* pConvertor,
+                                                                        unsigned char *destination,
+                                                                        size_t buffer_size,
+                                                                        size_t *total_packed);
 
 int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_non_cached( opal_convertor_t* pConvertor, unsigned char *source, size_t buffer_size, size_t *total_unpacked);
                                                                                                                     
@@ -54,7 +63,15 @@ void opal_datatype_cuda_set_ddt_iov_position(struct opal_convertor_t *convertor,
 
 int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov_count);
 
-uint8_t opal_datatype_cuda_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iovec *ddt_iov, ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current, uint32_t ddt_iov_start_pos, uint32_t ddt_iov_end_pos, size_t *buffer_size, uint32_t *nb_blocks_used, size_t *total_packed, size_t *contig_disp_out, uint32_t *current_ddt_iov_pos);
+uint8_t opal_datatype_cuda_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iovec *ddt_iov,
+                                           ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current,
+                                           uint32_t ddt_iov_start_pos,
+                                           uint32_t ddt_iov_end_pos,
+                                           size_t *buffer_size,
+                                           uint32_t *nb_blocks_used,
+                                           size_t *total_packed,
+                                           size_t *contig_disp_out,
+                                           uint32_t *current_ddt_iov_pos);
 
 void opal_datatype_cuda_set_cuda_stream(int stream_id);
 
@@ -78,6 +95,6 @@ int32_t opal_datatype_cuda_event_sync(void *cuda_event_list, int32_t i);
 
 int32_t opal_datatype_cuda_event_record(void *cuda_event_list, int32_t i);
 
-}
+END_C_DECLS
                             
 #endif  /* OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED */

@@ -1291,7 +1291,7 @@ int mca_btl_smcuda_component_progress(void)
                 btl_smcuda_process_pending_sends(endpoint);
         }
     }
-    
+
 #if OPAL_CUDA_SUPPORT
     /* Check to see if there are any outstanding CUDA pack events that have
      * completed. */ 
@@ -1302,7 +1302,7 @@ int mca_btl_smcuda_component_progress(void)
             free (pack_callback_frag);
         }
     }
-    
+
     while (1 == progress_one_cuda_unpack_event((void **)&unpack_callback_frag)) {
         if (unpack_callback_frag != NULL) {
             btl_smcuda_datatype_unpack_event_callback(unpack_callback_frag);

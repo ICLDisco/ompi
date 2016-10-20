@@ -1420,7 +1420,6 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
     /* This is the standard way to run.  Running with synchronous copies is available
      * to measure the advantages of asynchronous copies. */
     if (OPAL_LIKELY(mca_common_cuda_async)) {
-    //    printf("I use async memcpy\n");
         result = cuFunc.cuMemcpyAsync((CUdeviceptr)dst, (CUdeviceptr)src, amount, ipcStream);
         if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
             opal_show_help("help-mpi-common-cuda.txt", "cuMemcpyAsync failed",
@@ -1519,7 +1518,9 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
  * Record an event and save the frag.  This is called by the sending side and
  * is used to queue an event when a htod copy has been initiated.
  */
-int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_t *frag, opal_convertor_t *convertor, void *cuda_stream)
+int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_t *frag,
+                                      opal_convertor_t *convertor,
+                                      void *cuda_stream)
 {
     CUresult result;
 

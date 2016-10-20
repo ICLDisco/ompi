@@ -547,25 +547,23 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                                                size_t num_segments,
                                                mca_btl_base_descriptor_t* des)
 {
-    int result;
     size_t bytes_received = 0, data_offset = 0;
     size_t bytes_delivered __opal_attribute_unused__; /* is being set to zero in MCA_PML_OB1_RECV_REQUEST_UNPACK */
     mca_pml_ob1_hdr_t* hdr = (mca_pml_ob1_hdr_t*)segments->seg_addr.pval;
+    opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
     void *cuda_stream = NULL;
+    int result;
 
     OPAL_OUTPUT((-1, "start_frag_copy frag=%p", (void *)des));
 
+    data_offset    = hdr->hdr_frag.hdr_frag_offset;
     bytes_received = mca_pml_ob1_compute_segment_length_base (segments, num_segments,
                                                               sizeof(mca_pml_ob1_frag_hdr_t));
-    data_offset     = hdr->hdr_frag.hdr_frag_offset;
     
-    opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
     if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
         convertor->flags &= ~CONVERTOR_CUDA;
         if (opal_convertor_need_buffers(convertor) == true) {
             opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_htod_stream());
-           // opal_cuda_set_cuda_stream(convertor->pipeline_seq);
-        //    cuda_stream = opal_cuda_get_current_cuda_stream();
             if (convertor->gpu_buffer_ptr == NULL) {
                 size_t buffer_size = 0;
                 convertor->pipeline_size = btl->btl_max_send_size;
@@ -648,7 +646,8 @@ void mca_pml_ob1_recv_request_frag_copy_finished( mca_btl_base_module_t* btl,
     if(recvreq->req_bytes_received >= recvreq->req_recv.req_bytes_packed) {
         opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
         if (convertor->gpu_buffer_ptr != NULL) {
-            OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Free GPU pack/unpack buffer %p\n", convertor->gpu_buffer_ptr));
+            OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
+                                 "Free GPU pack/unpack buffer %p\n", convertor->gpu_buffer_ptr));
             opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
         }    
