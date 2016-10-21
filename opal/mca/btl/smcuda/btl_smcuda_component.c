@@ -831,14 +831,14 @@ static void btl_smcuda_datatype_pack_event_callback(btl_smcuda_ddt_callback_t *p
 {
     cuda_ddt_hdr_t *send_msg = &(pack_callback_data->sig_msg);
     OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Pack cuda event call back, seq %d\n", send_msg->seq));
-    mca_btl_smcuda_send_cuda_unpack_sig(pack_callback_data->btl, pack_callback_data->endpoint, send_msg);
+    mca_btl_smcuda_send_cuda_ddt_sig(pack_callback_data->btl, pack_callback_data->endpoint, send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
 }
 
 static void btl_smcuda_datatype_unpack_event_callback(btl_smcuda_ddt_callback_t *unpack_callback_data)
 {
     cuda_ddt_hdr_t *send_msg = &(unpack_callback_data->sig_msg);
     OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Unpack cuda event call back, seq %d\n", send_msg->seq));
-    mca_btl_smcuda_send_cuda_pack_sig(unpack_callback_data->btl, unpack_callback_data->endpoint, send_msg);
+    mca_btl_smcuda_send_cuda_ddt_sig(unpack_callback_data->btl, unpack_callback_data->endpoint, send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
 }
 
 /* for receiver */
@@ -976,7 +976,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
         send_msg.packed_size = 0;
         send_msg.seq = -2;
         send_msg.msg_type = CUDA_DDT_CLEANUP;
-        mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
+        mca_btl_smcuda_send_cuda_ddt_sig(btl, endpoint, &send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
         if (convertor->gpu_buffer_ptr != NULL) {
             opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
@@ -1077,7 +1077,7 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
     send_msg.packed_size = 0;
     send_msg.seq = -2;
     send_msg.msg_type = CUDA_DDT_CLEANUP;
-    mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
+    mca_btl_smcuda_send_cuda_ddt_sig(btl, endpoint, &send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
 }
 
 #endif /* OPAL_CUDA_SUPPORT */

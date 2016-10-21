@@ -1281,7 +1281,7 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                     put_msg.pack_convertor = pack_convertor;
                     mca_btl_smcuda_cuda_ddt_clone(ep, pack_convertor, unpack_convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                         lindex, 0, 0);
-                    mca_btl_smcuda_send_cuda_put_sig(btl, ep, &put_msg);
+                    mca_btl_smcuda_send_cuda_ddt_sig(btl, ep, &put_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_PUT);
                 } else {
                     mca_btl_smcuda_cuda_ddt_start_pack(btl, ep, pack_convertor, unpack_convertor, remote_memory_address, (mca_btl_base_descriptor_t *)frag, 
                                                        lindex, remote_device, local_device);
@@ -1392,9 +1392,10 @@ static void mca_btl_smcuda_send_cuda_ipc_request(struct mca_btl_base_module_t* b
 
 }
 
-int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
-                                           struct mca_btl_base_endpoint_t* endpoint, 
-                                           cuda_ddt_hdr_t *send_msg)
+int mca_btl_smcuda_send_cuda_ddt_sig(struct mca_btl_base_module_t* btl,
+                                     struct mca_btl_base_endpoint_t* endpoint, 
+                                     cuda_ddt_hdr_t *send_msg, 
+                                     int tag)
 {
     mca_btl_smcuda_frag_t* frag;
     int rc;
@@ -1410,51 +1411,7 @@ int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl,
     frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
     memcpy(frag->segment.seg_addr.pval, send_msg, sizeof(cuda_ddt_hdr_t));
     
-    rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
-    return rc;
-}
-
-int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl,
-                                      struct mca_btl_base_endpoint_t* endpoint, 
-                                      cuda_ddt_hdr_t *send_msg)
-{
-    mca_btl_smcuda_frag_t* frag;
-    int rc;
-    
-    /* allocate a fragment, giving up if we can't get one */
-    MCA_BTL_SMCUDA_FRAG_ALLOC_EAGER(frag);
-    if( OPAL_UNLIKELY(NULL == frag) ) {
-        opal_output(0, "no frag for send pack sig\n");
-        return OPAL_ERR_OUT_OF_RESOURCE;
-    }
-
-    /* Fill in fragment fields. */
-    frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
-    memcpy(frag->segment.seg_addr.pval, send_msg, sizeof(cuda_ddt_hdr_t));
-    
-    rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
-    return rc;
-}
-
-int mca_btl_smcuda_send_cuda_put_sig(struct mca_btl_base_module_t* btl,
-                                     struct mca_btl_base_endpoint_t* endpoint, 
-                                     cuda_ddt_put_hdr_t *put_msg)
-{
-    mca_btl_smcuda_frag_t* frag;
-    int rc;
-    
-    /* allocate a fragment, giving up if we can't get one */
-    MCA_BTL_SMCUDA_FRAG_ALLOC_EAGER(frag);
-    if( OPAL_UNLIKELY(NULL == frag) ) {
-        opal_output(0, "no frag for send put sig\n");
-        return OPAL_ERR_OUT_OF_RESOURCE;
-    }
-
-    /* Fill in fragment fields. */
-    frag->base.des_flags = MCA_BTL_DES_FLAGS_BTL_OWNERSHIP;
-    memcpy(frag->segment.seg_addr.pval, put_msg, sizeof(cuda_ddt_put_hdr_t));
-    
-    rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  MCA_BTL_TAG_SMCUDA_DATATYPE_PUT);
+    rc = mca_btl_smcuda_send(btl, endpoint, (struct mca_btl_base_descriptor_t*)frag,  tag);
     return rc;
 }
 
@@ -1477,7 +1434,7 @@ inline static int mca_btl_smcuda_cuda_ddt_start_pack(struct mca_btl_base_module_
     OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
                          "smcuda btl start pack, remote_gpu_address %p, frag %p, lindex %d, remote_device %d, local_device %d\n",
                          (void*)remote_gpu_address, (void*)frag, lindex, remote_device, local_device));
-    mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, &send_msg);
+    mca_btl_smcuda_send_cuda_ddt_sig(btl, endpoint, &send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
     return OPAL_SUCCESS;
 }
 
