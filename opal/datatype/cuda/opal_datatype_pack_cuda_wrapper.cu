@@ -260,7 +260,6 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_cached( opal_convert
         GET_TIME(start);
 #endif
         if (opal_datatype_cuda_cache_cuda_iov(pConvertor, &nb_blocks_used) == OPAL_SUCCESS) {
-            opal_datatype_cuda_set_cuda_iov_cached(pConvertor, nb_blocks_used);
             DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack cuda iov is cached, count %d\n", nb_blocks_used););
         } else {
             DT_CUDA_DEBUG ( opal_cuda_output(0, "Pack cache cuda iov is failed\n"););

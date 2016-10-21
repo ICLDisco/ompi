@@ -1993,22 +1993,6 @@ int mca_common_cuda_query_event(uint64_t *event)
     }
 }
 
-int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_rcache_common_cuda_reg_data_t *handle)
-{
-    // CUipcEventHandle evtHandle;
-    // CUresult result;
-    // mca_mpool_common_cuda_reg_data_t *cuda_handle = (mca_mpool_common_cuda_reg_data_t*)handle;
-    // memcpy(&evtHandle, &cuda_handle->pipeline_evtHandle[n*EVTHANDLE_SIZE], sizeof(evtHandle));
-    // result = cuFunc.cuIpcOpenEventHandle((CUevent *)event, evtHandle);
-    // if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
-    //     opal_show_help("help-mpi-common-cuda.txt", "cuIpcOpenEventHandle failed",
-    //                        true, result);
-    //     return OPAL_ERROR;
-    // }
-    return OPAL_SUCCESS;
-}
-
-
 /**
  * Need to make sure the handle we are retrieving from the cache is still
  * valid.  Compare the cached handle to the one received.

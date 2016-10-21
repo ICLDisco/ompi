@@ -870,11 +870,8 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     cuda_ddt_smfrag_event_list_t *ddt_cuda_events = NULL;
     
     if (msg_type == CUDA_DDT_CLEANUP) {
-       ddt_cuda_events = &(my_cuda_dt_clone->ddt_cuda_events);
-       opal_cuda_sync_all_events(ddt_cuda_events->cuda_kernel_event_list, ddt_cuda_events->nb_events);
-  /*     for (int i = 0; i < 4; i++) {
-           opal_cuda_sync_cuda_stream(i);
-       }*/
+        ddt_cuda_events = &(my_cuda_dt_clone->ddt_cuda_events);
+        opal_cuda_sync_all_events(ddt_cuda_events->cuda_kernel_event_list, ddt_cuda_events->nb_events);
         if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
             convertor = my_cuda_dt_clone->unpack_convertor;
             if (convertor->gpu_buffer_ptr != NULL) {
@@ -917,7 +914,6 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
             OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "No unpack is needed, start D2D copy local %p, remote %p, size %ld, stream id %d, seq %d\n", local_address, remote_address, packed_size, opal_cuda_get_cuda_stream(), seq));
             opal_cuda_set_cuda_stream(seq);
             opal_cuda_d2dcpy_async(local_address, remote_address, packed_size);
-      //      mca_common_cuda_memp2pcpy(local_address, (unsigned char*)my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, packed_size);
             my_cuda_dt_clone->current_unpack_convertor_pBaseBuf += packed_size;
             mca_common_cuda_record_unpack_event(NULL, (void*)unpack_callback_data, opal_cuda_get_current_cuda_stream());
         } else {     /* unpack */
@@ -1020,9 +1016,6 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             send_msg.seq = seq;
             if (rv_dt == 1) {
                 send_msg.msg_type = CUDA_DDT_COMPLETE;
-                // for (int i = 0; i < 4; i++) {
-                //     opal_cuda_sync_cuda_stream(i);
-                // }
             } else {
                 send_msg.msg_type = CUDA_DDT_UNPACK_FROM_BLOCK;
             }
@@ -1383,10 +1376,6 @@ int mca_btl_smcuda_component_progress(void)
                                           &frag->base, status?OPAL_ERROR:OPAL_SUCCESS);
                 }
                 if( btl_ownership ) {
-                    if (frag->hdr->tag == MCA_BTL_TAG_SMCUDA_DATATYPE_PACK) {
-                    }
-                    if (frag->hdr->tag == MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK) {
-                    }
                     MCA_BTL_SMCUDA_FRAG_RETURN(frag);
                 }
                 OPAL_THREAD_ADD32(&mca_btl_smcuda_component.num_outstanding_frags, -1);

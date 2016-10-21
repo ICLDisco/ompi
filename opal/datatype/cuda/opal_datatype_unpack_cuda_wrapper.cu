@@ -254,7 +254,6 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_cached( opal_conve
         GET_TIME(start);
 #endif
         if (opal_datatype_cuda_cache_cuda_iov(pConvertor, &nb_blocks_used) == OPAL_SUCCESS) {
-            opal_datatype_cuda_set_cuda_iov_cached(pConvertor, nb_blocks_used);
             DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack cuda iov is cached, count %d\n", nb_blocks_used););
         }
 #if defined(OPAL_DATATYPE_CUDA_TIMING)

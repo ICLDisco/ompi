@@ -254,6 +254,7 @@ int mca_pml_ob1_rdma_cuda_btl_register_data(
     return 0;
 }
 
+/* return how many btl can have RDMA support */
 size_t mca_pml_ob1_rdma_cuda_avail(mca_bml_base_endpoint_t* bml_endpoint)
 {
     int num_btls = mca_bml_base_btl_array_get_size(&bml_endpoint->btl_send);

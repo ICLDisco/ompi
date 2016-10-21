@@ -25,7 +25,6 @@
 #define OPAL_DATATYPE_IOV_UNIFIED_MEM	0
 
 
-#define NB_GPUS                 1
 #define IOV_ARRAY_SIZE          1
 #define DT_CUDA_BUFFER_SIZE    1024*1024*200
 #define DT_CUDA_FREE_LIST_SIZE  50
@@ -126,12 +125,8 @@ extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
 extern cudaStream_t cuda_outer_stream; 
+extern uint32_t NB_GPUS;
       
-#if defined (OPAL_DATATYPE_CUDA_DEBUG) 
-#define DBGPRINT(fmt, ...) printf(fmt, __VA_ARGS__) 
-#else 
-#define DBGPRINT(fmt, ...) 
-#endif 
 
 __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist,
                                                                  uint32_t cuda_iov_pos,

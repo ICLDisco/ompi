@@ -22,6 +22,7 @@ struct iovec cuda_iov[CUDA_NB_IOV];
 uint32_t cuda_iov_count;
 uint32_t cuda_iov_cache_enabled;
 cudaStream_t cuda_outer_stream;
+uint32_t NB_GPUS;
 
 static inline ddt_cuda_buffer_t* obj_ddt_cuda_buffer_new()
 {
@@ -201,6 +202,7 @@ int32_t opal_datatype_cuda_kernel_init(void)
     cuda_iov_count = CUDA_NB_IOV;
     
     /* init device */
+    NB_GPUS = 1;
     cuda_devices = (ddt_cuda_device_t *)malloc(sizeof(ddt_cuda_device_t)*NB_GPUS);
     for (i = 0; i < NB_GPUS; i++) {
         unsigned char *gpu_ptr = NULL;
@@ -224,6 +226,8 @@ int32_t opal_datatype_cuda_kernel_init(void)
         cuda_devices[i].buffer_used.tail = NULL;
         cuda_devices[i].buffer_used_size = 0;
         cuda_devices[i].buffer_used.nb_elements = 0;
+        
+        cuda_devices[i].device_id = device;
     
         /* init cuda stream */
         ddt_cuda_stream_t *cuda_streams = (ddt_cuda_stream_t *)malloc(sizeof(ddt_cuda_stream_t));
@@ -399,7 +403,7 @@ realloc_cuda_iov:
     return 1;
 }
 
-/* cached_cuda_iov_d is not ready until explicitly sync with cuda stream 0 */
+/* cached_cuda_iov_d is not ready until explicitly sync with current cuda stream */
 int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov_count)
 {
     uint32_t i, j;
@@ -511,6 +515,11 @@ int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t
     cached_cuda_iov->cuda_iov_dist_d = cached_cuda_iov_dist_d;
     datatype->cached_iovec->cached_cuda_iov = (void*)cached_cuda_iov;
     *cuda_iov_count = nb_blocks_used;
+    
+    ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *)datatype->cached_iovec->cached_cuda_iov;
+    tmp->cuda_iov_count = *cuda_iov_count;
+    tmp->cuda_iov_is_cached = 1;
+    
     cuda_err = cudaEventRecord(cuda_iov_process_block_cached->cuda_event, cuda_stream_iov);
     opal_cuda_check_error(cuda_err);
     return OPAL_SUCCESS;
@@ -604,7 +613,7 @@ void opal_datatype_cuda_get_cached_cuda_iov(struct opal_convertor_t *convertor,
         *cached_cuda_iov = (ddt_cuda_iov_total_cached_t *)convertor->pDesc->cached_iovec->cached_cuda_iov;
     }                 
 }
-
+/*
 void opal_datatype_cuda_set_cuda_iov_cached(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
 {
     opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
@@ -612,7 +621,7 @@ void opal_datatype_cuda_set_cuda_iov_cached(struct opal_convertor_t *convertor, 
     ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *)datatype->cached_iovec->cached_cuda_iov;
     tmp->cuda_iov_count = cuda_iov_count;
     tmp->cuda_iov_is_cached = 1;
-}
+}*/
 
 uint8_t opal_datatype_cuda_cuda_iov_is_cached(struct opal_convertor_t *convertor)
 {
@@ -706,8 +715,7 @@ int32_t opal_datatype_cuda_is_gpu_buffer(const void *ptr)
 void* opal_datatype_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
 {
     ddt_cuda_device_t *device = &cuda_devices[gpu_id];
-    int dev_id;
-    cudaGetDevice(&dev_id);
+    int dev_id = device->device_id;
     if (device->buffer_free_size < size) {
         DT_CUDA_DEBUG( opal_cuda_output( 0, "No GPU buffer at dev_id %d.\n", dev_id); );
         return NULL;
