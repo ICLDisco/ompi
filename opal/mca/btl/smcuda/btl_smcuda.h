@@ -568,7 +568,10 @@ typedef struct {
 
 #define SMCUDA_DT_CLONE_SIZE 20
 
-int mca_btl_smcuda_send_cuda_ddt_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, cuda_ddt_hdr_t *send_msg, int tag);
+int mca_btl_smcuda_send_cuda_ddt_sig(struct mca_btl_base_module_t* btl,
+                                     struct mca_btl_base_endpoint_t* endpoint,
+                                     void* msg, size_t msglen,
+                                     int tag);
 int mca_btl_smcuda_alloc_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint);
 void mca_btl_smcuda_free_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex);
 void mca_btl_smcuda_cuda_ddt_clone(struct mca_btl_base_endpoint_t *endpoint,

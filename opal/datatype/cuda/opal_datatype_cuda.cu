@@ -331,18 +331,16 @@ int32_t opal_datatype_cuda_kernel_fini(void)
 void* opal_datatype_cuda_cached_cuda_iov_init(uint32_t size) 
 {
 #if OPAL_DATATYPE_CUDA_IOV_CACHE
-    char* ptr = (char*)malloc( sizeof(ddt_cuda_iov_total_cached_t) + size * sizeof(uint32_t) );
-    ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *)ptr;
-    char* tmp_nb_bytes = NULL;
+    ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *)malloc(sizeof(ddt_cuda_iov_total_cached_t) +
+                                                                             size * sizeof(uint32_t));
     if( NULL != tmp ) {
         tmp->cuda_iov_dist_d    = NULL;
         tmp->cuda_iov_count     = size;
         tmp->cuda_iov_is_cached = 0;
-        tmp_nb_bytes            = ptr + sizeof(ddt_cuda_iov_total_cached_t); 
-        tmp->nb_bytes_h         = (uint32_t *)tmp_nb_bytes;
+        tmp->nb_bytes_h         = (uint32_t*)((char*)tmp + sizeof(ddt_cuda_iov_total_cached_t));
         DT_CUDA_DEBUG( opal_cuda_output( 2, "Malloc cuda_iov_dist_cached for ddt is successed, cached cuda iov %p, nb_bytes_h %p, size %d.\n",
-                                         tmp, tmp_nb_bytes, size); );
-        return tmp;
+                                         tmp, tmp->nb_bytes_h, size); );
+        return (void*)tmp;
     }
     DT_CUDA_DEBUG( opal_cuda_output( 0, "Malloc cuda_iov_dist_cached for ddt is failed.\n"); );
 #else

@@ -830,15 +830,19 @@ static void btl_smcuda_control(mca_btl_base_module_t* btl,
 static void btl_smcuda_datatype_pack_event_callback(btl_smcuda_ddt_callback_t *pack_callback_data)
 {
     cuda_ddt_hdr_t *send_msg = &(pack_callback_data->sig_msg);
-    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Pack cuda event call back, seq %d\n", send_msg->seq));
-    mca_btl_smcuda_send_cuda_ddt_sig(pack_callback_data->btl, pack_callback_data->endpoint, send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
+    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
+                         "Pack cuda event call back, seq %d\n", send_msg->seq));
+    mca_btl_smcuda_send_cuda_ddt_sig(pack_callback_data->btl, pack_callback_data->endpoint,
+                                     send_msg, sizeof(cuda_ddt_hdr_t), MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
 }
 
 static void btl_smcuda_datatype_unpack_event_callback(btl_smcuda_ddt_callback_t *unpack_callback_data)
 {
     cuda_ddt_hdr_t *send_msg = &(unpack_callback_data->sig_msg);
-    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Unpack cuda event call back, seq %d\n", send_msg->seq));
-    mca_btl_smcuda_send_cuda_ddt_sig(unpack_callback_data->btl, unpack_callback_data->endpoint, send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
+    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
+                         "Unpack cuda event call back, seq %d\n", send_msg->seq));
+    mca_btl_smcuda_send_cuda_ddt_sig(unpack_callback_data->btl, unpack_callback_data->endpoint,
+                                     send_msg, sizeof(cuda_ddt_hdr_t), MCA_BTL_TAG_SMCUDA_DATATYPE_PACK);
 }
 
 /* for receiver */
@@ -976,7 +980,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
         send_msg.packed_size = 0;
         send_msg.seq = -2;
         send_msg.msg_type = CUDA_DDT_CLEANUP;
-        mca_btl_smcuda_send_cuda_ddt_sig(btl, endpoint, &send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
+        mca_btl_smcuda_send_cuda_ddt_sig(btl, endpoint, &send_msg, sizeof(cuda_ddt_hdr_t), MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
         if (convertor->gpu_buffer_ptr != NULL) {
             opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
             convertor->gpu_buffer_ptr = NULL;
@@ -1037,13 +1041,12 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
                                     mca_btl_base_descriptor_t* des, void* cbdata)
 {
     struct mca_btl_base_endpoint_t *endpoint = NULL;
-    cuda_ddt_put_hdr_t recv_msg;
     mca_btl_base_segment_t* segments = des->des_segments;
-    memcpy(&recv_msg, segments->seg_addr.pval, sizeof(cuda_ddt_put_hdr_t));
-    int lindex = recv_msg.lindex;
-    void *remote_address = recv_msg.remote_address;
-    void *remote_base = recv_msg.remote_base;
-    struct opal_convertor_t *convertor = recv_msg.pack_convertor;
+    cuda_ddt_put_hdr_t* recv_msg = (cuda_ddt_put_hdr_t*)segments->seg_addr.pval;
+    int lindex = recv_msg->lindex;
+    void *remote_address = recv_msg->remote_address;
+    void *remote_base = recv_msg->remote_base;
+    struct opal_convertor_t *convertor = recv_msg->pack_convertor;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
     cuda_ddt_hdr_t send_msg;
     
@@ -1055,12 +1058,14 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
     mca_rcache_common_cuda_reg_t rget_reg;
     rget_reg_ptr= &rget_reg;
     memset(&rget_reg, 0, sizeof(rget_reg));
-    memcpy(rget_reg.data.memHandle, recv_msg.mem_handle, sizeof(recv_msg.mem_handle));
+    memcpy(rget_reg.data.memHandle, recv_msg->mem_handle, sizeof(recv_msg->mem_handle));
     cuda_openmemhandle(NULL, 0, (mca_rcache_base_registration_t *)&rget_reg, NULL);
     size_t offset = (size_t) ((intptr_t)remote_address - (intptr_t)remote_base);
     unsigned char *remote_memory_address = (unsigned char *)rget_reg_ptr->base.alloc_base + offset;
     convertor->gpu_buffer_ptr = remote_memory_address;
-    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "smcuda start put, remote_memory_address %p, r_addr %p, r_base %p\n", remote_memory_address, remote_address, remote_base));
+    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
+                         "smcuda start put, remote_memory_address %p, r_addr %p, r_base %p\n",
+                         remote_memory_address, remote_address, remote_base));
     convertor->gpu_buffer_size = convertor->local_size;
     
     struct iovec iov;
@@ -1077,7 +1082,8 @@ static void btl_smcuda_datatype_put(mca_btl_base_module_t* btl,
     send_msg.packed_size = 0;
     send_msg.seq = -2;
     send_msg.msg_type = CUDA_DDT_CLEANUP;
-    mca_btl_smcuda_send_cuda_ddt_sig(btl, endpoint, &send_msg, MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
+    mca_btl_smcuda_send_cuda_ddt_sig(btl, endpoint, &send_msg, sizeof(cuda_ddt_hdr_t),
+                                     MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK);
 }
 
 #endif /* OPAL_CUDA_SUPPORT */
