@@ -117,8 +117,14 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
         unsigned char *base;
         size_t buffer_size = 0;
         sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
-        if ((opal_datatype_cuda_kernel_support == 1) &&
-            (bml_btl->btl->btl_cuda_ddt_allow_rdma == 1) &&
+        
+        /* cuda kernel support is not enabled */
+        if (opal_datatype_cuda_kernel_support == 0) {
+            rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+            return rc;
+        }
+        /* cuda kernel support is enabled */
+        if ((bml_btl->btl->btl_cuda_ddt_allow_rdma == 1) &&
             (mca_pml_ob1_rdma_cuda_avail(sendreq->req_endpoint) != 0)) {
 
             if (convertor->local_size > bml_btl->btl->btl_cuda_ddt_pipeline_size) {

@@ -552,6 +552,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
     mca_pml_ob1_hdr_t* hdr = (mca_pml_ob1_hdr_t*)segments->seg_addr.pval;
     opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
     void *cuda_stream = NULL;
+    int opal_datatype_use_kernel = 0;
     int result;
 
     OPAL_OUTPUT((-1, "start_frag_copy frag=%p", (void *)des));
@@ -563,7 +564,13 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
     if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
         convertor->flags &= ~CONVERTOR_CUDA;
         if (opal_convertor_need_buffers(convertor) == true) {
+            opal_datatype_use_kernel = 1;
             opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_htod_stream());
+            /* some how async support is just enabled, part of convertor is unpacked */ 
+            if (convertor->pipeline_depth == 0 && convertor->gpu_buffer_ptr != NULL) {
+                opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
+                convertor->gpu_buffer_ptr = NULL;
+            } 
             if (convertor->gpu_buffer_ptr == NULL) {
                 size_t buffer_size = 0;
                 convertor->pipeline_size = btl->btl_max_send_size;
@@ -590,14 +597,10 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                                      bytes_received,
                                      bytes_delivered );
          
-    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
-        convertor->flags &= ~CONVERTOR_CUDA;
-        if (opal_convertor_need_buffers(convertor) == true && convertor->pipeline_depth != 0) {                            
-            opal_cuda_set_outer_cuda_stream(NULL);
-            convertor->pipeline_seq ++;
-            convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
-        }
-        convertor->flags |= CONVERTOR_CUDA;
+    if (opal_datatype_use_kernel == 1) {                       
+        opal_cuda_set_outer_cuda_stream(NULL);
+        convertor->pipeline_seq ++;
+        convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
     }
     /* Store the receive request in unused context pointer. */
     des->des_context = (void *)recvreq;
