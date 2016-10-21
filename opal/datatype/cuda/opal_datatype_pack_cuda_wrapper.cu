@@ -147,14 +147,11 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_non_cached( opal_con
         return OPAL_ERROR;
     }
     
-   // cuda_streams->current_stream_id = 0;
     thread_per_block = CUDA_WARP_SIZE * 5;
     nb_blocks = 256;
     opal_datatype_type_extent(pConvertor->pDesc, &ddt_extent);
     source_base = (unsigned char*)pConvertor->pBaseBuf + pConvertor->current_count * ddt_extent; 
     destination_base = destination;
-    
-  //  cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
     
     while( pConvertor->current_count < pConvertor->count && !buffer_isfull) {
         
@@ -190,7 +187,6 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_non_cached( opal_con
 
         cudaMemcpyAsync(cuda_iov_dist_d_current, cuda_iov_dist_h_current, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, cuda_stream_iov);
         opal_generic_simple_pack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, cuda_stream_iov>>>(cuda_iov_dist_d_current, 0, nb_blocks_used, 0, 0, nb_blocks_used, source_base, destination_base);
-        //cudaStreamSynchronize(*cuda_stream_iov);
         cuda_err = cudaEventRecord(cuda_iov_pipeline_block_non_cached->cuda_event, cuda_stream_iov);
         opal_cuda_check_error(cuda_err);
         current_cuda_device->cuda_iov_pipeline_block_non_cached_first_avail ++;
@@ -209,8 +205,6 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_non_cached( opal_con
         }
         
     }
-    
-  //  cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
         
     return OPAL_SUCCESS;
 }
@@ -238,7 +232,6 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_cached( opal_convert
     
     DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack using IOV cached, convertor %p, GPU base %p, pack to buffer %p\n", pConvertor, pConvertor->pBaseBuf, destination););
 
-   // cuda_streams->current_stream_id = 0;
     destination_base = destination;
     thread_per_block = CUDA_WARP_SIZE * 8;
     nb_blocks = 64;
@@ -313,8 +306,6 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_cached( opal_convert
     opal_generic_simple_pack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, cuda_stream_iov>>>(cached_cuda_iov_dist_d, pConvertor->current_cuda_iov_pos, cached_cuda_iov_count, ddt_extent, convertor_current_count, nb_blocks_used, source_base, destination_base);
     pConvertor->current_cuda_iov_pos += nb_blocks_used;
     pConvertor->current_cuda_iov_pos = pConvertor->current_cuda_iov_pos % cached_cuda_iov->cuda_iov_count;
-
-     //cudaStreamSynchronize(cuda_stream_iov);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     GET_TIME( end );
