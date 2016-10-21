@@ -613,15 +613,6 @@ void opal_datatype_cuda_get_cached_cuda_iov(struct opal_convertor_t *convertor,
         *cached_cuda_iov = (ddt_cuda_iov_total_cached_t *)convertor->pDesc->cached_iovec->cached_cuda_iov;
     }                 
 }
-/*
-void opal_datatype_cuda_set_cuda_iov_cached(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
-{
-    opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
-    assert(datatype->cached_iovec->cached_cuda_iov != NULL);
-    ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *)datatype->cached_iovec->cached_cuda_iov;
-    tmp->cuda_iov_count = cuda_iov_count;
-    tmp->cuda_iov_is_cached = 1;
-}*/
 
 uint8_t opal_datatype_cuda_cuda_iov_is_cached(struct opal_convertor_t *convertor)
 {
