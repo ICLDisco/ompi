@@ -1,5 +1,6 @@
 #include "opal/datatype/opal_convertor_internal.h"
 #include "opal/datatype/opal_datatype_internal.h"
+#include "opal/util/output.h"
 
 #include "opal_datatype_cuda_internal.cuh"
 #include "opal_datatype_cuda.cuh"
@@ -54,7 +55,6 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
             if (!(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) {
                 cudaStreamSynchronize(working_stream);
             }
-       //     cudaStreamSynchronize(working_stream);
             free_required = 1;
         }
     }
@@ -62,7 +62,7 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME( end );
     move_time = ELAPSED_TIME( start, end );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: HtoD memcpy in %ld microsec, free required %d, pipeline_size %lu, pipeline_seq %lu\n", move_time, free_required, pConvertor->pipeline_size, pConvertor->pipeline_seq); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "[Timing]: HtoD memcpy in %ld microsec, free required %d, pipeline_size %lu, pipeline_seq %lu\n", move_time, free_required, pConvertor->pipeline_size, pConvertor->pipeline_seq));
 #endif
 
 
@@ -77,7 +77,7 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
     }
     
     pConvertor->bConverted += total_unpacked;
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack total unpacked %d\n", total_unpacked); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Unpack total unpacked %ld\n", total_unpacked));
 
     iov[0].iov_len = total_unpacked;
     *max_data = total_unpacked;
@@ -86,18 +86,18 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME( end_total );
     total_time = ELAPSED_TIME( start_total, end_total );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: total unpacking in %ld microsec, kernel %ld microsec\n", total_time, total_time-move_time ); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "[Timing]: total unpacking in %ld microsec, kernel %ld microsec\n", total_time, total_time-move_time));
 #endif
     
     if (gpu_rdma == 0 && !(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) {
-        DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack sync cuda stream\n"); );
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Unpack sync cuda stream\n"));
         cudaStreamSynchronize(working_stream);
     }
 
     if( pConvertor->bConverted == pConvertor->local_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
         if (pConvertor->gpu_buffer_ptr != NULL && free_required && !(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) {
-            DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack free buffer %p\n", pConvertor->gpu_buffer_ptr); );
+            OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Unpack free buffer %p\n", pConvertor->gpu_buffer_ptr));
             opal_datatype_cuda_free_gpu_buffer(pConvertor->gpu_buffer_ptr, 0);
             pConvertor->gpu_buffer_ptr = NULL;
         }
@@ -127,13 +127,13 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_non_cached( opal_c
     TIMER_DATA_TYPE start, end;
     long total_time;
 #endif
-    
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack using IOV non cached, convertor %p, GPU base %p, unpack from buffer %p, total size %ld\n",
-                                     pConvertor, pConvertor->pBaseBuf, source, buffer_size); );
+
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Unpack using IOV non cached, convertor %p, GPU base %p, unpack from buffer %p, total size %ld\n",
+                                     pConvertor, pConvertor->pBaseBuf, source, buffer_size));
     
     opal_convertor_raw_cached( pConvertor, &ddt_iov, &ddt_iov_count);
     if (ddt_iov == NULL) {
-        DT_CUDA_DEBUG ( opal_cuda_output(0, "Can not get ddt iov\n"););
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "Can not get ddt iov\n"));
         return OPAL_ERROR;
     }
     
@@ -169,7 +169,7 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_non_cached( opal_c
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
         GET_TIME( end );
         total_time = ELAPSED_TIME( start, end );
-        DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: Unpack src %p to dest %p, iov is prepared in %ld microsec, kernel submitted to CUDA stream %d, nb_blocks_used %d\n", source_base, destination_base, total_time,  cuda_streams->current_stream_id, nb_blocks_used); );
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "[Timing]: Unpack src %p to dest %p, iov is prepared in %ld microsec, kernel submitted to CUDA stream %d, nb_blocks_used %d\n", source_base, destination_base, total_time,  cuda_streams->current_stream_id, nb_blocks_used));
 #endif
         cudaMemcpyAsync(cuda_iov_dist_d_current, cuda_iov_dist_h_current, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, cuda_stream_iov);
         opal_generic_simple_unpack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, cuda_stream_iov>>>(cuda_iov_dist_d_current, 0, nb_blocks_used, 0, 0, nb_blocks_used, destination_base, source_base, 0, 0);
@@ -216,9 +216,9 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_cached( opal_conve
     long total_time;
     GET_TIME(start);
 #endif
-    
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack using IOV cached, convertor %p, GPU base %p, unpack from buffer %p, total size %ld\n",
-                                     pConvertor, pConvertor->pBaseBuf, source, buffer_size); );
+
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Unpack using IOV cached, convertor %p, GPU base %p, unpack from buffer %p, total size %ld\n",
+                                     pConvertor, pConvertor->pBaseBuf, source, buffer_size));
 
     source_base = source;
     thread_per_block = CUDA_WARP_SIZE * 8;
@@ -231,12 +231,12 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_cached( opal_conve
         GET_TIME(start);
 #endif
         if (opal_datatype_cuda_cache_cuda_iov(pConvertor, &nb_blocks_used) == OPAL_SUCCESS) {
-            DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack cuda iov is cached, count %d\n", nb_blocks_used););
+            OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Unpack cuda iov is cached, count %d\n", nb_blocks_used));
         }
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
         GET_TIME( end );
         total_time = ELAPSED_TIME( start, end );
-        DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: Unpack cuda iov is cached in %ld microsec, nb_blocks_used %d\n", total_time, nb_blocks_used); );
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "[Timing]: Unpack cuda iov is cached in %ld microsec, nb_blocks_used %d\n", total_time, nb_blocks_used));
 #endif
     }
       
@@ -297,10 +297,10 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_cached( opal_conve
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     GET_TIME( end );
     total_time = ELAPSED_TIME( start, end );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: Unpack src %p, cached cuda iov is prepared in %ld microsec, kernel submitted to CUDA stream %d, nb_blocks %d\n", source_base, total_time,  cuda_streams->current_stream_id, nb_blocks_used); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "[Timing]: Unpack src %p, cached cuda iov is prepared in %ld microsec, kernel submitted to CUDA stream %d, nb_blocks %d\n", source_base, total_time,  cuda_streams->current_stream_id, nb_blocks_used));
 #endif
     opal_datatype_type_extent(pConvertor->pDesc, &ddt_extent);
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack kernel launched src_base %p, dst_base %p, nb_blocks %ld\n", source_base, destination_base, nb_blocks_used ); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Unpack kernel launched src_base %p, dst_base %p, nb_blocks %d\n", source_base, destination_base, nb_blocks_used));
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start);
@@ -310,7 +310,7 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_cached( opal_conve
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     GET_TIME( end );
     total_time = ELAPSED_TIME( start, end );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: Unpack kernel %ld microsec\n", total_time); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "[Timing]: Unpack kernel %ld microsec\n", total_time));
 #endif
 
     return OPAL_SUCCESS;

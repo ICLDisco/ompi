@@ -7,6 +7,7 @@
 
 #include "opal/datatype/opal_convertor_internal.h"
 #include "opal/datatype/opal_datatype_internal.h"
+#include "opal/util/output.h"
 
 #include "opal_datatype_cuda_internal.cuh"
 #include "opal_datatype_cuda.cuh"
@@ -172,28 +173,17 @@ static inline void cuda_list_item_merge_by_addr(ddt_cuda_list_t *list, ddt_cuda_
     }
 }
 
-void opal_cuda_output(int output_id, const char *format, ...)
-{
-    if (output_id >= 0 && output_id <= OPAL_DATATYPE_CUDA_DEBUG_LEVEL) {
-        va_list arglist;
-        fprintf( stderr, "[Debug %d]: ", output_id );
-        va_start(arglist, format);
-        vfprintf(stderr, format, arglist);
-        va_end(arglist);
-    }
-}
-
 int32_t opal_datatype_cuda_kernel_init(void)
 {
     uint32_t i, j;
     int device;
     cudaError res;
-
+    
     res = cudaGetDevice(&device);
     if( cudaSuccess != res ) {
-        opal_cuda_output(0, "Cannot retrieve the device being used. Drop CUDA support!\n");
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "Cannot retrieve the device being used. Drop CUDA support!\n"));
         return OPAL_ERROR;
-    }    
+    }   
 
     cuda_free_list = init_cuda_free_list();
     
@@ -207,10 +197,10 @@ int32_t opal_datatype_cuda_kernel_init(void)
     for (i = 0; i < NB_GPUS; i++) {
         unsigned char *gpu_ptr = NULL;
         if (cudaMalloc((void **)(&gpu_ptr), sizeof(char)*DT_CUDA_BUFFER_SIZE) != cudaSuccess) {
-            DT_CUDA_DEBUG( opal_cuda_output( 0, "cudaMalloc is failed in GPU %d\n", i); );
+            OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "cudaMalloc is failed in GPU %d\n", i));
             return OPAL_ERROR;
         }
-        DT_CUDA_DEBUG ( opal_cuda_output(2, "DDT engine cudaMalloc buffer %p in GPU %d\n", gpu_ptr, i););
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "DDT engine cudaMalloc buffer %p in GPU %d\n", gpu_ptr, i));
         cudaMemset(gpu_ptr, 0, sizeof(char)*DT_CUDA_BUFFER_SIZE);
         cuda_devices[i].gpu_buffer = gpu_ptr;
         
@@ -325,6 +315,7 @@ int32_t opal_datatype_cuda_kernel_fini(void)
     }
     current_cuda_device = NULL;
     cuda_outer_stream = NULL;
+    
     return OPAL_SUCCESS;
 }
 
@@ -338,13 +329,12 @@ void* opal_datatype_cuda_cached_cuda_iov_init(uint32_t size)
         tmp->cuda_iov_count     = size;
         tmp->cuda_iov_is_cached = 0;
         tmp->nb_bytes_h         = (uint32_t*)((char*)tmp + sizeof(ddt_cuda_iov_total_cached_t));
-        DT_CUDA_DEBUG( opal_cuda_output( 2, "Malloc cuda_iov_dist_cached for ddt is successed, cached cuda iov %p, nb_bytes_h %p, size %d.\n",
-                                         tmp, tmp->nb_bytes_h, size); );
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Malloc cuda_iov_dist_cached for ddt is successed, cached cuda iov %p, nb_bytes_h %p, size %d.\n", tmp, tmp->nb_bytes_h, size));
         return (void*)tmp;
     }
-    DT_CUDA_DEBUG( opal_cuda_output( 0, "Malloc cuda_iov_dist_cached for ddt is failed.\n"); );
+    OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "Malloc cuda_iov_dist_cached for ddt is failed.\n"));
 #else
-    DT_CUDA_DEBUG( opal_cuda_output( 2, "cuda iov cache is not enabled.\n"); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "cuda iov cache is not enabled.\n"));
 #endif /* OPAL_DATATYPE_CUDA_IOV_CACHE */
     return NULL;
 }
@@ -354,7 +344,7 @@ void opal_datatype_cuda_cached_cuda_iov_fini(void* cached_cuda_iov)
 #if OPAL_DATATYPE_CUDA_IOV_CACHE
     ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *) cached_cuda_iov;
     if (NULL != tmp) {
-        DT_CUDA_DEBUG( opal_cuda_output( 2, "Free cuda_iov_dist for ddt is successed %p.\n", cached_cuda_iov); );
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Free cuda_iov_dist for ddt is successed %p.\n", cached_cuda_iov));
         if (NULL != tmp->cuda_iov_dist_d) {
             cudaFree(tmp->cuda_iov_dist_d);
             tmp->cuda_iov_dist_d = NULL;
@@ -408,13 +398,13 @@ int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t
     
     opal_convertor_raw_cached( pConvertor, &ddt_iov, &ddt_iov_count);
     if (ddt_iov == NULL) {
-        DT_CUDA_DEBUG ( opal_cuda_output(0, "Can not get ddt iov\n"););
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "Can not get ddt iov\n"));
         return OPAL_ERROR;
     }
 
     cached_cuda_iov = (ddt_cuda_iov_total_cached_t *)opal_datatype_cuda_cached_cuda_iov_init(NUM_CUDA_IOV_PER_DDT);
     if (cached_cuda_iov == NULL) {
-        DT_CUDA_DEBUG ( opal_cuda_output(0, "Can not init cuda iov\n"););
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "Can not init cuda iov\n"));
         return OPAL_ERROR;
     }
     cached_cuda_iov_nb_bytes_list_h = cached_cuda_iov->nb_bytes_h;
@@ -446,7 +436,7 @@ int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t
         count_desc = length_per_iovec / alignment;
         residue_desc = length_per_iovec % alignment;
         nb_blocks_per_description = (count_desc + thread_per_block - 1) / thread_per_block;
-        DT_CUDA_DEBUG ( opal_cuda_output(10, "Cache cuda IOV description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
+        OPAL_OUTPUT_VERBOSE((10, opal_datatype_cuda_output, "Cache cuda IOV description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description));
         if (opal_datatype_cuda_cached_cuda_iov_isfull(cached_cuda_iov, &(cuda_iov_process_block_cached->cuda_iov_dist_cached_h), nb_blocks_used + nb_blocks_per_description + 1)) {
             cached_cuda_iov_nb_bytes_list_h = cached_cuda_iov->nb_bytes_h;
             cuda_iov_dist_h = (ddt_cuda_iov_dist_cached_t *)realloc(cuda_iov_dist_h, sizeof(ddt_cuda_iov_dist_cached_t)*cached_cuda_iov->cuda_iov_count);
@@ -466,7 +456,7 @@ int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t
             assert(cached_cuda_iov_nb_bytes_list_h[nb_blocks_used] > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
             contig_disp += cached_cuda_iov_nb_bytes_list_h[nb_blocks_used];
-            DT_CUDA_DEBUG( opal_cuda_output(12, "Cache cuda IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h[nb_blocks_used].ncontig_disp, cuda_iov_dist_h[nb_blocks_used].contig_disp, cached_cuda_iov_nb_bytes_list_h[nb_blocks_used]); );
+            OPAL_OUTPUT_VERBOSE((12, opal_datatype_cuda_output, "Cache cuda IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %d\n", nb_blocks_used, cuda_iov_dist_h[nb_blocks_used].ncontig_disp, cuda_iov_dist_h[nb_blocks_used].contig_disp, cached_cuda_iov_nb_bytes_list_h[nb_blocks_used]));
             nb_blocks_used ++;
         }
     
@@ -479,7 +469,7 @@ int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t
             assert(cached_cuda_iov_nb_bytes_list_h[nb_blocks_used] > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
             contig_disp += cached_cuda_iov_nb_bytes_list_h[nb_blocks_used];
-            DT_CUDA_DEBUG( opal_cuda_output(12, "Cache cuda IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h[nb_blocks_used].ncontig_disp, cuda_iov_dist_h[nb_blocks_used].contig_disp, cached_cuda_iov_nb_bytes_list_h[nb_blocks_used]); );
+            OPAL_OUTPUT_VERBOSE((12, opal_datatype_cuda_output, "Cache cuda IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %d\n", nb_blocks_used, cuda_iov_dist_h[nb_blocks_used].ncontig_disp, cuda_iov_dist_h[nb_blocks_used].contig_disp, cached_cuda_iov_nb_bytes_list_h[nb_blocks_used]));
             nb_blocks_used ++;
         }
     }
@@ -487,7 +477,7 @@ int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t
     cuda_iov_dist_h[nb_blocks_used].contig_disp = contig_disp;
     cudaMalloc((void **)(&cached_cuda_iov_dist_d), sizeof(ddt_cuda_iov_dist_cached_t) * (nb_blocks_used+1));
     if (cached_cuda_iov_dist_d == NULL) {
-        DT_CUDA_DEBUG ( opal_cuda_output(0, "Can not malloc cuda iov in GPU\n"););
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "Can not malloc cuda iov in GPU\n"));
         return OPAL_ERROR;
     }
     cudaMemcpyAsync(cached_cuda_iov_dist_d, cuda_iov_dist_h, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1),
@@ -546,7 +536,7 @@ uint8_t opal_datatype_cuda_iov_to_cuda_iov(opal_convertor_t* pConvertor,
         if ((*nb_blocks_used + nb_blocks_per_description + 1) > (CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK)) {
             break;
         }
-        DT_CUDA_DEBUG ( opal_cuda_output(10, "DDT IOV to CUDA IOV description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
+        OPAL_OUTPUT_VERBOSE((10, opal_datatype_cuda_output, "DDT IOV to CUDA IOV description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description));
         for (j = 0; j < nb_blocks_per_description; j++) {
             cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp = ncontig_disp_base + j * thread_per_block * alignment;
             cuda_iov_dist_h_current[*nb_blocks_used].contig_disp = contig_disp;
@@ -559,7 +549,7 @@ uint8_t opal_datatype_cuda_iov_to_cuda_iov(opal_convertor_t* pConvertor,
             assert(current_cuda_iov_length > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
             contig_disp += current_cuda_iov_length;
-            DT_CUDA_DEBUG( opal_cuda_output(12, "DDT IOV to CUDA IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[*nb_blocks_used].contig_disp, current_cuda_iov_length); );
+            OPAL_OUTPUT_VERBOSE((12, opal_datatype_cuda_output, "DDT IOV to CUDA IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", *nb_blocks_used, cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[*nb_blocks_used].contig_disp, current_cuda_iov_length));
             (*nb_blocks_used) ++;
             assert (*nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
         }
@@ -573,7 +563,7 @@ uint8_t opal_datatype_cuda_iov_to_cuda_iov(opal_convertor_t* pConvertor,
             assert(current_cuda_iov_length > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
             contig_disp += current_cuda_iov_length;
-            DT_CUDA_DEBUG( opal_cuda_output(12, "DDT IOV to CUDA IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[*nb_blocks_used].contig_disp, current_cuda_iov_length); );
+            OPAL_OUTPUT_VERBOSE((12, opal_datatype_cuda_output, "DDT IOV to CUDA IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", *nb_blocks_used, cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[*nb_blocks_used].contig_disp, current_cuda_iov_length));
             (*nb_blocks_used) ++;
             assert (*nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
         }
@@ -676,7 +666,7 @@ int32_t opal_datatype_cuda_is_gpu_buffer(const void *ptr)
     if (res != CUDA_SUCCESS) {
         /* If we cannot determine it is device pointer,
          * just assume it is not. */
-        DT_CUDA_DEBUG ( opal_cuda_output(1, "!!!!!!! %p is not a gpu buffer. Take no-CUDA path!\n", ptr); );
+        OPAL_OUTPUT_VERBOSE((1, opal_datatype_cuda_output, "!!!!!!! %p is not a gpu buffer. Take no-CUDA path!\n", ptr));
         return 0;
     }
     /* Anything but CU_MEMORYTYPE_DEVICE is not a GPU memory */
@@ -688,7 +678,7 @@ void* opal_datatype_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
     ddt_cuda_device_t *device = &cuda_devices[gpu_id];
     int dev_id = device->device_id;
     if (device->buffer_free_size < size) {
-        DT_CUDA_DEBUG( opal_cuda_output( 0, "No GPU buffer at dev_id %d.\n", dev_id); );
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "No GPU buffer at dev_id %d.\n", dev_id));
         return NULL;
     }
     ddt_cuda_buffer_t *ptr = device->buffer_free.head;
@@ -715,7 +705,7 @@ void* opal_datatype_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
         cuda_list_push_head(&device->buffer_used, ptr);
         device->buffer_used_size += size;
         device->buffer_free_size -= size;
-        DT_CUDA_DEBUG( opal_cuda_output( 2, "Malloc GPU buffer %p, size %lu, dev_id %d.\n", addr, size, dev_id); );
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Malloc GPU buffer %p, size %lu, dev_id %d.\n", addr, size, dev_id));
         return addr;
     }
     return NULL;
@@ -729,7 +719,7 @@ void opal_datatype_cuda_free_gpu_buffer(void *addr, int gpu_id)
     /* Find the holder of this GPU allocation */
     for( ; (NULL != ptr) && (ptr->gpu_addr != addr); ptr = ptr->next );
     if (NULL == ptr) {  /* we could not find it. something went wrong */
-        DT_CUDA_DEBUG( opal_cuda_output( 0, "addr %p is not managed.\n", addr); );
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "addr %p is not managed.\n", addr));
         return;
     }
     cuda_list_delete(&device->buffer_used, ptr);
@@ -750,13 +740,13 @@ void opal_datatype_cuda_free_gpu_buffer(void *addr, int gpu_id)
     cuda_list_item_merge_by_addr(&device->buffer_free, ptr);
     device->buffer_free_size += size;
     device->buffer_used_size -= size;
-    DT_CUDA_DEBUG( opal_cuda_output( 2, "Free GPU buffer %p, size %lu\n", addr, size); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Free GPU buffer %p, size %lu\n", addr, size));
 }
 
 void opal_cuda_check_error(cudaError_t err)
 {
     if (err != cudaSuccess) {
-        DT_CUDA_DEBUG( opal_cuda_output(0, "CUDA calls error %s\n", cudaGetErrorString(err)); );
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "CUDA calls error %s\n", cudaGetErrorString(err)));
     }
 }
 
@@ -836,7 +826,7 @@ int32_t opal_datatype_cuda_event_query(void *cuda_event_list, int32_t i)
     } else if (rv == cudaErrorNotReady) {
         return 0;
     } else {
-        DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda event query error.\n"); );
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "cuda event query error.\n"));
         return -1;
     }
 }
@@ -848,7 +838,7 @@ int32_t opal_datatype_cuda_event_sync(void *cuda_event_list, int32_t i)
     if (rv == cudaSuccess) {
         return 1;
     }
-    DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda event sync error.\n"); );
+    OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "cuda event sync error.\n"));
     return -1;
 }
 
@@ -860,7 +850,7 @@ int32_t opal_datatype_cuda_event_record(void *cuda_event_list, int32_t i)
     if (rv == cudaSuccess) {
         return 1;
     }
-    DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda event record error.\n"); );
+    OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "cuda event record error.\n"));
     return -1;
 }
 
@@ -868,9 +858,9 @@ void opal_dump_cuda_list(ddt_cuda_list_t *list)
 {
     ddt_cuda_buffer_t *ptr = NULL;
     ptr = list->head;
-    DT_CUDA_DEBUG( opal_cuda_output( 2, "DUMP cuda list %p, nb_elements %d\n", list, list->nb_elements); );
+    OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "DUMP cuda list %p, nb_elements %zu\n", list, list->nb_elements));
     while (ptr != NULL) {
-        DT_CUDA_DEBUG( opal_cuda_output( 2, "\titem addr %p, size %ld.\n", ptr->gpu_addr, ptr->size); );
+        OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "\titem addr %p, size %ld.\n", ptr->gpu_addr, ptr->size));
         ptr = ptr->next;
     }
 }

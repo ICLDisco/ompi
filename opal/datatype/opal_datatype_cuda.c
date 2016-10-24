@@ -33,6 +33,8 @@ static opal_datatype_cuda_kernel_function_table_t cuda_kernel_table;
 static void *opal_datatype_cuda_kernel_handle = NULL;
 static char *opal_datatype_cuda_kernel_lib = NULL;
 int32_t opal_datatype_cuda_kernel_support = 0;
+int opal_datatype_cuda_output = 0;
+int opal_datatype_cuda_verbose = 0;
 
 #define OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN(handle, fname)            \
     do {                                                                            \
@@ -262,6 +264,10 @@ int32_t opal_cuda_kernel_support_init(void)
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_datatype_cuda_event_sync );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_datatype_cuda_event_record );
 
+        /* set output verbose */
+        opal_datatype_cuda_output = opal_output_open(NULL);
+        opal_output_set_verbosity(opal_datatype_cuda_output, opal_datatype_cuda_verbose); 
+        
         if (OPAL_SUCCESS != cuda_kernel_table.opal_datatype_cuda_kernel_init_p()) {
             return OPAL_ERROR;
         }
@@ -304,6 +310,9 @@ int32_t opal_cuda_kernel_support_fini(void)
             free(opal_datatype_cuda_kernel_lib);
         opal_datatype_cuda_kernel_lib = NULL;
         opal_datatype_cuda_kernel_support = 0;
+        
+        /* close output verbose */
+        opal_output_close(opal_datatype_cuda_output);
         opal_output( 0, "opal_cuda_kernel_support_fini done\n");
     }
     return OPAL_SUCCESS;

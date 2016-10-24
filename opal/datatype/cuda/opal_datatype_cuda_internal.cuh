@@ -18,7 +18,6 @@
 // #define OPAL_DATATYPE_CUDA_DRY_RUN
 #define OPAL_DATATYPE_CUDA_DEBUG    1
 //#define OPAL_DATATYPE_CUDA_KERNEL_TIME
-#define OPAL_DATATYPE_CUDA_DEBUG_LEVEL  0
 #define OPAL_DATATYPE_CUDA_TIMING
 #define OPAL_DATATYPE_USE_ZEROCPY   0
 #define OPAL_DATATYPE_CUDA_IOV_CACHE    1
@@ -124,6 +123,8 @@ extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
 extern cudaStream_t cuda_outer_stream; 
 extern uint32_t NB_GPUS;
+
+extern int opal_datatype_cuda_output;
       
 
 __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist,
@@ -146,15 +147,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
                                                                    size_t cuda_iov_partial_length_start,
                                                                    size_t cuda_iov_partial_length_end);
 
-void opal_cuda_output(int output_id, const char *format, ...);
-
 void opal_cuda_check_error(cudaError_t err);
-
-#if defined (OPAL_DATATYPE_CUDA_DEBUG)
-#define DT_CUDA_DEBUG( INST ) if (OPAL_DATATYPE_CUDA_DEBUG) { INST }
-#else
-#define DT_CUDA_DEBUG( INST )
-#endif
 
 extern "C"
 {
