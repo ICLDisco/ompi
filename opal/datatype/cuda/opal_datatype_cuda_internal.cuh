@@ -15,25 +15,19 @@
 #include <cuda_runtime.h>
 
 /* OPAL_CUDA */
-// #define OPAL_DATATYPE_CUDA_DRY_RUN
 #define OPAL_DATATYPE_CUDA_DEBUG    1
-//#define OPAL_DATATYPE_CUDA_KERNEL_TIME
 #define OPAL_DATATYPE_CUDA_TIMING
 #define OPAL_DATATYPE_USE_ZEROCPY   0
 #define OPAL_DATATYPE_CUDA_IOV_CACHE    1
 
-#define IOV_ARRAY_SIZE          1
 #define DT_CUDA_BUFFER_SIZE    1024*1024*200
 #define DT_CUDA_FREE_LIST_SIZE  50
 
 #define THREAD_PER_BLOCK    32
 #define CUDA_WARP_SIZE      32
-#define TASK_PER_THREAD     2
 #define NB_STREAMS          4
 #define NB_PIPELINE_NON_CACHED_BLOCKS  4
 #define NB_CACHED_BLOCKS    4
-#define CUDA_NB_IOV         1024*20
-#define CUDA_IOV_LEN        1024*1204
 #define CUDA_MAX_NB_BLOCKS  1024
 #define CUDA_IOV_MAX_TASK_PER_BLOCK 400
 #define ALIGNMENT_DOUBLE    8
@@ -45,7 +39,6 @@
 #define UNROLL_16           16
 #define UNROLL_8            8
 #define UNROLL_4            4
-#define MAX_CUDA_EVENTS     16
 
 #define TIMER_DATA_TYPE struct timeval
 #define GET_TIME(TV)   gettimeofday( &(TV), NULL )
@@ -118,8 +111,6 @@ typedef struct {
 extern ddt_cuda_list_t *cuda_free_list;
 extern ddt_cuda_device_t *cuda_devices;
 extern ddt_cuda_device_t *current_cuda_device;
-extern struct iovec cuda_iov[CUDA_NB_IOV];
-extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
 extern cudaStream_t cuda_outer_stream; 
 extern uint32_t NB_GPUS;

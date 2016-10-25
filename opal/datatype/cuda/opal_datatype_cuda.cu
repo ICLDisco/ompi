@@ -18,8 +18,6 @@
 ddt_cuda_list_t *cuda_free_list;
 ddt_cuda_device_t *cuda_devices;
 ddt_cuda_device_t *current_cuda_device;
-struct iovec cuda_iov[CUDA_NB_IOV];
-uint32_t cuda_iov_count;
 uint32_t cuda_iov_cache_enabled;
 cudaStream_t cuda_outer_stream;
 uint32_t NB_GPUS;
@@ -183,7 +181,6 @@ int32_t opal_datatype_cuda_kernel_init(void)
 
     /* init cuda_iov */
     cuda_iov_cache_enabled = 1;
-    cuda_iov_count = CUDA_NB_IOV;
 
     /* init device */
     NB_GPUS = 1;

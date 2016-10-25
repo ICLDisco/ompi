@@ -1611,8 +1611,6 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
         convertor->flags &= ~CONVERTOR_CUDA;
         if (opal_convertor_need_buffers(convertor) == true) {
               opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_dtoh_stream());
-    //        opal_cuda_set_cuda_stream(convertor->pipeline_seq);
-       //     cuda_stream = opal_cuda_get_current_cuda_stream();
         }
         convertor->flags |= CONVERTOR_CUDA;
     }
