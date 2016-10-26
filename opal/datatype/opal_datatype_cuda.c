@@ -35,6 +35,8 @@ static char *opal_datatype_cuda_kernel_lib = NULL;
 int32_t opal_datatype_cuda_kernel_support = 0;
 int opal_datatype_cuda_output = 0;
 int opal_datatype_cuda_verbose = 0;
+int opal_datatype_cuda_kernel_support_enabled = 1;
+size_t opal_datatype_cuda_buffer_size = 64*1024*1024;
 
 #define OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN(handle, fname)            \
     do {                                                                            \
@@ -229,6 +231,10 @@ void opal_cuda_set_copy_function_async(opal_convertor_t* convertor, void *stream
 /* following functions are used for cuda ddt kernel support */
 int32_t opal_cuda_kernel_support_init(void)
 {
+    if (0 == opal_datatype_cuda_kernel_support_enabled) {
+        return OPAL_SUCCESS;
+    }
+
     if (opal_datatype_cuda_kernel_handle ==  NULL) {
 
         /* If the library name was initialized but the load failed, we have another chance to change it */

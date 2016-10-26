@@ -20,7 +20,6 @@
 #define OPAL_DATATYPE_USE_ZEROCPY   0
 #define OPAL_DATATYPE_CUDA_IOV_CACHE    1
 
-#define DT_CUDA_BUFFER_SIZE    1024*1024*200
 #define DT_CUDA_FREE_LIST_SIZE  50
 
 #define THREAD_PER_BLOCK    32
@@ -113,9 +112,9 @@ extern ddt_cuda_device_t *cuda_devices;
 extern ddt_cuda_device_t *current_cuda_device;
 extern uint32_t cuda_iov_cache_enabled;
 extern cudaStream_t cuda_outer_stream; 
-extern uint32_t NB_GPUS;
 
 extern int opal_datatype_cuda_output;
+extern size_t opal_datatype_cuda_buffer_size;
       
 
 __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist,
@@ -138,7 +137,10 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
                                                                    size_t cuda_iov_partial_length_start,
                                                                    size_t cuda_iov_partial_length_end);
 
-void opal_cuda_check_error(cudaError_t err);
+#define CUDA_ERROR_CHECK(err)                                                                                       \
+    if (err != cudaSuccess) {                                                                                       \
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "CUDA calls error %s\n", cudaGetErrorString(err)));      \
+    }                                                                                                               \
 
 extern "C"
 {

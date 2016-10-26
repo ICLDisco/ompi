@@ -18,6 +18,7 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov( opal_convertor_t* p
     size_t total_packed;
     uint8_t transfer_required, free_required;
     cudaStream_t working_stream = NULL; 
+    cudaError_t cuda_err;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     TIMER_DATA_TYPE start, end, start_total, end_total;
@@ -25,11 +26,8 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov( opal_convertor_t* p
 #endif
 
     if ((iov[0].iov_base == NULL) || opal_datatype_cuda_is_gpu_buffer(iov[0].iov_base)) {
-        if (iov[0].iov_len == 0) {
-            buffer_size = DT_CUDA_BUFFER_SIZE;
-        } else {
-            buffer_size = iov[0].iov_len;
-        }
+        assert (iov[0].iov_len != 0);
+        buffer_size = iov[0].iov_len;
         
         if (iov[0].iov_base == NULL) {
             iov[0].iov_base = (unsigned char *)opal_datatype_cuda_malloc_gpu_buffer(buffer_size, 0);
@@ -48,7 +46,11 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov( opal_convertor_t* p
             pConvertor->gpu_buffer_ptr = NULL;
             transfer_required = 0;
             free_required = 0;
-            cudaHostGetDevicePointer((void **)&destination, (void *)iov[0].iov_base, 0);
+            cuda_err = cudaHostGetDevicePointer((void **)&destination, (void *)iov[0].iov_base, 0);
+            if (cuda_err != cudaSuccess) {
+                OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "Zero copy is not supported\n"));
+                return 0;
+            }
         } else {
             if (pConvertor->gpu_buffer_ptr == NULL) {
                 pConvertor->gpu_buffer_ptr = (unsigned char*)opal_datatype_cuda_malloc_gpu_buffer(buffer_size, 0);
@@ -86,9 +88,11 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov( opal_convertor_t* p
         } else {
             working_stream = cuda_outer_stream;
         }
-        cudaMemcpyAsync(iov[0].iov_base, destination, total_packed, cudaMemcpyDeviceToHost, working_stream);
+        cuda_err = cudaMemcpyAsync(iov[0].iov_base, destination, total_packed, cudaMemcpyDeviceToHost, working_stream);
+        CUDA_ERROR_CHECK(cuda_err);
         if (!(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) {
-            cudaStreamSynchronize(working_stream);
+            cuda_err = cudaStreamSynchronize(working_stream);
+            CUDA_ERROR_CHECK(cuda_err);
         }
     } 
 #if defined(OPAL_DATATYPE_CUDA_TIMING) 
@@ -172,7 +176,7 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_non_cached( opal_con
         cuda_iov_dist_d_current = cuda_iov_pipeline_block_non_cached->cuda_iov_dist_non_cached_d;
         cuda_stream_iov = cuda_iov_pipeline_block_non_cached->cuda_stream;
         cuda_err = cudaEventSynchronize(cuda_iov_pipeline_block_non_cached->cuda_event);
-        opal_cuda_check_error(cuda_err);
+        CUDA_ERROR_CHECK(cuda_err);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
         GET_TIME(start);
@@ -189,7 +193,7 @@ int32_t opal_datatype_cuda_generic_simple_pack_function_iov_non_cached( opal_con
         cudaMemcpyAsync(cuda_iov_dist_d_current, cuda_iov_dist_h_current, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, cuda_stream_iov);
         opal_generic_simple_pack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, cuda_stream_iov>>>(cuda_iov_dist_d_current, 0, nb_blocks_used, 0, 0, nb_blocks_used, source_base, destination_base);
         cuda_err = cudaEventRecord(cuda_iov_pipeline_block_non_cached->cuda_event, cuda_stream_iov);
-        opal_cuda_check_error(cuda_err);
+        CUDA_ERROR_CHECK(cuda_err);
         current_cuda_device->cuda_iov_pipeline_block_non_cached_first_avail ++;
         if (current_cuda_device->cuda_iov_pipeline_block_non_cached_first_avail >= NB_PIPELINE_NON_CACHED_BLOCKS) {
             current_cuda_device->cuda_iov_pipeline_block_non_cached_first_avail = 0;
