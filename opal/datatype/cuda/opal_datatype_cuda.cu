@@ -678,7 +678,7 @@ void* opal_datatype_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
     ddt_cuda_device_t *device = &cuda_devices[gpu_id];
     int dev_id = device->device_id;
     if (device->buffer_free_size < size) {
-        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "No GPU buffer at dev_id %d.\n", dev_id));
+        OPAL_OUTPUT_VERBOSE((0, opal_datatype_cuda_output, "No GPU buffer for pack/unpack at device %d, if program crashes, please set --mca opal_opal_opal_datatype_cuda_buffer_size to larger size\n", dev_id));
         return NULL;
     }
     ddt_cuda_buffer_t *ptr = device->buffer_free.head;

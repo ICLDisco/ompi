@@ -133,6 +133,9 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                 buffer_size = convertor->local_size;
             }
             base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+            if (NULL == base) {
+                return OPAL_ERR_OUT_OF_RESOURCE;
+            }
             convertor->gpu_buffer_ptr = base;
             convertor->gpu_buffer_size = buffer_size;
             sendreq->req_send.req_bytes_packed = convertor->local_size;
@@ -180,8 +183,11 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             buffer_size = convertor->local_size;
         }
         base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+        if (NULL == base) {
+            return OPAL_ERR_OUT_OF_RESOURCE;
+        }
         OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
-                             "Copy in/out malloc GPU buffer %p, pipeline_size %d\n",
+                             "Copy in/out malloc GPU buffer %p, pipeline_size %ld\n",
                              base, convertor->pipeline_size));
         convertor->gpu_buffer_ptr = base;
         convertor->gpu_buffer_size = buffer_size;

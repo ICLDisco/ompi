@@ -1233,6 +1233,9 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
         if(unpack_required) {
             if (remote_device != local_device && !OPAL_DATATYPE_DIRECT_COPY_GPUMEM) {
                 unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(mca_btl_smcuda.super.btl_cuda_ddt_pipeline_depth * mca_btl_smcuda_component.cuda_ddt_pipeline_size, 0);  
+                if (NULL == unpack_convertor->gpu_buffer_ptr) {
+                    return OPAL_ERR_OUT_OF_RESOURCE;
+                }
             } else {
                 unpack_convertor->gpu_buffer_ptr = remote_memory_address;   
             }
@@ -1248,6 +1251,9 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
                 opal_cuda_set_cuda_stream(0);
                 if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && remote_device != local_device) {
                     opal_cuda_free_gpu_buffer(unpack_convertor->gpu_buffer_ptr, 0);
+                    if (NULL == unpack_convertor->gpu_buffer_ptr) {
+                        return OPAL_ERR_OUT_OF_RESOURCE;
+                    }
                     unpack_convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(size, 0);
                     opal_cuda_d2dcpy_async(unpack_convertor->gpu_buffer_ptr, remote_memory_address, size);
                     iov.iov_base = unpack_convertor->gpu_buffer_ptr;

@@ -582,6 +582,9 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                 }
                 OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Malloc GPU buffer size %lu for frag_copy_start\n", buffer_size));
                 convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+                if (NULL == convertor->gpu_buffer_ptr) {
+                    return;
+                }
                 convertor->gpu_buffer_size = buffer_size;
                 convertor->pipeline_seq = 0;
             }
