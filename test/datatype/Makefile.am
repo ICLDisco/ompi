@@ -20,9 +20,9 @@ if PROJECT_OMPI
 endif
 TESTS = opal_datatype_test $(MPI_TESTS)
 
-#if OPAL_cuda_support
-#TESTS += ddt_benchmark
-#endif
+if OPAL_cuda_support
+TESTS += ddt_test_cuda
+endif
 
 check_PROGRAMS = $(TESTS) $(MPI_CHECKS)
 
@@ -37,10 +37,10 @@ ddt_test_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)
 ddt_test_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/cuda/libmca_common_cuda.la
 
 if OPAL_cuda_support
-ddt_benchmark_SOURCES = ddt_benchmark.c ddt_lib.c ddt_lib.h
-ddt_benchmark_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)
-ddt_benchmark_CFLAGS = @opal_datatype_cuda_CPPFLAGS@ -g -O0
-ddt_benchmark_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/cuda/libmca_common_cuda.la @opal_datatype_cuda_LDFLAGS@ -lcudart
+ddt_test_cuda_SOURCES = ddt_test_cuda.c ddt_lib.c ddt_lib.h
+ddt_test_cuda_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)
+ddt_test_cuda_CFLAGS = @opal_datatype_cuda_CPPFLAGS@ -g -O0
+ddt_test_cuda_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/cuda/libmca_common_cuda.la @opal_datatype_cuda_LDFLAGS@ -lcudart
 endif
 
 ddt_raw_SOURCES = ddt_raw.c ddt_lib.c ddt_lib.h
