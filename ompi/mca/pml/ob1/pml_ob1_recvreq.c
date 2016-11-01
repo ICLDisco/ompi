@@ -565,7 +565,7 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
         convertor->flags &= ~CONVERTOR_CUDA;
         if (opal_convertor_need_buffers(convertor) == true) {
             opal_datatype_use_kernel = 1;
-            opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_htod_stream());
+            convertor->stream = mca_common_cuda_get_htod_stream();
             /* some how async support is just enabled, part of convertor is unpacked */ 
             if (convertor->pipeline_depth == 0 && convertor->gpu_buffer_ptr != NULL) {
                 opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
@@ -601,7 +601,6 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                                      bytes_delivered );
          
     if (opal_datatype_use_kernel == 1) {                       
-        opal_cuda_set_outer_cuda_stream(NULL);
         convertor->pipeline_seq ++;
         convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
     }

@@ -28,10 +28,10 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov( opal_convertor_t*
     GET_TIME(start_total);
 #endif
     
-    if (cuda_outer_stream == NULL) {
+    if (pConvertor->stream == NULL) {
         working_stream = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
     } else {
-        working_stream = cuda_outer_stream;
+        working_stream = (cudaStream_t)pConvertor->stream;
     }
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
@@ -161,7 +161,11 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_non_cached( opal_c
             ddt_iov_end_pos = ddt_iov_count;
         }
         cuda_iov_pipeline_block_non_cached = current_cuda_device->cuda_iov_pipeline_block_non_cached[current_cuda_device->cuda_iov_pipeline_block_non_cached_first_avail];
-        cuda_iov_pipeline_block_non_cached->cuda_stream = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
+        if (pConvertor->stream == NULL) {
+            cuda_iov_pipeline_block_non_cached->cuda_stream = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
+        } else {
+            cuda_iov_pipeline_block_non_cached->cuda_stream = (cudaStream_t)pConvertor->stream;
+        }
         cuda_iov_dist_h_current = cuda_iov_pipeline_block_non_cached->cuda_iov_dist_non_cached_h;
         cuda_iov_dist_d_current = cuda_iov_pipeline_block_non_cached->cuda_iov_dist_non_cached_d;
         cuda_stream_iov = cuda_iov_pipeline_block_non_cached->cuda_stream;
@@ -260,10 +264,10 @@ int32_t opal_datatype_cuda_generic_simple_unpack_function_iov_cached( opal_conve
     cuda_iov_start_pos = pConvertor->current_cuda_iov_pos;
     cuda_iov_end_pos = cached_cuda_iov_count;
     nb_blocks_used = 0;
-    if (cuda_outer_stream == NULL) {
+    if (pConvertor->stream == NULL) {
         cuda_stream_iov = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
     } else {
-        cuda_stream_iov = cuda_outer_stream;
+        cuda_stream_iov = (cudaStream_t)pConvertor->stream;
     }
     convertor_current_count = pConvertor->current_count;
     

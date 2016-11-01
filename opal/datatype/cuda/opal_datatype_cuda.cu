@@ -19,7 +19,6 @@ ddt_cuda_list_t *cuda_free_list;
 ddt_cuda_device_t *cuda_devices;
 ddt_cuda_device_t *current_cuda_device;
 uint32_t cuda_iov_cache_enabled;
-cudaStream_t cuda_outer_stream;
 
 extern size_t opal_datatype_cuda_buffer_size;
 
@@ -253,7 +252,6 @@ int32_t opal_datatype_cuda_kernel_init(void)
         cuda_devices[0].cuda_iov_process_block_cached_first_avail = 0;
     }
     current_cuda_device = &(cuda_devices[0]);
-    cuda_outer_stream = NULL;
 
     cuda_err = cudaDeviceSynchronize();
     CUDA_ERROR_CHECK(cuda_err);
@@ -313,7 +311,6 @@ int32_t opal_datatype_cuda_kernel_fini(void)
     free(cuda_devices);
     cuda_devices = NULL;    
     current_cuda_device = NULL;
-    cuda_outer_stream = NULL;
 
     return OPAL_SUCCESS;
 }
@@ -417,10 +414,10 @@ int32_t opal_datatype_cuda_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t
     cuda_err = cudaEventSynchronize(cuda_iov_process_block_cached->cuda_event);
     CUDA_ERROR_CHECK(cuda_err);
 
-    if (cuda_outer_stream == NULL) {
+    if (pConvertor->stream == NULL) {
         cuda_iov_process_block_cached->cuda_stream = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
     } else {
-        cuda_iov_process_block_cached->cuda_stream = cuda_outer_stream;
+        cuda_iov_process_block_cached->cuda_stream = (cudaStream_t)pConvertor->stream;
     }
     cuda_iov_dist_h = cuda_iov_process_block_cached->cuda_iov_dist_cached_h;
     cuda_stream_iov = cuda_iov_process_block_cached->cuda_stream;
@@ -743,31 +740,24 @@ void opal_datatype_cuda_free_gpu_buffer(void *addr, int gpu_id)
     OPAL_OUTPUT_VERBOSE((2, opal_datatype_cuda_output, "Free GPU buffer %p, size %lu\n", addr, size));
 }
 
-void opal_datatype_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
+void opal_datatype_cuda_d2dcpy_async(void* dst, const void* src, size_t count, void* stream)
 {
-    cudaError_t cuda_err = cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice,
-                                           current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
+    cudaError_t cuda_err = cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
     CUDA_ERROR_CHECK(cuda_err);
 }
 
-void opal_datatype_cuda_d2dcpy(void* dst, const void* src, size_t count)
+void opal_datatype_cuda_d2dcpy(void* dst, const void* src, size_t count, void* stream)
 {
-    cudaError_t cuda_err = cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice,
-                                           current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
+    cudaError_t cuda_err = cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
     CUDA_ERROR_CHECK(cuda_err);
-    cuda_err = cudaStreamSynchronize(current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
+    cuda_err = cudaStreamSynchronize((cudaStream_t)stream);
     CUDA_ERROR_CHECK(cuda_err);
 }
 
-void opal_datatype_cuda_set_cuda_stream(int stream_id)
+void* opal_datatype_cuda_get_cuda_stream_by_id(int stream_id)
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
-    cuda_streams->current_stream_id = stream_id;
-}
-
-int32_t opal_datatype_cuda_get_cuda_stream()
-{
-    return current_cuda_device->cuda_streams->current_stream_id;
+    return (void*)cuda_streams->ddt_cuda_stream[stream_id];
 }
 
 void *opal_datatype_cuda_get_current_cuda_stream()
@@ -788,11 +778,6 @@ void opal_datatype_cuda_sync_cuda_stream(int stream_id)
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     cudaError cuda_err = cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[stream_id]);
     CUDA_ERROR_CHECK(cuda_err);
-}
-
-void opal_datatype_cuda_set_outer_cuda_stream(void *stream)
-{
-    cuda_outer_stream = (cudaStream_t)stream;
 }
 
 void* opal_datatype_cuda_alloc_event(int32_t nb_events, int32_t *loc)
@@ -844,11 +829,10 @@ int32_t opal_datatype_cuda_event_sync(void *cuda_event_list, int32_t i)
     return -1;
 }
 
-int32_t opal_datatype_cuda_event_record(void *cuda_event_list, int32_t i)
+int32_t opal_datatype_cuda_event_record(void *cuda_event_list, int32_t i, void* stream)
 {
     ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
-    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
-    cudaError_t rv = cudaEventRecord(event_list[i].cuda_event, cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
+    cudaError_t rv = cudaEventRecord(event_list[i].cuda_event, (cudaStream_t)stream);
     if (rv == cudaSuccess) {
         return 1;
     }

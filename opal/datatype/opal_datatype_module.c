@@ -215,7 +215,7 @@ int opal_datatype_register_params(void)
     }
     
     /* Set cuda kernel datatype engine enable or not. */
-    ret = mca_base_var_register ("opal", "opal", NULL, "opal_datatype_cuda_kernel_support_enable",
+    ret = mca_base_var_register ("opal", "opal", NULL, "opal_datatype_cuda_kernel_support_enabled",
                                  "Set cuda kernel datatype engine enable or not",
                                  MCA_BASE_VAR_TYPE_INT, NULL, 0, MCA_BASE_VAR_FLAG_SETTABLE,
                                  OPAL_INFO_LVL_8, MCA_BASE_VAR_SCOPE_LOCAL,

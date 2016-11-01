@@ -111,7 +111,6 @@ extern ddt_cuda_list_t *cuda_free_list;
 extern ddt_cuda_device_t *cuda_devices;
 extern ddt_cuda_device_t *current_cuda_device;
 extern uint32_t cuda_iov_cache_enabled;
-extern cudaStream_t cuda_outer_stream; 
 
 extern int opal_datatype_cuda_output;
 extern size_t opal_datatype_cuda_buffer_size;

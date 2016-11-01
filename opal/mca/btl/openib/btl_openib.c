@@ -1610,7 +1610,7 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
     if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
         convertor->flags &= ~CONVERTOR_CUDA;
         if (opal_convertor_need_buffers(convertor) == true) {
-              opal_cuda_set_outer_cuda_stream(mca_common_cuda_get_dtoh_stream());
+            convertor->stream = mca_common_cuda_get_dtoh_stream();
         }
         convertor->flags |= CONVERTOR_CUDA;
     }
@@ -1618,7 +1618,6 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
     if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
         convertor->flags &= ~CONVERTOR_CUDA;
         if (opal_convertor_need_buffers(convertor) == true && convertor->pipeline_depth != 0) {
-            opal_cuda_set_outer_cuda_stream(NULL);
             convertor->pipeline_seq ++;
             convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
         }

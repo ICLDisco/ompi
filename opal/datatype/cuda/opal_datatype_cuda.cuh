@@ -53,10 +53,10 @@ void* opal_datatype_cuda_malloc_gpu_buffer(size_t size, int gpu_id);
 void opal_datatype_cuda_free_gpu_buffer(void *addr, int gpu_id);
 
 /* async cuda memory movement */
-void opal_datatype_cuda_d2dcpy_async(void* dst, const void* src, size_t count);
+void opal_datatype_cuda_d2dcpy_async(void* dst, const void* src, size_t count, void* stream);
 
 /* sync cuda memory movement */
-void opal_datatype_cuda_d2dcpy(void* dst, const void* src, size_t count);
+void opal_datatype_cuda_d2dcpy(void* dst, const void* src, size_t count, void* stream);
 
 void opal_dump_cuda_list(ddt_cuda_list_t *list);
 
@@ -92,10 +92,8 @@ uint8_t opal_datatype_cuda_iov_to_cuda_iov(opal_convertor_t* pConvertor, const s
                                            size_t *contig_disp_out,
                                            uint32_t *current_ddt_iov_pos);
 
-void opal_datatype_cuda_set_cuda_stream(int stream_id);
-
-/* get current cuda stream id */
-int32_t opal_datatype_cuda_get_cuda_stream();
+/* get cuda stream whose id is stream_id */
+void* opal_datatype_cuda_get_cuda_stream_by_id(int stream_id);
 
 /* get current cuda stream */
 void *opal_datatype_cuda_get_current_cuda_stream();
@@ -105,9 +103,6 @@ void opal_datatype_cuda_sync_current_cuda_stream();
 
 /* sync cuda stream (id) */
 void opal_datatype_cuda_sync_cuda_stream(int stream_id);
-
-/* use stream provided for pack/unpack */
-void opal_datatype_cuda_set_outer_cuda_stream(void *stream);
 
 /* alloc event for smcuda pack/unpack */
 void* opal_datatype_cuda_alloc_event(int32_t nb_events, int32_t *loc);
@@ -122,7 +117,7 @@ int32_t opal_datatype_cuda_event_query(void *cuda_event_list, int32_t i);
 int32_t opal_datatype_cuda_event_sync(void *cuda_event_list, int32_t i);
 
 /* record the event i */
-int32_t opal_datatype_cuda_event_record(void *cuda_event_list, int32_t i);
+int32_t opal_datatype_cuda_event_record(void *cuda_event_list, int32_t i, void* stream);
 
 END_C_DECLS
                             
