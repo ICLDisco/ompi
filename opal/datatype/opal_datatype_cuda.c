@@ -83,10 +83,9 @@ void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf, 
 
     if (ftable.gpu_is_gpu_buffer(pUserBuf, convertor)) {
         convertor->flags |= CONVERTOR_CUDA;
-    }
-
-    if (OPAL_SUCCESS != opal_cuda_kernel_support_init()) {
-        opal_cuda_kernel_support_fini();
+        if (OPAL_SUCCESS != opal_cuda_kernel_support_init()) {
+            opal_cuda_kernel_support_fini();
+        }
     }
     
     convertor->stream = NULL;
