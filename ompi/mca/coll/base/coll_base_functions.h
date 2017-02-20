@@ -339,6 +339,18 @@ struct mca_coll_base_comm_t {
 
     /* in-order binary tree (root of the in-order binary tree is rank 0) */
     ompi_coll_tree_t *cached_in_order_bintree;
+    
+    /* topo linear */
+    ompi_coll_tree_t *cached_topolinear;
+    int cached_topolinear_root;
+    
+    /* topo chain */
+    ompi_coll_tree_t *cached_topochain;
+    int cached_topochain_root;
+    
+    /* topo */
+    int *cached_topo;
+    struct ompi_communicator_t* cached_old_comm;
 };
 typedef struct mca_coll_base_comm_t mca_coll_base_comm_t;
 OMPI_DECLSPEC OBJ_CLASS_DECLARATION(mca_coll_base_comm_t);
