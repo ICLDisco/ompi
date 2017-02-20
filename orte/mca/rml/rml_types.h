@@ -168,6 +168,11 @@ BEGIN_C_DECLS
 
 /* memory profile */
 #define ORTE_RML_TAG_MEMPROFILE             61
+ 
+/* heartbeat request */                     
+#define ORTE_RML_TAG_HEARTBEAT_REQUEST      62
+/* error propagate  */                      
+#define ORTE_RML_TAG_PROPAGATE              63
 
 /* topology report */
 #define ORTE_RML_TAG_TOPOLOGY_REPORT        62

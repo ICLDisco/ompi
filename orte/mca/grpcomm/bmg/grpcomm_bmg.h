@@ -1,0 +1,34 @@
+ /*- C -*-
+ *
+ *  * Copyright (c)   All rights reserved.
+ *   * Copyright (c)  All rights reserved.
+ *    * $COPYRIGHT$
+ *     *
+ *      * Additional copyrights may follow
+ *       *
+ *        * $HEADER$
+ *         *
+ *          */
+#ifndef GRPCOMM_BMG_H
+#define GRPCOMM_BMG_H
+
+#include "orte_config.h"
+
+
+#include "orte/mca/grpcomm/grpcomm.h"
+
+BEGIN_C_DECLS
+
+/*
+ *  * Grpcomm interfaces
+ */
+
+ORTE_MODULE_DECLSPEC extern orte_grpcomm_base_component_t mca_grpcomm_bmg_component;
+extern orte_grpcomm_base_module_t orte_grpcomm_bmg_module;
+
+typedef int (*orte_errmgr_xcast_cb_t)(opal_buffer_t* buffer);
+
+END_C_DECLS
+
+#endif
+
