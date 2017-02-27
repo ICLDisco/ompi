@@ -928,9 +928,9 @@ static int usnic_finalize(struct mca_btl_base_module_t* btl)
     OBJ_DESTRUCT(&module->senders);
 
 #if RCACHE_VERSION == 30
-    mca_rcache_base_module_destroy(module->rcache);
+    //mca_rcache_base_module_destroy(module->rcache);
 #else
-    mca_mpool_base_module_destroy(module->super.btl_mpool);
+    //mca_mpool_base_module_destroy(module->super.btl_mpool);
 #endif
 
     if (NULL != module->av) {

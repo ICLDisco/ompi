@@ -302,6 +302,7 @@ static void vm_ready(int fd, short args, void *cbdata)
         sig->signature = (orte_process_name_t*)malloc(sizeof(orte_process_name_t));
         sig->signature[0].jobid = ORTE_PROC_MY_NAME->jobid;
         sig->signature[0].vpid = ORTE_VPID_WILDCARD;
+        printf(" orte/mca/state/dvm/state_dvm.c xcast \n");
         if (ORTE_SUCCESS != (rc = orte_grpcomm.xcast(sig, ORTE_RML_TAG_DAEMON, buf))) {
             ORTE_ERROR_LOG(rc);
             OBJ_RELEASE(buf);
@@ -309,6 +310,8 @@ static void vm_ready(int fd, short args, void *cbdata)
             ORTE_FORCED_TERMINATE(ORTE_ERROR_DEFAULT_EXIT_CODE);
             return;
         }
+          printf(" orte/mca/state/dvm/state_dvm.c xcast  done\n");
+
         OBJ_RELEASE(buf);
         /* notify that the vm is ready */
         fprintf(stdout, "DVM ready\n");

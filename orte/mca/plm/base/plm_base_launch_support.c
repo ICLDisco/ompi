@@ -589,6 +589,7 @@ void orte_plm_base_launch_apps(int fd, short args, void *cbdata)
         OBJ_RELEASE(caddy);
         return;
     }
+
     OBJ_RELEASE(buffer);
     /* maintain accounting */
     OBJ_RELEASE(sig);

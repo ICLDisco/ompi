@@ -261,6 +261,7 @@ typedef int (*orte_errmgr_base_module_register_error_callback_fn_t)(orte_errmgr_
                                                                     orte_errmgr_error_order_t order);
 typedef void (*orte_errmgr_base_module_execute_error_callbacks_fn_t)(opal_pointer_array_t *errors);
 
+typedef void (*orte_errmgr_base_module_start_error_detector_fn_t)(void);
 /*
  * Module Structure
  */
@@ -288,6 +289,9 @@ struct orte_errmgr_base_module_2_3_0_t {
     /* Register a callback function */
     orte_errmgr_base_module_register_error_callback_fn_t     register_error_callback;
     orte_errmgr_base_module_execute_error_callbacks_fn_t     execute_error_callbacks;
+
+    /* start error detector and propagator */
+    orte_errmgr_base_module_start_error_detector_fn_t        start_detector;
 };
 typedef struct orte_errmgr_base_module_2_3_0_t orte_errmgr_base_module_2_3_0_t;
 typedef orte_errmgr_base_module_2_3_0_t orte_errmgr_base_module_t;

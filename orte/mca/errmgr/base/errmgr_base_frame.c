@@ -45,7 +45,7 @@
 #include "orte/mca/errmgr/base/errmgr_private.h"
 
 #include "orte/mca/errmgr/base/static-components.h"
-
+#include "orte/mca/errmgr/detector/errmgr_detector.h"
 /*
  * Globals
  */
@@ -63,7 +63,8 @@ orte_errmgr_base_module_t orte_errmgr_default_fns = {
     NULL, /* ft_event            */
     orte_errmgr_base_register_migration_warning,
     orte_errmgr_base_register_error_callback,
-    orte_errmgr_base_execute_error_callbacks
+    orte_errmgr_base_execute_error_callbacks,
+    NULL
 };
 /* NOTE: ABSOLUTELY MUST initialize this
  * struct to include the log function as it
@@ -74,6 +75,7 @@ orte_errmgr_base_module_t orte_errmgr = {
     NULL,
     NULL,
     orte_errmgr_base_log,
+    NULL,
     NULL,
     NULL,
     NULL,

@@ -51,7 +51,10 @@ orte_grpcomm_base_t orte_grpcomm_base = {{{0}}};
 
 orte_grpcomm_API_module_t orte_grpcomm = {
     orte_grpcomm_API_xcast,
-    orte_grpcomm_API_allgather
+    orte_grpcomm_API_allgather,
+    orte_grpcomm_API_rbcast,
+    orte_grpcomm_API_register_cb,
+    NULL
 };
 
 static bool recv_issued = false;
@@ -65,9 +68,10 @@ static int orte_grpcomm_base_close(void)
 
     if (recv_issued) {
         orte_rml.recv_cancel(ORTE_NAME_WILDCARD, ORTE_RML_TAG_XCAST);
+        orte_rml.recv_cancel(ORTE_NAME_WILDCARD, ORTE_RML_TAG_RBCAST);
+        orte_rml.recv_cancel(ORTE_NAME_WILDCARD, ORTE_RML_TAG_BMGXCAST);
         recv_issued = false;
     }
-
     /* Close the active modules */
     OPAL_LIST_FOREACH(active, &orte_grpcomm_base.actives, orte_grpcomm_base_active_t) {
         if (NULL != active->module->finalize) {

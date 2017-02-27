@@ -1,0 +1,79 @@
+/* Report an event to a process for notification via any
+ * registered event handler. The handler registration can be
+ * called by both the server and the client application. On the
+ * server side, the handler is used to report events detected
+ * by PMIx to the host server for handling. On the client side,
+ * the handler is used to notify the process of events
+ * reported by the server - e.g., the failure of another process.
+ *
+ * This function allows the host server to direct the server
+ * convenience library to notify all registered local procs of
+ * an event. The event can be local, or anywhere in the cluster.
+ * The status indicates the event being reported.
+ *
+ * The source parameter informs the handler of the source that
+ * generated the event. This will be NULL if the event came
+ * from the external resource manager.
+ *
+ * The info array contains any further info the RM can and/or chooses
+ * to provide.
+ *
+ * The callback function will be called upon completion of the
+ * notify_event function's actions. Note that any messages will
+ * have been queued, but may not have been transmitted by this
+ * time. Note that the caller is required to maintain the input
+ * data until the callback function has been executed if this
+ * function returns OPAL_SUCCESS! */
+typedef int (*opal_pmix_base_module_server_notify_event_fn_t)(int status,
+                                                              const opal_process_name_t *source,
+                                                              opal_list_t *info,
+                                                              opal_pmix_op_cbfunc_t cbfunc, void *cbdata);
+
+1. opal_pmix.server_notify_event
+    .server_notify_event=pmix2x_server_notify_event
+
+2. ompi/opal/mca/pmix/pmix2x/pmix2x_server_south.c
+    /* tell the PMIx server to notify its local clients of an event */
+    int pmix2x_server_notify_event(int status,
+                                const opal_process_name_t *source,
+                                opal_list_t *info,
+                                opal_pmix_op_cbfunc_t cbfunc, void *cbdata)
+    /* convert the list to an array of pmix_info_t */
+    PMIx_Notify_event
+
+3. ompi/opal/mca/pmix/pmix2x/pmix/src/event/pmix_event_notification.c
+/* if we are a client, we call this function to notify the server of
+ * an event. If we are a server, our host RM will call this function
+ * to notify us of an event */
+ PMIX_EXPORT pmix_status_t PMIx_Notify_event(pmix_status_t status,
+                                            const pmix_proc_t *source,
+                                            pmix_data_range_t range,
+                                            pmix_info_t info[], size_t ninfo,
+                                            pmix_op_cbfunc_t cbfunc, void *cbdata)
+{
+    int rc;
+
+    if (PMIX_PROC_SERVER == pmix_globals.proc_type) {
+        rc = pmix_server_notify_client_of_event(status, source, range,                                                                      
+                                                info, ninfo,
+                                                cbfunc, cbdata);
+        pmix_output_verbose(2, pmix_globals.debug_output,
+                            "pmix_server_notify_event source = %s:%d event_status = %d, rc= %d",
+                            (NULL == source) ? "UNKNOWN" : source->nspace,
+                            (NULL == source) ? PMIX_RANK_WILDCARD : source->rank, status, rc);
+    } else {
+        rc = notify_server_of_event(status, source, range,
+                                    info, ninfo,
+                                    cbfunc, cbdata);
+        pmix_output_verbose(2, pmix_globals.debug_output,
+                            "pmix_client_notify_event source = %s:%d event_status =%d, rc=%d",
+                            (NULL == source) ? pmix_globals.myid.nspace : source->nspace,
+                            (NULL == source) ? pmix_globals.myid.rank : source->rank, status, rc);
+    }
+    return rc;
+}
+
+vi orte/orted/pmix/pmix_server_gen.c convert opal_value to opal_list
+
+orte/orted/orted_comm.c
+orte/mca/plm/base/plm_base_orted_cmds.c: xcast and sig info

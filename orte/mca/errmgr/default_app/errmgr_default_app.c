@@ -65,7 +65,8 @@
     NULL,
     orte_errmgr_base_register_migration_warning,
     orte_errmgr_base_register_error_callback,
-    orte_errmgr_base_execute_error_callbacks
+    orte_errmgr_base_execute_error_callbacks,
+    NULL
 };
 
 static void proc_errors(int fd, short args, void *cbdata);

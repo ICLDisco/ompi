@@ -267,8 +267,12 @@ int orte_init(int* pargc, char*** pargv, orte_proc_type_t flags)
             error = "orte_start_listening";
             goto error;
         }
-    }
 
+        if(NULL != orte_errmgr.start_detector){
+            printf("dong orte init errmgr start \n");
+            orte_errmgr.start_detector();
+        }
+    }
     /* All done */
     return ORTE_SUCCESS;
 

@@ -50,7 +50,7 @@ int MPI_Init(int *argc, char ***argv)
     /* check for environment overrides for required thread level.  If
        there is, check to see that it is a valid/supported thread level.
        If not, default to MPI_THREAD_MULTIPLE. */
-
+   printf("fist func in MPI_Init \n");
     if (NULL != (env = getenv("OMPI_MPI_THREAD_LEVEL"))) {
         required = atoi(env);
         if (required < MPI_THREAD_SINGLE || required > MPI_THREAD_MULTIPLE) {
@@ -61,11 +61,11 @@ int MPI_Init(int *argc, char ***argv)
     /* Call the back-end initialization function (we need to put as
        little in this function as possible so that if it's profiled, we
        don't lose anything) */
-
+     
     if (NULL != argc && NULL != argv) {
-        err = ompi_mpi_init(*argc, *argv, required, &provided);
+        err = ompi_mpi_init(*argc, *argv, required, &provided); printf("MPI_INIT ompi_mpi_init in if\n");
     } else {
-        err = ompi_mpi_init(0, NULL, required, &provided);
+        err = ompi_mpi_init(0, NULL, required, &provided); printf("MPI_INIT ompi_mpi_init in else\n");
     }
 
     /* Since we don't have a communicator to invoke an errorhandler on
@@ -73,7 +73,7 @@ int MPI_Init(int *argc, char ***argv)
        really designed for real communicator objects.  Just use the
        back-end function directly. */
 
-    if (MPI_SUCCESS != err) {
+    if (MPI_SUCCESS != err) {  printf("invoke errhandler ivoke\n");
         return ompi_errhandler_invoke(NULL, NULL,
                                       OMPI_ERRHANDLER_TYPE_COMM,
                                       err <

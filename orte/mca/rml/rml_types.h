@@ -166,11 +166,23 @@ BEGIN_C_DECLS
 /* stacktrace for debug */
 #define ORTE_RML_TAG_STACK_TRACE            60
 
+
+/* heartbeat request */
+#define ORTE_RML_TAG_HEARTBEAT_REQUEST      68
+/* error propagate  */
+#define ORTE_RML_TAG_PROPAGATE              63
+/* error propagate  */
+#define ORTE_RML_TAG_RBCAST                 64
+#define ORTE_RML_TAG_BMGXCAST               65
+#define ORTE_RML_TAG_ALLGATHER_BMG          66
+#define ORTE_RML_TAG_BMG_COLL_RELEASE       67
+
 /* memory profile */
 #define ORTE_RML_TAG_MEMPROFILE             61
 
 /* topology report */
 #define ORTE_RML_TAG_TOPOLOGY_REPORT        62
+
 
 #define ORTE_RML_TAG_MAX                   100
 

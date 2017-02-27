@@ -356,7 +356,7 @@ static int rte_ft_event(int state)
             if (ORTE_SUCCESS != (ret = orte_session_dir(true,
                                                         orte_process_info.tmpdir_base,
                                                         orte_process_info.nodename,
-                                                        NULL, /* Batch ID -- Not used */
+                                                        //NULL, /* Batch ID -- Not used */
                                                         ORTE_PROC_MY_NAME))) {
                 exit_status = ret;
             }

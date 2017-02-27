@@ -15,13 +15,23 @@ int main(int argc, char *argv[])
     int rank, size, next, prev, message, tag = 201;
 
     /* Start up MPI */
-    printf("MPI_initating\n");
+     {
+          char name[255];
+          gethostname(name,255);
+          printf("ssh -t zhongdong@%s gdb -p %d\n", name, getpid());
+          int c=1;
+          //while (c){}
+    }
+ 
+    printf("bullshit\n");
+    fflush(stdout);
+
     MPI_Init(&argc, &argv);
-    printf("Init done\n");
+
+    printf("MPI_int done!\n");
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    printf("Ranks %d\n", rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-   
+
     /* Calculate the rank of the next process in the ring.  Use the
        modulus operator so that the last process "wraps around" to
        rank zero. */
@@ -29,10 +39,18 @@ int main(int argc, char *argv[])
     next = (rank + 1) % size;
     prev = (rank + size - 1) % size;
 
+
+    /*{  
+          char name[255];
+          gethostname(name,255);
+          fprintf(stderr,"ssh -t zhongdong@%s gdb -p %d\n", name, getpid());
+          sleep(15);
+
+    }*/
     /* If we are the "master" process (i.e., MPI_COMM_WORLD rank 0),
        put the number of times to go around the ring in the
        message. */
-    
+
     if (0 == rank) {
         message = 10;
 

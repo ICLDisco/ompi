@@ -2320,7 +2320,6 @@ static void _send_notification(int status)
     sig.signature[0].jobid = ORTE_PROC_MY_NAME->jobid;
     sig.signature[0].vpid = ORTE_VPID_WILDCARD;
     sig.sz = 1;
-
     if (ORTE_SUCCESS != (rc = orte_grpcomm.xcast(&sig, ORTE_RML_TAG_NOTIFICATION, &buf))) {
         ORTE_ERROR_LOG(rc);
     }
@@ -3171,6 +3170,7 @@ void orte_timeout_wakeup(int sd, short args, void *cbdata)
             OBJ_RELEASE(sig);
             goto giveup;
         }
+
         OBJ_RELEASE(buffer);
         /* maintain accounting */
         OBJ_RELEASE(sig);

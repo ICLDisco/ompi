@@ -1,0 +1,261 @@
+[dancer.icl.utk.edu:27005] mca: base: components_register: registering framework errmgr components
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component detector
+[dancer.icl.utk.edu:27005] mca: base: components_register: component detector register function successful
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component default_orted
+[dancer.icl.utk.edu:27005] mca: base: components_register: component default_orted register function successful
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component default_tool
+[dancer.icl.utk.edu:27005] mca: base: components_register: component default_tool register function successful
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component default_app
+[dancer.icl.utk.edu:27005] mca: base: components_register: component default_app register function successful
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component dvm
+[dancer.icl.utk.edu:27005] mca: base: components_register: component dvm register function successful
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component default_hnp
+[dancer.icl.utk.edu:27005] mca: base: components_register: component default_hnp register function successful
+[dancer.icl.utk.edu:27005] mca: base: components_open: opening errmgr components
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component detector
+[dancer.icl.utk.edu:27005] mca: base: components_open: component detector open function successful
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component default_orted
+[dancer.icl.utk.edu:27005] mca: base: components_open: component default_orted open function successful
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component default_tool
+[dancer.icl.utk.edu:27005] mca: base: components_open: component default_tool open function successful
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component default_app
+[dancer.icl.utk.edu:27005] mca: base: components_open: component default_app open function successful
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component dvm
+[dancer.icl.utk.edu:27005] mca: base: components_open: component dvm open function successful
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component default_hnp
+[dancer.icl.utk.edu:27005] mca: base: components_open: component default_hnp open function successful
+[dancer.icl.utk.edu:27005] mca: base: components_register: registering framework rml components
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component oob
+[dancer.icl.utk.edu:27005] mca: base: components_register: component oob has no register or open function
+[dancer.icl.utk.edu:27005] mca: base: components_open: opening rml components
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component oob
+[dancer.icl.utk.edu:27005] mca: base: components_open: component oob open function successful
+[dancer.icl.utk.edu:27005] orte_rml_base_select: Initializing rml component oob
+[dancer.icl.utk.edu:27005] [[36280,0],0]: Final rml priorities
+[dancer.icl.utk.edu:27005] 	Component: oob Priority: 5
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:open_conduit
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:open_conduit Component oob provided a conduit
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:open_conduit
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:open_conduit Component oob provided a conduit
+[dancer.icl.utk.edu:27005] mca: base: components_register: registering framework grpcomm components
+[dancer.icl.utk.edu:27005] mca: base: components_register: found loaded component bmg
+[dancer.icl.utk.edu:27005] mca: base: components_register: component bmg register function successful
+[dancer.icl.utk.edu:27005] mca: base: components_open: opening grpcomm components
+[dancer.icl.utk.edu:27005] mca: base: components_open: found loaded component bmg
+[dancer.icl.utk.edu:27005] mca: base: components_open: component bmg open function successful
+[dancer.icl.utk.edu:27005] mca:grpcomm:select: checking available component bmg
+[dancer.icl.utk.edu:27005] mca:grpcomm:select: Querying component [bmg]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 66
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 67
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 64
+[dancer.icl.utk.edu:27005] [[36280,0],0]: Final grpcomm priorities
+[dancer.icl.utk.edu:27005] 	Component: bmg Priority: 50
+[dancer.icl.utk.edu:27005] mca:base:select: Auto-selecting errmgr components
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Querying component [detector]
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Query of component [detector] set priority to 1005
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Querying component [default_orted]
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Querying component [default_tool]
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Querying component [default_app]
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Querying component [dvm]
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Querying component [default_hnp]
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Query of component [default_hnp] set priority to 1000
+[dancer.icl.utk.edu:27005] mca:base:select:(errmgr) Selected component [detector]
+[dancer.icl.utk.edu:27005] mca: base: close: component default_orted closed
+[dancer.icl.utk.edu:27005] mca: base: close: unloading component default_orted
+[dancer.icl.utk.edu:27005] mca: base: close: component default_tool closed
+[dancer.icl.utk.edu:27005] mca: base: close: unloading component default_tool
+[dancer.icl.utk.edu:27005] mca: base: close: component default_app closed
+[dancer.icl.utk.edu:27005] mca: base: close: unloading component default_app
+[dancer.icl.utk.edu:27005] mca: base: close: component dvm closed
+[dancer.icl.utk.edu:27005] mca: base: close: unloading component dvm
+[dancer.icl.utk.edu:27005] mca: base: close: component default_hnp closed
+[dancer.icl.utk.edu:27005] mca: base: close: unloading component default_hnp
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 68
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 41
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info()
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info() returning -> 2377646080.0;tcp://10.0.1.1,10.1.0.2,160.36.131.215,172.17.42.1:34660
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 5
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 10
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 12
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 62
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info()
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info() returning -> 2377646080.0;tcp://10.0.1.1,10.1.0.2,160.36.131.215,172.17.42.1:34660
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 36
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 27
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info()
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info() returning -> 2377646080.0;tcp://10.0.1.1,10.1.0.2,160.36.131.215,172.17.42.1:34660
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 50
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 51
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 6
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 28
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 59
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 2
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 21
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 22
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 47
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 48
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_recv_buffer_nb for peer [[WILDCARD],WILDCARD] tag 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 65 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 66 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 67 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 64 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 68 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 41 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 5 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 10 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 12 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 62 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 36 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 27 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 50 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 51 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 6 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 28 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 59 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 2 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 21 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 22 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 47 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 48 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting recv
+[dancer.icl.utk.edu:27005] [[36280,0],0] posting persistent recv on tag 1 for peer [[WILDCARD],WILDCARD]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info()
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:get_contact_info() returning -> 2377646080.0;tcp://10.0.1.1,10.1.0.2,160.36.131.215,172.17.42.1:34660
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+[dancer.icl.utk.edu:27005] [[36280,0],0]:ess_hnp_module.c(926) updating exit status to 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:base:xcast sending 8 bytes to tag 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:base:create_dmns called with NON-NULL signature
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],0] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],0] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_iovec_to_self at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_to_self callback executing for tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] message received from [[36280,0],0] for tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:xcast:recv: with 47 bytes
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],1]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],1] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],1] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],2]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],2] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],2] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],3]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],3] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],3] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],4]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],4] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],4] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],5]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],5] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],5] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],6]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],6] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],6] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],7]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],7] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],7] at tag 65
+Killed by signal 2.
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],8]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],8] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],8] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],9]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],9] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],9] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],10]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],10] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],10] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],11]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],11] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],11] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],12]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],12] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],12] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],13]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],13] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],13] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],14]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],14] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],14] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],15]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],15] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],15] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] grpcomm:bmg:send_relay sending relay msg of 47 bytes to [[36280,0],16]
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml:base:send_buffer_nb() to peer [[36280,0],16] through conduit 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] rml_send_buffer to peer [[36280,0],16] at tag 65
+[dancer.icl.utk.edu:27005] [[36280,0],0] Message posted at grpcomm_bmg_module.c:588
+Killed by signal 2.
+[dancer.icl.utk.edu:27005] [[36280,0],0] message received  bytes from [[36280,0],0] for tag 65 called callback
+[dancer.icl.utk.edu:27005] [[36280,0],0] message tag 65 on released
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+Killed by signal 2.
+[dancer.icl.utk.edu:27005] [[36280,0],0] message received from [[36280,0],0] for tag 1
+[dancer.icl.utk.edu:27005] [[36280,0],0] orted:comm:process_commands() Processing Command: ORTE_DAEMON_EXIT_CMD
+[dancer.icl.utk.edu:27005] [[36280,0],0] orted_cmd: received exit cmd
+[dancer.icl.utk.edu:27005] [[36280,0],0] orted_cmd: exit cmd, 16 routes still exist
+[dancer.icl.utk.edu:27005] [[36280,0],0] message received  bytes from [[36280,0],0] for tag 1 called callback
+[dancer.icl.utk.edu:27005] [[36280,0],0] message tag 1 on released
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],1] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],1] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],2] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],2] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],3] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],3] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],4] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],4] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],5] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],5] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],6] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],6] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],7] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],7] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],8] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],8] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],9] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],9] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],10] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],10] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],11] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],11] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],12] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],12] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],13] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],13] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],14] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],14] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],15] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],15] TAG 65: No OOB path to target
+[dancer.icl.utk.edu:27005] [[36280,0],0]-[[36280,0],16] Send message complete at base/oob_base_stubs.c:58
+[dancer.icl.utk.edu:27005] [[36280,0],0] UNABLE TO SEND MESSAGE TO [[36280,0],16] TAG 65: No OOB path to target
+dong orte init errmgr start 

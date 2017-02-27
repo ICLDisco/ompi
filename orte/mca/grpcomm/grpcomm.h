@@ -55,6 +55,8 @@ BEGIN_C_DECLS
  * collective completion */
 typedef void (*orte_grpcomm_cbfunc_t)(int status, opal_buffer_t *buf, void *cbdata);
 
+typedef int (*orte_grpcomm_rbcast_cb_t)(opal_buffer_t* buffer);
+
 /* Define a collective signature so we don't need to
  * track global collective id's */
 typedef struct {
@@ -122,6 +124,18 @@ typedef int (*orte_grpcomm_base_module_xcast_fn_t)(orte_vpid_t *vpids,
 typedef int (*orte_grpcomm_base_module_allgather_fn_t)(orte_grpcomm_coll_t *coll,
                                                        opal_buffer_t *buf);
 
+/* Reliable broadcast a message thru BMG.Caller will provide an array
+ * of daemon vpids in the daemon namespace. A NULL
+ * pointer indicates that all daemons are participating. */
+typedef int (*orte_grpcomm_base_module_rbcast_fn_t)(orte_vpid_t *vpids,
+                                                   size_t nprocs,
+                                                   opal_buffer_t *msg);
+
+typedef int (*orte_grpcomm_base_module_rbcast_register_cb_fn_t)(orte_grpcomm_rbcast_cb_t callback);
+
+typedef int (*orte_grpcomm_base_module_rbcast_unregister_cb_fn_t)(int type);
+
+
 /*
  * Ver 3.0 - internal modules
  */
@@ -131,6 +145,9 @@ typedef struct {
     /* collective operations */
     orte_grpcomm_base_module_xcast_fn_t          xcast;
     orte_grpcomm_base_module_allgather_fn_t      allgather;
+    orte_grpcomm_base_module_rbcast_fn_t         rbcast;
+    orte_grpcomm_base_module_rbcast_register_cb_fn_t        register_cb;
+    orte_grpcomm_base_module_rbcast_unregister_cb_fn_t       unregister_cb;
 } orte_grpcomm_base_module_t;
 
 /* the Public APIs */
@@ -158,10 +175,26 @@ typedef int (*orte_grpcomm_base_API_allgather_fn_t)(orte_grpcomm_signature_t *si
                                                     opal_buffer_t *buf,
                                                     orte_grpcomm_cbfunc_t cbfunc,
                                                     void *cbdata);
+/* Reliable broadcast a message. Caller will provide an array
+ * of daemon. A NULL pointer indicates that all known daemons are in the BMG.
+ * A pointer to a name that includes ORTE_VPID_WILDCARD
+ * all daemons in the specified jobid.*/
+typedef int (*orte_grpcomm_base_API_rbcast_fn_t)(orte_grpcomm_signature_t *sig,
+                                                orte_rml_tag_t tag,
+                                                opal_buffer_t *msg);
+
+
+typedef int (*orte_grpcomm_base_API_rbcast_register_cb_fn_t)(orte_grpcomm_rbcast_cb_t callback);
+
+typedef int (*orte_grpcomm_base_API_rbcast_unregister_cb_fn_t)(int type);
+
 typedef struct {
     /* collective operations */
     orte_grpcomm_base_API_xcast_fn_t             xcast;
     orte_grpcomm_base_API_allgather_fn_t         allgather;
+    orte_grpcomm_base_API_rbcast_fn_t            rbcast;
+    orte_grpcomm_base_API_rbcast_register_cb_fn_t     register_cb;
+    orte_grpcomm_base_API_rbcast_unregister_cb_fn_t   unregister_cb;
 } orte_grpcomm_API_module_t;
 
 

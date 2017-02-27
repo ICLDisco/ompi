@@ -244,7 +244,7 @@ int mca_common_sm_mpool_ft_event(int state) {
             }
 
             /* Remove self from the list of all modules */
-            mca_mpool_base_module_destroy(self_module);
+            //mca_mpool_base_module_destroy(self_module);
         }
     }
     else if(OPAL_CRS_RESTART == state ||
@@ -259,7 +259,7 @@ int mca_common_sm_mpool_ft_event(int state) {
         }
 
         /* Remove self from the list of all modules */
-        mca_mpool_base_module_destroy(self_module);
+       // mca_mpool_base_module_destroy(self_module);
     }
     else if(OPAL_CRS_TERM == state ) {
         ;

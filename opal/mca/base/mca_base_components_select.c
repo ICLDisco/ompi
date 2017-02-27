@@ -49,7 +49,6 @@ int mca_base_select(const char *type_name, int output_id,
     opal_output_verbose (MCA_BASE_VERBOSE_COMPONENT, output_id,
                          "mca:base:select: Auto-selecting %s components",
                          type_name);
-
     /*
      * Traverse the list of available components.
      * For each call their 'query' functions to determine relative priority.

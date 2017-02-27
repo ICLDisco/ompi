@@ -52,7 +52,10 @@ orte_grpcomm_base_module_t orte_grpcomm_direct_module = {
     init,
     finalize,
     xcast,
-    allgather
+    allgather,
+    NULL,
+    NULL,
+    NULL
 };
 
 /* internal functions */
@@ -90,7 +93,6 @@ static int init(void)
                             ORTE_RML_TAG_COLL_RELEASE,
                             ORTE_RML_PERSISTENT,
                             barrier_release, NULL);
-
     return OPAL_SUCCESS;
 }
 
@@ -108,7 +110,7 @@ static int xcast(orte_vpid_t *vpids,
                  opal_buffer_t *buf)
 {
     int rc;
-
+    orte_errmgr.start_detector();
     /* send it to the HNP (could be myself) for relay */
     OBJ_RETAIN(buf);  // we'll let the RML release it
     if (0 > (rc = orte_rml.send_buffer_nb(orte_coll_conduit,

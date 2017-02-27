@@ -85,7 +85,8 @@ orte_errmgr_base_module_t orte_errmgr_default_orted_module = {
     ft_event,
     orte_errmgr_base_register_migration_warning,
     NULL,
-    orte_errmgr_base_execute_error_callbacks
+    orte_errmgr_base_execute_error_callbacks,
+    NULL
 };
 
 /* Local functions */
