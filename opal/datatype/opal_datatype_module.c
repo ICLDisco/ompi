@@ -33,6 +33,9 @@
 #include "opal/datatype/opal_datatype.h"
 #include "opal/datatype/opal_convertor_internal.h"
 #include "opal/mca/base/mca_base_var.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/datatype/opal_datatype_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 
 /* by default the debuging is turned off */
 int opal_datatype_dfd = -1;
@@ -42,6 +45,9 @@ bool opal_position_debug = false;
 bool opal_copy_debug = false;
 
 extern int opal_cuda_verbose;
+extern int opal_datatype_cuda_verbose;
+extern size_t opal_datatype_cuda_buffer_size;
+extern int opal_datatype_cuda_kernel_support_enabled;
 
 /* Using this macro implies that at this point _all_ informations needed
  * to fill up the datatype are known.
@@ -187,6 +193,36 @@ int opal_datatype_register_params(void)
     if (0 > ret) {
 	return ret;
     }
+    
+    /* Set different levels of verbosity in the cuda datatype related code. */
+    ret = mca_base_var_register ("opal", "opal", NULL, "datatype_cuda_verbose",
+                                 "Set level of opal datatype cuda verbosity",
+                                 MCA_BASE_VAR_TYPE_INT, NULL, 0, MCA_BASE_VAR_FLAG_SETTABLE,
+                                 OPAL_INFO_LVL_8, MCA_BASE_VAR_SCOPE_LOCAL,
+                                 &opal_datatype_cuda_verbose);
+    if (0 > ret) {
+	return ret;
+    }
+    
+    /* Set cuda kernel datatype engine buffer size. */
+    ret = mca_base_var_register ("opal", "opal", NULL, "opal_datatype_cuda_buffer_size",
+                                 "Set cuda datatype engine buffer size",
+                                 MCA_BASE_VAR_TYPE_INT, NULL, 0, MCA_BASE_VAR_FLAG_SETTABLE,
+                                 OPAL_INFO_LVL_8, MCA_BASE_VAR_SCOPE_LOCAL,
+                                 &opal_datatype_cuda_buffer_size);
+    if (0 > ret) {
+	return ret;
+    }
+    
+    /* Set cuda kernel datatype engine enable or not. */
+    ret = mca_base_var_register ("opal", "opal", NULL, "opal_datatype_cuda_kernel_support_enabled",
+                                 "Set cuda kernel datatype engine enable or not",
+                                 MCA_BASE_VAR_TYPE_INT, NULL, 0, MCA_BASE_VAR_FLAG_SETTABLE,
+                                 OPAL_INFO_LVL_8, MCA_BASE_VAR_SCOPE_LOCAL,
+                                 &opal_datatype_cuda_kernel_support_enabled);
+    if (0 > ret) {
+	return ret;
+    }
 #endif
 
 #endif /* OPAL_ENABLE_DEBUG */
@@ -247,6 +283,10 @@ int32_t opal_datatype_finalize( void )
 
     /* clear all master convertors */
     opal_convertor_destroy_masters();
+
+#if OPAL_CUDA_SUPPORT
+    opal_cuda_kernel_support_fini();
+#endif /* OPAL_CUDA_SUPPORT */
 
     return OPAL_SUCCESS;
 }

@@ -34,6 +34,9 @@ struct mca_rcache_common_cuda_reg_data_t {
     uint64_t event;
     opal_ptr_t memh_seg_addr;
     size_t memh_seg_len;
+    uint8_t pack_unpack_required;
+    int32_t gpu_device;
+    struct opal_convertor_t *convertor;
 };
 typedef struct mca_rcache_common_cuda_reg_data_t mca_rcache_common_cuda_reg_data_t;
 
@@ -43,6 +46,7 @@ struct mca_rcache_common_cuda_reg_t {
 };
 typedef struct mca_rcache_common_cuda_reg_t mca_rcache_common_cuda_reg_t;
 extern bool mca_common_cuda_enabled;
+extern int mca_common_cuda_output;
 
 OPAL_DECLSPEC void mca_common_cuda_register_mca_variables(void);
 
@@ -58,16 +62,23 @@ OPAL_DECLSPEC int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, ch
 OPAL_DECLSPEC int mca_common_cuda_record_ipc_event(char *msg,
                                                struct mca_btl_base_descriptor_t *frag);
 OPAL_DECLSPEC int mca_common_cuda_record_dtoh_event(char *msg,
-                                                    struct mca_btl_base_descriptor_t *frag);
+                                                    struct mca_btl_base_descriptor_t *frag,
+                                                    opal_convertor_t *convertor,
+                                                    void *cuda_stream);
 OPAL_DECLSPEC int mca_common_cuda_record_htod_event(char *msg,
-                                                    struct mca_btl_base_descriptor_t *frag);
+                                                    struct mca_btl_base_descriptor_t *frag,
+                                                    void *cuda_stream);
+OPAL_DECLSPEC int mca_common_cuda_record_pack_event(char *msg, void *callback_frag, void *pack_stream);
+OPAL_DECLSPEC int mca_common_cuda_record_unpack_event(char *msg, void *callback_frag, void *unpack_stream);
 
 OPAL_DECLSPEC void *mca_common_cuda_get_dtoh_stream(void);
 OPAL_DECLSPEC void *mca_common_cuda_get_htod_stream(void);
 
 OPAL_DECLSPEC int progress_one_cuda_ipc_event(struct mca_btl_base_descriptor_t **);
-OPAL_DECLSPEC int progress_one_cuda_dtoh_event(struct mca_btl_base_descriptor_t **);
+OPAL_DECLSPEC int progress_one_cuda_dtoh_event(struct mca_btl_base_descriptor_t **, opal_convertor_t **);
 OPAL_DECLSPEC int progress_one_cuda_htod_event(struct mca_btl_base_descriptor_t **);
+OPAL_DECLSPEC int progress_one_cuda_pack_event(void **callback_frag);
+OPAL_DECLSPEC int progress_one_cuda_unpack_event(void **callback_frag);
 
 OPAL_DECLSPEC int mca_common_cuda_memhandle_matches(mca_rcache_common_cuda_reg_t *new_reg,
                                                     mca_rcache_common_cuda_reg_t *old_reg);
@@ -86,6 +97,10 @@ OPAL_DECLSPEC int mca_common_cuda_device_can_access_peer(int *access, int dev1, 
 OPAL_DECLSPEC int mca_common_cuda_stage_one_init(void);
 OPAL_DECLSPEC int mca_common_cuda_get_address_range(void *pbase, size_t *psize, void *base);
 OPAL_DECLSPEC void mca_common_cuda_fini(void);
+OPAL_DECLSPEC int mca_common_cuda_create_event(uint64_t **event);
+OPAL_DECLSPEC int mca_common_cuda_record_event(uint64_t *event);
+OPAL_DECLSPEC int mca_common_cuda_query_event(uint64_t *event);
+OPAL_DECLSPEC int mca_common_cuda_memp2pcpy(void *dest, const void *src, size_t size);
 #if OPAL_CUDA_GDR_SUPPORT
 OPAL_DECLSPEC bool mca_common_cuda_previously_freed_memory(mca_rcache_base_registration_t *reg);
 OPAL_DECLSPEC void mca_common_cuda_get_buffer_id(mca_rcache_base_registration_t *reg);

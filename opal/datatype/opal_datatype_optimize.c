@@ -303,5 +303,6 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
         pLast->first_elem_disp = first_elem_disp;
         pLast->size            = pData->size;
     }
+
     return OPAL_SUCCESS;
 }

@@ -184,7 +184,7 @@ static int mca_pml_ob1_component_register(void)
     mca_pml_ob1_param_register_int("free_list_max", -1, &mca_pml_ob1.free_list_max);
     mca_pml_ob1_param_register_int("free_list_inc", 64, &mca_pml_ob1.free_list_inc);
     mca_pml_ob1_param_register_int("priority", 20, &mca_pml_ob1.priority);
-    mca_pml_ob1_param_register_sizet("send_pipeline_depth", 3, &mca_pml_ob1.send_pipeline_depth);
+    mca_pml_ob1_param_register_sizet("send_pipeline_depth", 4, &mca_pml_ob1.send_pipeline_depth);
     mca_pml_ob1_param_register_sizet("recv_pipeline_depth", 4, &mca_pml_ob1.recv_pipeline_depth);
 
     /* NTH: we can get into a live-lock situation in the RDMA failure path so disable

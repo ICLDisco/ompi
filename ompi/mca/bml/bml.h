@@ -361,6 +361,15 @@ static inline void mca_bml_base_deregister_mem (mca_bml_base_btl_t* bml_btl, mca
     btl->btl_deregister_mem (btl, handle);
 }
 
+static inline void mca_bml_base_register_convertor (mca_bml_base_btl_t* bml_btl, mca_btl_base_registration_handle_t *handle, opal_convertor_t *convertor)
+{
+    mca_btl_base_module_t* btl = bml_btl->btl;
+
+    if (btl->btl_register_convertor != NULL) {
+        btl->btl_register_convertor (btl, handle, convertor);
+    }
+}
+
 /*
  *  BML component interface functions and datatype.
  */

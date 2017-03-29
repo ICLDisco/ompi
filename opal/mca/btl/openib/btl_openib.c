@@ -1589,6 +1589,7 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
     uint32_t iov_count = 1;
     size_t max_data = *size;
     void *ptr;
+    void *cuda_stream = NULL;
 
     assert(MCA_BTL_NO_ORDER == order);
 
@@ -1606,14 +1607,30 @@ mca_btl_base_descriptor_t* mca_btl_openib_prepare_src(
 
     iov.iov_len = max_data;
     iov.iov_base = (IOVBASE_TYPE *) ( (unsigned char*) ptr + reserve );
-    (void) opal_convertor_pack(convertor, &iov, &iov_count, &max_data);
+    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == true) {
+            convertor->stream = mca_common_cuda_get_dtoh_stream();
+        }
+        convertor->flags |= CONVERTOR_CUDA;
+    }
+    opal_convertor_pack(convertor, &iov, &iov_count, &max_data);
+    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == true && convertor->pipeline_depth != 0) {
+            convertor->pipeline_seq ++;
+            convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
+        }
+        convertor->flags |= CONVERTOR_CUDA;
+    }
 
 #if OPAL_CUDA_SUPPORT /* CUDA_ASYNC_SEND */
     /* If the convertor is copying the data asynchronously, then record an event
      * that will trigger the callback when it completes.  Mark descriptor as async.
      * No need for this in the case we are not sending any GPU data. */
     if ((convertor->flags & CONVERTOR_CUDA_ASYNC) && (0 != max_data)) {
-        mca_common_cuda_record_dtoh_event("btl_openib", (mca_btl_base_descriptor_t *)frag);
+        OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Record d2h cuda event\n"));
+        mca_common_cuda_record_dtoh_event("btl_openib", (mca_btl_base_descriptor_t *)frag, convertor, cuda_stream);
         to_base_frag(frag)->base.des_flags = flags | MCA_BTL_DES_FLAGS_CUDA_COPY_ASYNC;
     }
 #endif /* OPAL_CUDA_SUPPORT */

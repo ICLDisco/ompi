@@ -69,7 +69,10 @@
 #include "opal/mca/mpool/base/base.h"
 #include "opal/mca/rcache/rcache.h"
 #include "opal/mca/rcache/base/base.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/datatype/opal_datatype_cuda.h"
 #include "opal/mca/common/cuda/common_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 #include "opal/mca/common/verbs/common_verbs.h"
 #include "opal/runtime/opal_params.h"
 #include "opal/runtime/opal.h"
@@ -3775,7 +3778,15 @@ static int btl_openib_component_progress(void)
     {
         int local_count = 0;
         mca_btl_base_descriptor_t *frag;
-        while (local_count < 10 && (1 == progress_one_cuda_dtoh_event(&frag))) {
+        opal_convertor_t *convertor = NULL;
+        while (local_count < 10 && (1 == progress_one_cuda_dtoh_event(&frag, &convertor))) {
+            if (convertor != NULL) {
+                if ((convertor->flags & CONVERTOR_COMPLETED) && (convertor->gpu_buffer_ptr != NULL)) {
+                    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Free GPU pack buffer %p in openib dtoh\n", convertor->gpu_buffer_ptr));
+                    opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
+                    convertor->gpu_buffer_ptr = NULL;
+                }
+            }
             OPAL_OUTPUT((-1, "btl_openib: event completed on frag=%p", (void *)frag));
             frag->des_cbfunc(NULL, NULL, frag, OPAL_SUCCESS);
             local_count++;

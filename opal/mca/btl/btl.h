@@ -189,6 +189,9 @@ typedef uint8_t mca_btl_base_tag_t;
 #define MCA_BTL_TAG_IB                (MCA_BTL_TAG_BTL + 0)
 #define MCA_BTL_TAG_UDAPL             (MCA_BTL_TAG_BTL + 1)
 #define MCA_BTL_TAG_SMCUDA            (MCA_BTL_TAG_BTL + 2)
+#define MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK   (MCA_BTL_TAG_BTL + 3)
+#define MCA_BTL_TAG_SMCUDA_DATATYPE_PACK     (MCA_BTL_TAG_BTL + 4)
+#define MCA_BTL_TAG_SMCUDA_DATATYPE_PUT      (MCA_BTL_TAG_BTL + 5)
 
 /* prefered protocol */
 #define MCA_BTL_FLAGS_SEND            0x0001
@@ -871,6 +874,20 @@ typedef struct mca_btl_base_registration_handle_t *(*mca_btl_base_module_registe
 typedef int (*mca_btl_base_module_deregister_mem_fn_t)(
     struct mca_btl_base_module_t* btl, struct mca_btl_base_registration_handle_t *handle);
 
+
+/**
+ * @brief register a convertor
+ *
+ * @param btl (IN)         BTL module region was registered with
+ * @param handle (IN)      BTL registration handle to register
+ * @param convertor (IN)   convertor needs to be registered
+ *
+ * This function register the necessary convertor information. No need to 
+ * deregister since handle will be deregistered by mem deregisteration
+ */
+typedef int (*mca_btl_base_module_register_convertor_fn_t)(
+    struct mca_btl_base_module_t* btl, struct mca_btl_base_registration_handle_t *handle, struct opal_convertor_t *convertor);
+
 /**
  * Initiate an asynchronous send.
  * Completion Semantics: the descriptor has been queued for a send operation
@@ -1217,6 +1234,9 @@ struct mca_btl_base_module_t {
     /* new memory registration functions */
     mca_btl_base_module_register_mem_fn_t   btl_register_mem;   /**< memory registration function (NULL if not needed) */
     mca_btl_base_module_deregister_mem_fn_t btl_deregister_mem; /**< memory deregistration function (NULL if not needed) */
+    
+    /* convertor registration functions */
+    mca_btl_base_module_register_convertor_fn_t btl_register_convertor; /**< convertor registration function (NULL if not needed) */
 
     /** the mpool associated with this btl (optional) */
     mca_mpool_base_module_t*             btl_mpool;
@@ -1230,6 +1250,9 @@ struct mca_btl_base_module_t {
 #endif /* OPAL_CUDA_GDR_SUPPORT */
 #if OPAL_CUDA_SUPPORT
     size_t      btl_cuda_max_send_size;   /**< set if CUDA max send_size is different from host max send size */
+    int32_t     btl_cuda_ddt_allow_rdma;
+    size_t      btl_cuda_ddt_pipeline_size;
+    int32_t     btl_cuda_ddt_pipeline_depth;
 #endif /* OPAL_CUDA_SUPPORT */
 };
 typedef struct mca_btl_base_module_t mca_btl_base_module_t;

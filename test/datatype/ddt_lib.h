@@ -34,6 +34,11 @@
 #define DUMP_DATA_AFTER_COMMIT 0x00000001
 #define CHECK_PACK_UNPACK      0x00000002
 
+#define TEST_DOUBLE
+//#define TEST_FLOAT
+//#define TEST_CHAR
+
+
 extern uint32_t outputFlags;
 
 /**
@@ -92,4 +97,5 @@ extern ompi_datatype_t* create_contiguous_type( const ompi_datatype_t* data, int
 extern ompi_datatype_t* create_vector_type( const ompi_datatype_t* data, int count,
                                             int length, int stride );
 extern ompi_datatype_t* create_struct_constant_gap_resized_ddt( ompi_datatype_t* type );
+extern ompi_datatype_t* create_struct_type(int count);
 

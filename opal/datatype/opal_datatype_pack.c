@@ -22,6 +22,7 @@
 #include "opal_config.h"
 
 #include <stddef.h>
+#include <stdio.h>
 
 #include "opal/datatype/opal_convertor_internal.h"
 #include "opal/datatype/opal_datatype_internal.h"
@@ -37,17 +38,22 @@
 #include "opal/datatype/opal_datatype_checksum.h"
 #include "opal/datatype/opal_datatype_pack.h"
 #include "opal/datatype/opal_datatype_prototypes.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/datatype/opal_datatype_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 
 #if defined(CHECKSUM)
 #define opal_pack_homogeneous_contig_function           opal_pack_homogeneous_contig_checksum
 #define opal_pack_homogeneous_contig_with_gaps_function opal_pack_homogeneous_contig_with_gaps_checksum
 #define opal_generic_simple_pack_function               opal_generic_simple_pack_checksum
 #define opal_pack_general_function                      opal_pack_general_checksum
+#define opal_generic_simple_pack_cuda_function          opal_generic_simple_pack_cuda_checksum
 #else
 #define opal_pack_homogeneous_contig_function           opal_pack_homogeneous_contig
 #define opal_pack_homogeneous_contig_with_gaps_function opal_pack_homogeneous_contig_with_gaps
 #define opal_generic_simple_pack_function               opal_generic_simple_pack
 #define opal_pack_general_function                      opal_pack_general
+#define opal_generic_simple_pack_cuda_function          opal_generic_simple_pack_cuda
 #endif  /* defined(CHECKSUM) */
 
 
@@ -584,4 +590,12 @@ opal_pack_general_function( opal_convertor_t* pConvertor,
     DO_DEBUG( opal_output( 0, "pack save stack stack_pos %d pos_desc %d count_desc %d disp %ld\n",
                            pConvertor->stack_pos, pStack->index, (int)pStack->count, (long)pStack->disp ); );
     return 0;
+}
+
+int32_t
+opal_generic_simple_pack_cuda_function( opal_convertor_t* pConvertor,
+                                        struct iovec* iov, uint32_t* out_size,
+                                        size_t* max_data )
+{
+    return opal_generic_simple_pack_function_cuda_iov( pConvertor, iov, out_size, max_data);
 }

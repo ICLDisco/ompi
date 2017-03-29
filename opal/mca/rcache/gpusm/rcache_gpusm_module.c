@@ -49,7 +49,7 @@
 static void mca_rcache_gpusm_registration_constructor( mca_rcache_gpusm_registration_t *item )
 {
     mca_common_cuda_construct_event_and_handle(&item->event,
-                                               (void *)&item->evtHandle);
+                                               (void *)item->evtHandle);
 }
 
 /**

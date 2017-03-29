@@ -547,16 +547,50 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                                                size_t num_segments,
                                                mca_btl_base_descriptor_t* des)
 {
-    int result;
     size_t bytes_received = 0, data_offset = 0;
     size_t bytes_delivered __opal_attribute_unused__; /* is being set to zero in MCA_PML_OB1_RECV_REQUEST_UNPACK */
     mca_pml_ob1_hdr_t* hdr = (mca_pml_ob1_hdr_t*)segments->seg_addr.pval;
+    opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
+    void *cuda_stream = NULL;
+    int opal_datatype_use_kernel = 0;
+    int result;
 
     OPAL_OUTPUT((-1, "start_frag_copy frag=%p", (void *)des));
 
+    data_offset    = hdr->hdr_frag.hdr_frag_offset;
     bytes_received = mca_pml_ob1_compute_segment_length_base (segments, num_segments,
                                                               sizeof(mca_pml_ob1_frag_hdr_t));
-    data_offset     = hdr->hdr_frag.hdr_frag_offset;
+    
+    if (opal_datatype_cuda_kernel_support && (convertor->flags & CONVERTOR_CUDA_ASYNC)) {
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == true) {
+            opal_datatype_use_kernel = 1;
+            convertor->stream = mca_common_cuda_get_htod_stream();
+            /* some how async support is just enabled, part of convertor is unpacked */ 
+            if (convertor->pipeline_depth == 0 && convertor->gpu_buffer_ptr != NULL) {
+                opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
+                convertor->gpu_buffer_ptr = NULL;
+            } 
+            if (convertor->gpu_buffer_ptr == NULL) {
+                size_t buffer_size = 0;
+                convertor->pipeline_size = btl->btl_max_send_size;
+                convertor->pipeline_depth = mca_pml_ob1.recv_pipeline_depth;
+                if (convertor->local_size > convertor->pipeline_size) {
+                    buffer_size = convertor->pipeline_size * convertor->pipeline_depth;
+                } else {
+                    buffer_size = convertor->local_size;
+                }
+                OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Malloc GPU buffer size %lu for frag_copy_start\n", buffer_size));
+                convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+                if (NULL == convertor->gpu_buffer_ptr) {
+                    return;
+                }
+                convertor->gpu_buffer_size = buffer_size;
+                convertor->pipeline_seq = 0;
+            }
+        }
+        convertor->flags |= CONVERTOR_CUDA;
+    }
 
     MCA_PML_OB1_RECV_REQUEST_UNPACK( recvreq,
                                      segments,
@@ -565,6 +599,11 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
                                      data_offset,
                                      bytes_received,
                                      bytes_delivered );
+         
+    if (opal_datatype_use_kernel == 1) {                       
+        convertor->pipeline_seq ++;
+        convertor->pipeline_seq = convertor->pipeline_seq % convertor->pipeline_depth;
+    }
     /* Store the receive request in unused context pointer. */
     des->des_context = (void *)recvreq;
     /* Store the amount of bytes in unused cbdata pointer */
@@ -572,7 +611,8 @@ void mca_pml_ob1_recv_request_frag_copy_start( mca_pml_ob1_recv_request_t* recvr
     /* Then record an event that will get triggered by a PML progress call which
      * checks the stream events.  If we get an error, abort.  Should get message
      * from CUDA code about what went wrong. */
-    result = mca_common_cuda_record_htod_event("pml", des);
+    result = mca_common_cuda_record_htod_event("pml", des, cuda_stream);
+    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "Record h2d cuda event\n"));
     if (OMPI_SUCCESS != result) {
         opal_output(0, "%s:%d FATAL", __FILE__, __LINE__);
         ompi_rte_abort(-1, NULL);
@@ -607,6 +647,15 @@ void mca_pml_ob1_recv_request_frag_copy_finished( mca_btl_base_module_t* btl,
             recvreq->req_rdma_offset < recvreq->req_send_offset) {
         /* schedule additional rdma operations */
         mca_pml_ob1_recv_request_schedule(recvreq, NULL);
+    }
+    if(recvreq->req_bytes_received >= recvreq->req_recv.req_bytes_packed) {
+        opal_convertor_t *convertor = &(recvreq)->req_recv.req_base.req_convertor;
+        if (convertor->gpu_buffer_ptr != NULL) {
+            OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output,
+                                 "Free GPU pack/unpack buffer %p\n", convertor->gpu_buffer_ptr));
+            opal_cuda_free_gpu_buffer(convertor->gpu_buffer_ptr, 0);
+            convertor->gpu_buffer_ptr = NULL;
+        }    
     }
 }
 #endif /* OPAL_CUDA_SUPPORT */
@@ -645,8 +694,11 @@ void mca_pml_ob1_recv_request_progress_rget( mca_pml_ob1_recv_request_t* recvreq
         if (mca_pml_ob1_cuda_need_buffers(recvreq, btl))
 #endif /* OPAL_CUDA_SUPPORT */
         {
-            mca_pml_ob1_recv_request_ack(recvreq, &hdr->hdr_rndv, 0);
-            return;
+            /* need more careful check here */
+            if (! (recvreq->req_recv.req_base.req_convertor.flags & CONVERTOR_CUDA)) {
+                mca_pml_ob1_recv_request_ack(recvreq, &hdr->hdr_rndv, 0);
+                return;    
+            }
         }
     }
 
@@ -703,6 +755,7 @@ void mca_pml_ob1_recv_request_progress_rget( mca_pml_ob1_recv_request_t* recvreq
         mca_bml_base_register_mem (rdma_bml, data_ptr, bytes_remaining, flags, &recvreq->local_handle);
         /* It is not an error if the memory region can not be registered here. The registration will
          * be attempted again for each get fragment. */
+        mca_bml_base_register_convertor(rdma_bml, recvreq->local_handle, &recvreq->req_recv.req_base.req_convertor);
     }
 
     /* The while loop adds a fragmentation mechanism. The variable bytes_remaining holds the num

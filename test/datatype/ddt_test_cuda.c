@@ -30,6 +30,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <cuda_runtime_api.h>
+#include "opal/mca/common/cuda/common_cuda.h"
+#include "opal/runtime/opal_params.h"
+
+#define CONVERTOR_CUDA             0x00400000
+
 /* Compile with:
 mpicc -DHAVE_CONFIG_H -I. -I../../include -I../../../ompi-trunk/include  -I../.. -I../../include -I../../../ompi-trunk/opal -I../../../ompi-trunk/orte -I../../../ompi-trunk/ompi -g ddt_test.c -o ddt_test
 */
@@ -45,7 +51,7 @@ uint32_t remote_arch = 0xffffffff;
 
 static int test_upper( unsigned int length )
 {
-    double *mat1, *mat2, *inbuf;
+    double *mat1, *mat2, *inbuf, *mat1_cuda, *mat2_cuda;
     ompi_datatype_t *pdt;
     opal_convertor_t * pConv;
     char *ptr;
@@ -63,9 +69,24 @@ static int test_upper( unsigned int length )
     mat1 = malloc( length * length * sizeof(double) );
     init_random_upper_matrix( length, mat1 );
     mat2 = calloc( length * length, sizeof(double) );
+    
+    cudaError_t error = cudaMalloc((void **)&mat1_cuda, length * length * sizeof(double));
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    error = cudaMalloc((void **)&mat2_cuda, length * length * sizeof(double));
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
 
     total_length = length * (length + 1) * ( sizeof(double) / 2);
-    inbuf = (double*)malloc( total_length );
+    error = cudaMallocHost((void **)&inbuf, total_length);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
     ptr = (char*)inbuf;
     /* copy upper matrix in the array simulating the input buffer */
     for( i = 0; i < length; i++ ) {
@@ -76,8 +97,14 @@ static int test_upper( unsigned int length )
         }
     }
     inbuf = (double*)ptr;
+    
+    cudaMemcpy(mat1_cuda, mat1, length * length * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(mat2_cuda, mat2, length * length * sizeof(double), cudaMemcpyHostToDevice);
+    
+    cudaDeviceSynchronize();
+    
     pConv = opal_convertor_create( remote_arch, 0 );
-    if( OPAL_SUCCESS != opal_convertor_prepare_for_recv( pConv, &(pdt->super), 1, mat2 ) ) {
+    if( OPAL_SUCCESS != opal_convertor_prepare_for_recv( pConv, &(pdt->super), 1, mat2_cuda ) ) {
         printf( "Cannot attach the datatype to a convertor\n" );
         return OMPI_ERROR;
     }
@@ -96,15 +123,16 @@ static int test_upper( unsigned int length )
         opal_convertor_unpack( pConv, &a, &iov_count, &max_data );
         ptr += max_data;
         i -= max_data;
-        if( mat2[0] != inbuf[0] ) assert(0);
     }
     GET_TIME( end );
     total_time = ELAPSED_TIME( start, end );
     printf( "complete unpacking in %ld microsec\n", total_time );
-    free( inbuf );
+    cudaFreeHost( inbuf );
+    cudaMemcpy(mat1, mat1_cuda, length * length * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(mat2, mat2_cuda, length * length * sizeof(double), cudaMemcpyDeviceToHost);
     rc = check_diag_matrix( length, mat1, mat2 );
-    free( mat1 );
-    free( mat2 );
+    cudaFree( mat1 );
+    cudaFree( mat2 );
 
     /* test the automatic destruction pf the data */
     ompi_datatype_destroy( &pdt ); assert( pdt == NULL );
@@ -147,15 +175,20 @@ static int local_copy_ddt_count( ompi_datatype_t* pdt, int count )
     size_t length;
 
     length = compute_buffer_length(pdt, count);
+    
+    cudaError_t error = cudaMalloc((void **)&pdst, length);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(pdst, 0, length);
 
-    pdst = malloc(length);
-    psrc = malloc(length);
-
-    for( size_t i = 0; i < length; i++ )
-	((char*)psrc)[i] = i % 128 + 32;
-    memset(pdst, 0, length);
-
-    cache_trash();  /* make sure the cache is useless */
+    error = cudaMalloc((void **)&psrc, length);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(psrc, 0, length);
 
     GET_TIME( start );
     if( OMPI_SUCCESS != ompi_datatype_copy_content_same_ddt( pdt, count, pdst, psrc ) ) {
@@ -165,8 +198,8 @@ static int local_copy_ddt_count( ompi_datatype_t* pdt, int count )
     GET_TIME( end );
     total_time = ELAPSED_TIME( start, end );
     printf( "direct local copy in %ld microsec\n", total_time );
-    free(pdst);
-    free(psrc);
+    cudaFree(pdst);
+    cudaFree(psrc);
 
     return OMPI_SUCCESS;
 }
@@ -191,24 +224,42 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
     pdst  = malloc( rlength );
     psrc  = malloc( slength );
     ptemp = malloc( chunk );
+    
+    cudaError_t error = cudaMalloc((void **)&pdst, rlength);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(pdst, 0, rlength);
 
-    /* initialize the buffers to prevent valgrind from complaining */
-    for( size_t i = 0; i < slength; i++ )
-            ((char*)psrc)[i] = i % 128 + 32;
-    memset(pdst, 0, rlength);
+    error = cudaMalloc((void **)&psrc, slength);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(psrc, 0, slength);
+    
+    error = cudaMallocHost((void **)&ptemp, chunk);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    memset(ptemp, 0, chunk);
 
     send_convertor = opal_convertor_create( remote_arch, 0 );
+    send_convertor->flags |= CONVERTOR_CUDA;
     if( OPAL_SUCCESS != opal_convertor_prepare_for_send( send_convertor, &(send_type->super), send_count, psrc ) ) {
         printf( "Unable to create the send convertor. Is the datatype committed ?\n" );
         goto clean_and_return;
     }
     recv_convertor = opal_convertor_create( remote_arch, 0 );
+    recv_convertor->flags |= CONVERTOR_CUDA;
     if( OPAL_SUCCESS != opal_convertor_prepare_for_recv( recv_convertor, &(recv_type->super), recv_count, pdst ) ) {
         printf( "Unable to create the recv convertor. Is the datatype committed ?\n" );
         goto clean_and_return;
     }
-
-    cache_trash();  /* make sure the cache is useless */
+    
+    cudaDeviceSynchronize();
 
     GET_TIME( start );
     while( (done1 & done2) != 1 ) {
@@ -249,9 +300,9 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
     if( recv_convertor != NULL ) {
         OBJ_RELEASE( recv_convertor ); assert( recv_convertor == NULL );
     }
-    if( NULL != pdst ) free( pdst );
-    if( NULL != psrc ) free( psrc );
-    if( NULL != ptemp ) free( ptemp );
+    if( NULL != pdst ) cudaFree( pdst );
+    if( NULL != psrc ) cudaFree( psrc );
+    if( NULL != ptemp ) cudaFreeHost( ptemp );
     return OMPI_SUCCESS;
 }
 
@@ -267,27 +318,43 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     long total_time, unpack_time = 0;
 
     max_data = compute_buffer_length(pdt, count);
+    
+    cudaError_t error = cudaMalloc((void **)&pdst, max_data);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(pdst, 0, max_data);
 
-    pdst  = malloc(max_data);
-    psrc  = malloc(max_data);
-    ptemp = malloc(chunk);
-
-    for( int i = 0; i < length; ((char*)psrc)[i] = i % 128 + 32, i++ );
-    memset( pdst, 0, length );
+    error = cudaMalloc((void **)&psrc, max_data);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    cudaMemset(psrc, 0, max_data);
+    
+    error = cudaMallocHost((void **)&ptemp, chunk);
+    if ( error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    memset(ptemp, 0, chunk);
 
     send_convertor = opal_convertor_create( remote_arch, 0 );
+    send_convertor->flags |= CONVERTOR_CUDA;
     if( OPAL_SUCCESS != opal_convertor_prepare_for_send( send_convertor, &(pdt->super), count, psrc ) ) {
         printf( "Unable to create the send convertor. Is the datatype committed ?\n" );
         goto clean_and_return;
     }
 
     recv_convertor = opal_convertor_create( remote_arch, 0 );
+    recv_convertor->flags |= CONVERTOR_CUDA;
     if( OPAL_SUCCESS != opal_convertor_prepare_for_recv( recv_convertor, &(pdt->super), count, pdst ) ) {
         printf( "Unable to create the recv convertor. Is the datatype committed ?\n" );
         goto clean_and_return;
     }
-
-    cache_trash();  /* make sure the cache is useless */
+    
+    cudaDeviceSynchronize();
 
     GET_TIME( start );
     while( (done1 & done2) != 1 ) {
@@ -325,9 +392,9 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     if( NULL != send_convertor ) OBJ_RELEASE( send_convertor );
     if( NULL != recv_convertor ) OBJ_RELEASE( recv_convertor );
 
-    if( NULL != pdst ) free( pdst );
-    if( NULL != psrc ) free( psrc );
-    if( NULL != ptemp ) free( ptemp );
+    if( NULL != pdst ) cudaFree( pdst );
+    if( NULL != psrc ) cudaFree( psrc );
+    if( NULL != ptemp ) cudaFreeHost( ptemp );
     return OMPI_SUCCESS;
 }
 
@@ -345,6 +412,11 @@ int main( int argc, char* argv[] )
 
     opal_init_util(&argc, &argv);
     ompi_datatype_init();
+    
+    opal_cuda_support = 1;
+    mca_common_cuda_stage_one_init();
+    
+    cudaSetDevice(0);
 
     /**
      * By default simulate homogeneous architectures.
@@ -369,7 +441,7 @@ int main( int argc, char* argv[] )
     pdt = upper_matrix(100);
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 1);
-        local_copy_with_convertor(pdt, 1, 48);
+        local_copy_with_convertor(pdt, 1, 48000);
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
@@ -443,38 +515,38 @@ int main( int argc, char* argv[] )
         printf( "Contiguous multiple data-type (4500*1)\n" );
         pdt = create_contiguous_type( MPI_DOUBLE, 4500 );
         local_copy_ddt_count(pdt, 1);
-        local_copy_with_convertor( pdt, 1, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
+        local_copy_with_convertor( pdt, 1, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 120 );
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
         printf( "Contiguous multiple data-type (450*10)\n" );
         pdt = create_contiguous_type( MPI_DOUBLE, 450 );
         local_copy_ddt_count(pdt, 10);
-        local_copy_with_convertor( pdt, 10, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 10, pdt, 10, 12 );
+        local_copy_with_convertor( pdt, 10, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 10, pdt, 10, 120 );
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
         printf( "Contiguous multiple data-type (45*100)\n" );
         pdt = create_contiguous_type( MPI_DOUBLE, 45 );
         local_copy_ddt_count(pdt, 100);
-        local_copy_with_convertor( pdt, 100, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 100, pdt, 100, 12 );
+        local_copy_with_convertor( pdt, 100, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 100, pdt, 100, 120 );
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
         printf( "Contiguous multiple data-type (100*45)\n" );
         pdt = create_contiguous_type( MPI_DOUBLE, 100 );
         local_copy_ddt_count(pdt, 45);
-        local_copy_with_convertor( pdt, 45, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 45, pdt, 45, 12 );
+        local_copy_with_convertor( pdt, 45, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 45, pdt, 45, 120 );
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
         printf( "Contiguous multiple data-type (10*450)\n" );
         pdt = create_contiguous_type( MPI_DOUBLE, 10 );
         local_copy_ddt_count(pdt, 450);
-        local_copy_with_convertor( pdt, 450, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 450, pdt, 450, 12 );
+        local_copy_with_convertor( pdt, 450, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 450, pdt, 450, 120 );
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
         printf( "Contiguous multiple data-type (1*4500)\n" );
         pdt = create_contiguous_type( MPI_DOUBLE, 1 );
         local_copy_ddt_count(pdt, 4500);
-        local_copy_with_convertor( pdt, 4500, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 12 );
+        local_copy_with_convertor( pdt, 4500, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 120 );
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
     }
     printf( ">>--------------------------------------------<<\n" );
@@ -484,10 +556,10 @@ int main( int argc, char* argv[] )
     ompi_datatype_dump( pdt );
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 1);
-        local_copy_with_convertor( pdt, 1, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 12 );
-        local_copy_with_convertor( pdt, 1, 82 );
-        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 82 );
+        local_copy_with_convertor( pdt, 1, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 120 );
+        local_copy_with_convertor( pdt, 1, 820 );
+        local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 820 );
         local_copy_with_convertor( pdt, 1, 6000 );
         local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
         local_copy_with_convertor( pdt, 1, 36000 );
@@ -500,8 +572,8 @@ int main( int argc, char* argv[] )
     pdt = test_struct_char_double();
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 4500);
-        local_copy_with_convertor( pdt, 4500, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 12 );
+        local_copy_with_convertor( pdt, 4500, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 120 );
     }
     printf( ">>--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
@@ -510,8 +582,8 @@ int main( int argc, char* argv[] )
     pdt = test_create_twice_two_doubles();
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 4500);
-        local_copy_with_convertor( pdt, 4500, 12 );
-        local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 12 );
+        local_copy_with_convertor( pdt, 4500, 120 );
+        local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 120 );
     }
     printf( ">>--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
@@ -536,7 +608,7 @@ int main( int argc, char* argv[] )
     pdt1 = test_create_blacs_type1( &ompi_mpi_int.dt );
     pdt2 = test_create_blacs_type2( &ompi_mpi_int.dt );
     if( outputFlags & CHECK_PACK_UNPACK ) {
-        local_copy_with_convertor_2datatypes( pdt1, 1, pdt2, 1, 100 );
+        local_copy_with_convertor_2datatypes( pdt1, 1, pdt2, 1, 1000 );
     }
     printf( ">>--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt1 ); assert( pdt1 == NULL );

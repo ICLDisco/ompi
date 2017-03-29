@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2006 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2014 The University of Tennessee and The University
+ * Copyright (c) 2004-2015 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2006 High Performance Computing Center Stuttgart,
@@ -79,6 +79,8 @@ typedef struct dt_stack_t dt_stack_t;
  */
 #define DT_STATIC_STACK_SIZE   5                /**< This should be sufficient for most applications */
 
+#define MAX_IPC_EVENT_HANDLE   10
+
 struct opal_convertor_t {
     opal_object_t                 super;          /**< basic superclass */
     uint32_t                      remoteArch;     /**< the remote architecture */
@@ -109,6 +111,16 @@ struct opal_convertor_t {
 #if OPAL_CUDA_SUPPORT
     memcpy_fct_t                  cbmemcpy;       /**< memcpy or cuMemcpy */
     void *                        stream;         /**< CUstream for async copy */
+
+    unsigned char *               gpu_buffer_ptr; /**< GPU buffer used for pack/unpack */
+    size_t                        gpu_buffer_size;
+    size_t                        pipeline_depth;
+    size_t                        pipeline_seq;
+    size_t                        pipeline_size;
+    uint32_t                      current_cuda_iov_pos;
+    uint32_t                      current_iov_pos;
+    size_t                        current_iov_partial_length;
+    opal_datatype_count_t         current_count;
 #endif
     /* size: 248, cachelines: 4, members: 20 */
     /* last cacheline: 56 bytes */
@@ -276,7 +288,22 @@ opal_convertor_raw( opal_convertor_t* convertor,  /* [IN/OUT] */
                     struct iovec* iov,            /* [IN/OUT] */
                     uint32_t* iov_count,          /* [IN/OUT] */
                     size_t* length );             /* [OUT]    */
+OPAL_DECLSPEC void
+opal_convertor_to_iov(struct opal_convertor_t *convertor,
+                      struct iovec **iov,
+                      uint32_t *iov_count,
+                      size_t *max_data);
 
+/**
+ * A straighforward description of the datatype in terms of a NULL
+ * based iovec (so basically displacements from the begining of a pointer,
+ * will be generated and stored in the datatype itself. This description
+ * can be used to pack/unpack the data manually.
+ */
+OPAL_DECLSPEC int
+opal_convertor_raw_cached(struct opal_convertor_t *convertor,
+                          const struct iovec **iov,
+                          uint32_t* iov_count);
 /*
  * Upper level does not need to call the _nocheck function directly.
  */
