@@ -98,8 +98,7 @@ int iter_start()
 
     if(events == NULL){
         events = (ompi_event_t*)malloc(OMPI_NUM_COUNTERS * sizeof(ompi_event_t));
-    }
-    else{
+    } else {
         fprintf(stderr, "The events data structure has already been allocated.\n");
     }
 
