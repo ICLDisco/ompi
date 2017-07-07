@@ -6,7 +6,6 @@
 #include <string.h>
 #include <dlfcn.h>
 
-#include <mpi.h>
 #include "ompi/include/ompi_config.h"
 #include "opal/mca/timer/timer.h"
 #include "opal/mca/base/mca_base_pvar.h"
@@ -79,10 +78,11 @@ void ompi_sw_event_timer_stop(unsigned int event_id, opal_timer_t *usec);
 void ompi_sw_event_print_all(void);
 
 /* MPI_T utility functions */
+/*
 static int ompi_sw_event_notify(mca_base_pvar_t *pvar, mca_base_pvar_event_t event, void *obj_handle, int *count);
 long long ompi_sw_event_get_counter(int counter_id);
 static int ompi_sw_event_get_send(const struct mca_base_pvar_t *pvar, void *value, void *obj_handle);
-
+*/
 /* Functions for the PAPI sde component */
 void ompi_sde_init(void);
 /* PAPI sde component interface functions */
