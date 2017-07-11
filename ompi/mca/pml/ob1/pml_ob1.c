@@ -36,7 +36,7 @@
 #include "opal_stdint.h"
 #include "opal/mca/btl/btl.h"
 #include "opal/mca/btl/base/base.h"
-#include "opal/runtime/ompi_software_events.h"
+#include "ompi/runtime/ompi_software_events.h"
 
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/pml/base/base.h"

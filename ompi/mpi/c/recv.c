@@ -27,7 +27,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/memchecker.h"
 #include "ompi/request/request.h"
-#include "opal/runtime/ompi_software_events.h"
+#include "ompi/runtime/ompi_software_events.h"
 
 #if OMPI_BUILD_MPI_PROFILING
 #if OPAL_HAVE_WEAK_SYMBOLS

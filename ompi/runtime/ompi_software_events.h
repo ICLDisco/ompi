@@ -6,6 +6,7 @@
 #include <string.h>
 #include <dlfcn.h>
 
+#include "ompi/include/mpi.h"
 #include "ompi/include/ompi_config.h"
 #include "opal/mca/timer/timer.h"
 #include "opal/mca/base/mca_base_pvar.h"

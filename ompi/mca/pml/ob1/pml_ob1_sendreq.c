@@ -29,7 +29,7 @@
 #include "ompi_config.h"
 #include "opal/prefetch.h"
 #include "opal/mca/mpool/mpool.h"
-#include "opal/runtime/ompi_software_events.h"
+#include "ompi/runtime/ompi_software_events.h"
 #include "ompi/constants.h"
 #include "ompi/mca/pml/pml.h"
 #include "pml_ob1.h"

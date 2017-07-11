@@ -28,7 +28,7 @@
 #include "pml_ob1_sendreq.h"
 #include "pml_ob1_recvreq.h"
 #include "ompi/peruse/peruse-internal.h"
-#include "opal/runtime/ompi_software_events.h"
+#include "ompi/runtime/ompi_software_events.h"
 
 /**
  * Single usage request. As we allow recursive calls (as an

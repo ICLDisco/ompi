@@ -26,7 +26,7 @@
 #include "ompi_config.h"
 
 #include "opal/util/show_help.h"
-#include "opal/runtime/ompi_software_events.h"
+#include "ompi/runtime/ompi_software_events.h"
 #include "ompi/mpi/c/bindings.h"
 #include "ompi/runtime/params.h"
 #include "ompi/communicator/communicator.h"

@@ -25,7 +25,7 @@
 #include <stdlib.h>
 
 #include "opal/util/show_help.h"
-#include "opal/runtime/ompi_software_events.h"
+#include "ompi/runtime/ompi_software_events.h"
 #include "ompi/mpi/c/bindings.h"
 #include "ompi/communicator/communicator.h"
 #include "ompi/errhandler/errhandler.h"

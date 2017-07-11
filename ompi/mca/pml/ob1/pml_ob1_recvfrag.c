@@ -39,7 +39,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/peruse/peruse-internal.h"
 #include "ompi/memchecker.h"
-#include "opal/runtime/ompi_software_events.h"
+#include "ompi/runtime/ompi_software_events.h"
 
 #include "pml_ob1.h"
 #include "pml_ob1_comm.h"
