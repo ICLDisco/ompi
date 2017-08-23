@@ -663,7 +663,6 @@ int mca_pml_ob1_send_fin( ompi_proc_t* proc,
 
     /* queue request */
     rc = mca_bml_base_send( bml_btl, fin, MCA_PML_OB1_HDR_TYPE_FIN );
-
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             MCA_PML_OB1_PROGRESS_PENDING(bml_btl);

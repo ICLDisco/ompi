@@ -447,7 +447,6 @@ typedef struct mca_btl_base_segment_t mca_btl_base_segment_t;
  *       des_segments
  */
 
-
 struct mca_btl_base_descriptor_t {
     opal_free_list_item_t super;
     mca_btl_base_segment_t *des_segments;     /**< local segments */

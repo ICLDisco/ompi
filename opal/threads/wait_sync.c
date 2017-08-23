@@ -95,7 +95,7 @@ int ompi_sync_wait_mt(ompi_wait_sync_t *sync)
     if( sync == wait_sync_list ) {
         wait_sync_list = (sync == sync->next) ? NULL : sync->next;
         if( NULL != wait_sync_list ){
-            /* This is a possible placement for a progress switch counter */
+            /* This is a possible placement for an MPI_T progress switch counter */
             WAIT_SYNC_PASS_OWNERSHIP(wait_sync_list);
         }
     }

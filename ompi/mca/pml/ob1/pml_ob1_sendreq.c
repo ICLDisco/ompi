@@ -451,15 +451,19 @@ int mca_pml_ob1_send_request_start_buffered(
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RNDV);
 
+    /*SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, sendreq->req_bytes_delivered + req_bytes_delivered,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);*/
+
 #ifdef SOFTWARE_EVENTS_ENABLE
     volatile int64_t bytes_sent;
     unsigned int i;
     if(attached_event[OMPI_BYTES_SENT_USER] == 1){
         if(sendreq->req_send.req_base.req_tag >= 0){
-            bytes_sent = 0;
-            for(i = 0; i < des->des_segment_count; i++){
-                bytes_sent += des->des_segments[i].seg_len;
-            }
+        bytes_sent = 0;
+        for(i = 0; i < des->des_segment_count; i++){
+        bytes_sent += des->des_segments[i].seg_len;
+        }
+        bytes_sent = sendreq->req_bytes_delivered;
             SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent);
         }
     }
@@ -469,6 +473,7 @@ int mca_pml_ob1_send_request_start_buffered(
             for(i = 0; i < des->des_segment_count; i++){
                 bytes_sent += des->des_segments[i].seg_len;
             }
+            bytes_sent = sendreq->req_bytes_delivered;
             SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent);
         }
     }
@@ -522,12 +527,13 @@ int mca_pml_ob1_send_request_start_copy( mca_pml_ob1_send_request_t* sendreq,
                                  &des);
         
         if(rc == OPAL_SUCCESS){
-            if(sendreq->req_send.req_base.req_tag >= 0){
+            /*if(sendreq->req_send.req_base.req_tag >= 0){
                 SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, size);
             }
             else{
                 SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, size);
-            }
+            }*/
+            SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, size, OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
         }
 
         if( OPAL_LIKELY(OMPI_SUCCESS == rc) ) {
@@ -602,6 +608,11 @@ int mca_pml_ob1_send_request_start_copy( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send_status(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
+
+    /*SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, sendreq->req_bytes_delivered - OMPI_PML_OB1_MATCH_HDR_LEN,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);*/
+    /*SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, size,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);*/
 
 #ifdef SOFTWARE_EVENTS_ENABLE
     volatile int64_t bytes_sent;
@@ -686,6 +697,9 @@ int mca_pml_ob1_send_request_start_prepare( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
+
+    /*SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, size,//sendreq->req_bytes_delivered,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);*/
 
 #ifdef SOFTWARE_EVENTS_ENABLE
     volatile int64_t bytes_sent;
@@ -815,6 +829,9 @@ int mca_pml_ob1_send_request_start_rdma( mca_pml_ob1_send_request_t* sendreq,
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RGET);
 
+    /*SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, sendreq->req_bytes_delivered,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);*/
+
 #ifdef SOFTWARE_EVENTS_ENABLE
     volatile int64_t bytes_sent;
     unsigned int i;
@@ -918,6 +935,9 @@ int mca_pml_ob1_send_request_start_rndv( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RNDV);
+
+    /*SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, sendreq->req_bytes_delivered,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);*/
 
 #ifdef SOFTWARE_EVENTS_ENABLE
     volatile int64_t bytes_sent;
@@ -1186,6 +1206,9 @@ cannot_pack:
 
         /* initiate send - note that this may complete before the call returns */
         rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_FRAG);
+
+        /*SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, sendreq->req_bytes_delivered,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);*/
 
 #ifdef SOFTWARE_EVENTS_ENABLE
         volatile int64_t bytes_sent;

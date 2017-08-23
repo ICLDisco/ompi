@@ -1,5 +1,7 @@
 #include "ompi_software_events.h"
 
+opal_timer_t sys_clock_freq_mhz = 0;
+
 OMPI_DECLSPEC const char *counter_names[OMPI_NUM_COUNTERS] = {
     "OMPI_SEND",
     "OMPI_RECV",
@@ -59,14 +61,13 @@ OMPI_DECLSPEC ompi_event_t *events = NULL;
  * ################# Begin MPI_T Functions ######################
  * ##############################################################
  */
-#if 0
 static int ompi_sw_event_notify(mca_base_pvar_t *pvar, mca_base_pvar_event_t event, void *obj_handle, int *count)
 {
     (void)obj_handle;
     if(MCA_BASE_PVAR_HANDLE_BIND == event)
         *count = 1;
  
-    return OPAL_SUCCESS;
+    return MPI_SUCCESS;
 }
 
 inline long long ompi_sw_event_get_counter(int counter_id)
@@ -83,10 +84,8 @@ static int ompi_sw_event_get_send(const struct mca_base_pvar_t *pvar, void *valu
     long long *counter_value = (long long*)value;
     *counter_value = ompi_sw_event_get_counter(OMPI_SEND);
 
-    return OMPI_SUCCESS;
+    return MPI_SUCCESS;
 }
-
-#endif
 
 /* ##############################################################
  * ############ Begin PAPI software_events Code #################
@@ -343,7 +342,18 @@ void* papi_sde_hook_list_events(void)
 void ompi_sw_event_init()
 {
     int i;
+    /*
+#if OPAL_HAVE_SYS_TIMER_GET_CYCLES
+    printf("OPAL_HAVE_SYS_TIMER_GET_CYCLES defined\n");
+#endif
+#if OPAL_HAVE_CLOCK_GETTIME
+    printf("OPAL_HAVE_CLOCK_GETTIME defined\n");
+#endif
 
+    printf("Clock Frequency: %d Hz\n", (int)opal_timer_base_get_freq());
+    sys_clock_freq_mhz = 2300;//opal_timer_base_get_freq() / 1000000;
+    printf("Clock Frequency (converted): %d MHz\n", (int)sys_clock_freq_mhz);
+*/
     iter_start();
 
     /* Turn all counters on */
@@ -380,6 +390,7 @@ void ompi_sw_event_timer_start(unsigned int event_id, opal_timer_t *usec)
 {
     /* Check whether usec == 0.0 to make sure the timer hasn't started yet */
     if(OPAL_UNLIKELY(attached_event[event_id] == 1 && *usec == 0)){
+        //*usec = opal_timer_base_get_cycles();
         *usec = opal_timer_base_get_usec();
     }
 }
@@ -390,8 +401,21 @@ void ompi_sw_event_timer_start(unsigned int event_id, opal_timer_t *usec)
 void ompi_sw_event_timer_stop(unsigned int event_id, opal_timer_t *usec)
 {
     if(OPAL_UNLIKELY(attached_event[event_id] == 1)){
+        //*usec = (opal_timer_base_get_cycles() - *usec) / sys_clock_freq_mhz;
         *usec = opal_timer_base_get_usec() - *usec;
         OPAL_THREAD_ADD64(&events[event_id].value, (long long)*usec);
+    }
+}
+
+/* Checks a tag, and records the user version of the counter if it's greater
+ * than or equal to 0 and records the mpi version of the counter otherwise.
+ */
+void ompi_sw_event_user_or_mpi(int tag, long long value, unsigned int user_enum, unsigned int mpi_enum)
+{
+    if(tag >= 0){
+        SW_EVENT_RECORD(user_enum, value);
+    } else {
+        SW_EVENT_RECORD(mpi_enum, value);
     }
 }
 

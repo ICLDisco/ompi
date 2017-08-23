@@ -121,7 +121,7 @@ static inline int mca_pml_ob1_send_inline (const void *buf, size_t count,
                              size, MCA_BTL_NO_ORDER, MCA_BTL_DES_FLAGS_PRIORITY | MCA_BTL_DES_FLAGS_BTL_OWNERSHIP,
                              MCA_PML_OB1_HDR_TYPE_MATCH, NULL);
 
-    if(rc == OPAL_SUCCESS){
+    if(OPAL_LIKELY(rc == OPAL_SUCCESS)){
         if(tag >= 0){
             SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, size);
         }

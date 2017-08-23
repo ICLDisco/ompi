@@ -76,14 +76,15 @@ void ompi_sw_event_fini(void);
 void ompi_sw_event_record(unsigned int event_id, long long value);
 void ompi_sw_event_timer_start(unsigned int event_id, opal_timer_t *usec);
 void ompi_sw_event_timer_stop(unsigned int event_id, opal_timer_t *usec);
+void ompi_sw_event_user_or_mpi(int tag, long long value, unsigned int user_enum, unsigned int mpi_enum);
 void ompi_sw_event_print_all(void);
 
 /* MPI_T utility functions */
-/*
+
 static int ompi_sw_event_notify(mca_base_pvar_t *pvar, mca_base_pvar_event_t event, void *obj_handle, int *count);
 long long ompi_sw_event_get_counter(int counter_id);
 static int ompi_sw_event_get_send(const struct mca_base_pvar_t *pvar, void *value, void *obj_handle);
-*/
+
 /* Functions for the PAPI sde component */
 void ompi_sde_init(void);
 /* PAPI sde component interface functions */
@@ -112,6 +113,9 @@ typedef void* papi_handle_t;
 #define SW_EVENT_TIMER_STOP(event_id, usec)  \
     ompi_sw_event_timer_stop(event_id, usec)
 
+#define SW_EVENT_USER_OR_MPI(tag, value, enum_if_user, enum_if_mpi) \
+    ompi_sw_event_user_or_mpi(tag, value, enum_if_user, enum_if_mpi)
+
 #define SW_EVENT_PRINT_ALL() \
     ompi_sw_event_print_all()
 
@@ -130,6 +134,9 @@ typedef void* papi_handle_t;
     do {} while (0)
 
 #define SW_EVENT_TIMER_STOP(event_id, usec)  \
+    do {} while (0)
+
+#define SW_EVENT_USER_OR_MPI(tag, value, enum_if_user, enum_if_mpi) \
     do {} while (0)
 
 #define SW_EVENT_PRINT_ALL() \

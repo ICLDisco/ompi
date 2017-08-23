@@ -113,12 +113,5 @@ int MPI_Bcast(void *buffer, int count, MPI_Datatype datatype,
     err = comm->c_coll->coll_bcast(buffer, count, datatype, root, comm,
                                   comm->c_coll->coll_bcast_module);
 
-    if(ompi_comm_rank(comm) == root){
-        SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, count * sizeof(datatype) * ((int)ompi_comm_size(comm)-1));
-    }
-    else{
-        SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_MPI, count * sizeof(datatype));
-    }
-
     OMPI_ERRHANDLER_RETURN(err, comm, err, FUNC_NAME);
 }

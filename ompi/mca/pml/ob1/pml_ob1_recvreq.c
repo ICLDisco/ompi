@@ -243,6 +243,7 @@ int mca_pml_ob1_recv_request_ack_send_btl(
     des->des_cbfunc = mca_pml_ob1_recv_ctl_completion;
 
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_ACK);
+    SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_MPI, (long long)size);
 
     if( OPAL_LIKELY( rc >= 0 ) ) {
         return OMPI_SUCCESS;
@@ -432,28 +433,8 @@ static int mca_pml_ob1_recv_request_put_frag (mca_pml_ob1_rdma_frag_t *frag)
     /* send rdma request to peer */
     rc = mca_bml_base_send (bml_btl, ctl, MCA_PML_OB1_HDR_TYPE_PUT);
 
-#ifdef SOFTWARE_EVENTS_ENABLE
-    volatile int64_t bytes_sent;
-    unsigned int i;
-    if(attached_event[OMPI_BYTES_SENT_USER] == 1){
-        if(recvreq->req_recv.req_base.req_tag >= 0){
-            bytes_sent = 0;
-            for(i = 0; i < ctl->des_segment_count; i++){
-                bytes_sent += ctl->des_segments[i].seg_len;
-            }
-            SW_EVENT_RECORD(OMPI_BYTES_SENT_USER, bytes_sent);
-        }
-    }
-    if(attached_event[OMPI_BYTES_SENT_MPI] == 1){
-        if(recvreq->req_recv.req_base.req_tag < 0){
-            bytes_sent = 0;
-            for(i = 0; i < ctl->des_segment_count; i++){
-                bytes_sent += ctl->des_segments[i].seg_len;
-            }
-            SW_EVENT_RECORD(OMPI_BYTES_SENT_MPI, bytes_sent);
-        }
-    }
-#endif
+    /* Increment counter for bytes_put even though they probably haven't all been received yet */
+    SW_EVENT_RECORD(OMPI_BYTES_PUT, frag->rdma_length);
 
     if (OPAL_UNLIKELY(rc < 0)) {
         mca_bml_base_free (bml_btl, ctl);
@@ -556,12 +537,7 @@ void mca_pml_ob1_recv_request_progress_frag( mca_pml_ob1_recv_request_t* recvreq
 
     OPAL_THREAD_ADD_SIZE_T(&recvreq->req_bytes_received, bytes_received);
 
-    if(recvreq->req_recv.req_base.req_tag >= 0){
-        SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_USER, (long long)bytes_received);
-    }
-    else{
-        SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_MPI, (long long)bytes_received);
-    }
+    SW_EVENT_USER_OR_MPI(recvreq->req_recv.req_base.req_tag, (long long)bytes_received, OMPI_BYTES_RECEIVED_USER, OMPI_BYTES_RECEIVED_MPI);
 
     /* check completion status */
     if(recv_request_pml_complete_check(recvreq) == false &&
@@ -925,12 +901,7 @@ void mca_pml_ob1_recv_request_progress_match( mca_pml_ob1_recv_request_t* recvre
      */
     recvreq->req_bytes_received += bytes_received;
 
-    if(recvreq->req_recv.req_base.req_tag >= 0){
-        SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_USER, (long long)bytes_received);
-    }
-    else{
-        SW_EVENT_RECORD(OMPI_BYTES_RECEIVED_MPI, (long long)bytes_received);
-    }
+    SW_EVENT_USER_OR_MPI(recvreq->req_recv.req_base.req_tag, (long long)bytes_received, OMPI_BYTES_RECEIVED_USER, OMPI_BYTES_RECEIVED_MPI);
 
     recv_request_pml_complete(recvreq);
 }
