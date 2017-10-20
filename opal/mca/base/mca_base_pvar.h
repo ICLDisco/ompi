@@ -319,7 +319,7 @@ OPAL_DECLSPEC int mca_base_pvar_register (const char *project, const char *frame
  * associated with a component.
  *
  * While quite similar to mca_base_pvar_register(), there is one key
- * difference: pvars registered this this function will automatically
+ * difference: pvars registered with this function will automatically
  * be unregistered / made unavailable when that component is closed by
  * its framework.
  */

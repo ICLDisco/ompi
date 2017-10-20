@@ -29,6 +29,7 @@
 #include "ompi_config.h"
 #include "opal/prefetch.h"
 #include "opal/mca/mpool/mpool.h"
+#include "ompi/runtime/ompi_software_events.h"
 #include "ompi/constants.h"
 #include "ompi/mca/pml/pml.h"
 #include "pml_ob1.h"
@@ -38,7 +39,6 @@
 #include "pml_ob1_recvreq.h"
 #include "ompi/mca/bml/base/base.h"
 #include "ompi/memchecker.h"
-
 
 OBJ_CLASS_INSTANCE(mca_pml_ob1_send_range_t, opal_free_list_item_t,
         NULL, NULL);
@@ -206,6 +206,8 @@ mca_pml_ob1_rndv_completion_request( mca_bml_base_btl_t* bml_btl,
     }
 
     OPAL_THREAD_ADD_SIZE_T(&sendreq->req_bytes_delivered, req_bytes_delivered);
+    SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, req_bytes_delivered,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
 
     /* advance the request */
     OPAL_THREAD_ADD32(&sendreq->req_state, -1);
@@ -262,6 +264,8 @@ mca_pml_ob1_rget_completion (mca_pml_ob1_rdma_frag_t *frag, int64_t rdma_length)
     /* count bytes of user data actually delivered and check for request completion */
     if (OPAL_LIKELY(0 < rdma_length)) {
         OPAL_THREAD_ADD_SIZE_T(&sendreq->req_bytes_delivered, (size_t) rdma_length);
+        SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, rdma_length,
+                             OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
     }
 
     send_request_pml_complete_check(sendreq);
@@ -315,6 +319,8 @@ mca_pml_ob1_frag_completion( mca_btl_base_module_t* btl,
 
     OPAL_THREAD_ADD32(&sendreq->req_pipeline_depth, -1);
     OPAL_THREAD_ADD_SIZE_T(&sendreq->req_bytes_delivered, req_bytes_delivered);
+    SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, req_bytes_delivered,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
 
     if(send_request_pml_complete_check(sendreq) == false) {
         mca_pml_ob1_send_request_schedule(sendreq);
@@ -350,6 +356,7 @@ mca_pml_ob1_copy_frag_completion( mca_btl_base_module_t* btl,
      * we just abort.  In theory, a new queue could be created to hold this
      * fragment and then attempt to send it out on another BTL. */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_FRAG);
+
     if(OPAL_UNLIKELY(rc < 0)) {
         opal_output(0, "%s:%d FATAL", __FILE__, __LINE__);
         ompi_rte_abort(-1, NULL);
@@ -449,6 +456,7 @@ int mca_pml_ob1_send_request_start_buffered(
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RNDV);
+
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_rndv_completion_request( bml_btl, sendreq, req_bytes_delivered);
@@ -495,8 +503,10 @@ int mca_pml_ob1_send_request_start_copy( mca_pml_ob1_send_request_t* sendreq,
                                  MCA_BTL_DES_FLAGS_PRIORITY | MCA_BTL_DES_FLAGS_BTL_OWNERSHIP,
                                  MCA_PML_OB1_HDR_TYPE_MATCH,
                                  &des);
+        
         if( OPAL_LIKELY(OMPI_SUCCESS == rc) ) {
             /* signal request completion */
+            SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, size, OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
             send_request_pml_complete(sendreq);
             return OMPI_SUCCESS;
         }
@@ -567,6 +577,10 @@ int mca_pml_ob1_send_request_start_copy( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send_status(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
+
+    SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, size,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
+
     if( OPAL_LIKELY( rc >= OPAL_SUCCESS ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_match_completion_free_request( bml_btl, sendreq );
@@ -627,6 +641,10 @@ int mca_pml_ob1_send_request_start_prepare( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
+
+    SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, size,
+                         OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
+
     if( OPAL_LIKELY( rc >= OPAL_SUCCESS ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_match_completion_free_request( bml_btl, sendreq );
@@ -731,6 +749,7 @@ int mca_pml_ob1_send_request_start_rdma( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RGET);
+
     if (OPAL_UNLIKELY(rc < 0)) {
         mca_bml_base_free(bml_btl, des);
         return rc;
@@ -811,6 +830,7 @@ int mca_pml_ob1_send_request_start_rndv( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_RNDV);
+
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_rndv_completion_request( bml_btl, sendreq, size );
@@ -1055,6 +1075,7 @@ cannot_pack:
 
         /* initiate send - note that this may complete before the call returns */
         rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_FRAG);
+
         if( OPAL_LIKELY(rc >= 0) ) {
             /* update state */
             range->range_btls[btl_idx].length -= size;
@@ -1127,6 +1148,8 @@ static void mca_pml_ob1_put_completion (mca_btl_base_module_t* btl, struct mca_b
 
         /* check for request completion */
         OPAL_THREAD_ADD_SIZE_T(&sendreq->req_bytes_delivered, frag->rdma_length);
+        SW_EVENT_USER_OR_MPI(sendreq->req_send.req_base.req_tag, frag->rdma_length,
+                             OMPI_BYTES_SENT_USER, OMPI_BYTES_SENT_MPI);
 
         send_request_pml_complete_check(sendreq);
     } else {
@@ -1177,6 +1200,10 @@ int mca_pml_ob1_send_request_put_frag( mca_pml_ob1_rdma_frag_t *frag )
     rc = mca_bml_base_put (bml_btl, frag->local_address, frag->remote_address, local_handle,
                            (mca_btl_base_registration_handle_t *) frag->remote_handle, frag->rdma_length,
                            0, MCA_BTL_NO_ORDER, mca_pml_ob1_put_completion, frag);
+
+    /* Count the bytes put even though they probably haven't been sent yet */
+    SW_EVENT_RECORD(OMPI_BYTES_PUT, frag->rdma_length);
+
     if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
         mca_pml_ob1_send_request_put_frag_failed (frag, rc);
         return rc;

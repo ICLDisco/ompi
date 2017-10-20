@@ -46,3 +46,4 @@ lib@OPAL_LIB_PREFIX@open_pal_la_SOURCES += \
         runtime/opal_cr.c \
         runtime/opal_info_support.c \
         runtime/opal_progress_threads.c
+

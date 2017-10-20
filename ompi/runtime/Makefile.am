@@ -25,9 +25,11 @@ dist_ompidata_DATA += runtime/help-mpi-runtime.txt
 
 headers += \
         runtime/mpiruntime.h \
-	runtime/ompi_cr.h \
+		runtime/ompi_cr.h \
         runtime/params.h \
-	runtime/ompi_info_support.h
+		runtime/ompi_info_support.h \
+		runtime/ompi_software_events.h \
+		runtime/papi_sde_interface.h
 
 lib@OMPI_LIBMPI_NAME@_la_SOURCES += \
         runtime/ompi_mpi_abort.c \
@@ -36,5 +38,7 @@ lib@OMPI_LIBMPI_NAME@_la_SOURCES += \
         runtime/ompi_mpi_finalize.c \
         runtime/ompi_mpi_params.c \
         runtime/ompi_mpi_preconnect.c \
-	runtime/ompi_cr.c \
-	runtime/ompi_info_support.c
+		runtime/ompi_cr.c \
+		runtime/ompi_info_support.c \
+		runtime/ompi_software_events.c \
+		runtime/papi_sde_interface.c
