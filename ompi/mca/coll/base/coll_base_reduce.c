@@ -353,6 +353,41 @@ int ompi_coll_base_reduce_generic( const void* sendbuf, void* recvbuf, int origi
    - segment sizes which are not multiplies of the extent of the datatype
      meaning that at least one datatype must fit in the segment !
 */
+int ompi_coll_base_reduce_intra_topoaware_chain( const void *sendbuf, void *recvbuf,
+                                       int count, ompi_datatype_t* datatype,
+                                       ompi_op_t* op, int root,
+                                       ompi_communicator_t* comm,
+                                       mca_coll_base_module_t *module,
+                                       uint32_t segsize,
+                                       int max_outstanding_reqs  )
+{
+    int segcount = count;
+    size_t typelng;
+    mca_coll_base_module_t *base_module = (mca_coll_base_module_t*) module;
+    mca_coll_base_comm_t *data = base_module->base_data;
+    
+    if( !( (data->cached_topochain) && (data->cached_topochain_root == root) ) ) {
+        if( data->cached_topochain ) { /* destroy previous binomial if defined */
+            ompi_coll_base_topo_destroy_tree( &(data->cached_topochain) );
+        }
+        data->cached_topochain = ompi_coll_base_topo_build_topoaware_chain(comm, root, module, 3, 0, NULL);
+        data->cached_topochain_root = root;
+    }
+    OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:reduce_intra_topochain rank %d ss %5d", ompi_comm_rank(comm), segsize));
+    
+    /**
+     * Determine number of segments and number of elements
+     * sent per operation
+     */
+    ompi_datatype_type_size( datatype, &typelng );
+    COLL_BASE_COMPUTED_SEGCOUNT( segsize, typelng, segcount );
+    
+    return ompi_coll_base_reduce_generic( sendbuf, recvbuf, count, datatype,
+                                         op, root, comm, module,
+                                         data->cached_topochain,
+                                         segcount, max_outstanding_reqs );
+    
+}
 
 int ompi_coll_base_reduce_intra_chain( const void *sendbuf, void *recvbuf, int count,
                                         ompi_datatype_t* datatype,
@@ -383,6 +418,7 @@ int ompi_coll_base_reduce_intra_chain( const void *sendbuf, void *recvbuf, int c
                                            segcount, max_outstanding_reqs );
 }
 
+int t_count = 0;
 
 int ompi_coll_base_reduce_intra_pipeline( const void *sendbuf, void *recvbuf,
                                            int count, ompi_datatype_t* datatype,
@@ -392,6 +428,9 @@ int ompi_coll_base_reduce_intra_pipeline( const void *sendbuf, void *recvbuf,
                                            uint32_t segsize,
                                            int max_outstanding_reqs  )
 {
+    if(t_count++ == 0){
+        printf("Base reduce pipeline\n");
+    }
     int segcount = count;
     size_t typelng;
     mca_coll_base_module_t *base_module = (mca_coll_base_module_t*) module;

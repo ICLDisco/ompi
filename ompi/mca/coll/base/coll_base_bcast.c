@@ -225,6 +225,42 @@ ompi_coll_base_bcast_intra_generic( void* buffer,
     return err;
 }
 
+
+int
+ompi_coll_base_bcast_intra_topoaware_chain ( void* buffer,
+                                             int count,
+                                             struct ompi_datatype_t* datatype,
+                                             int root,
+                                             struct ompi_communicator_t* comm,
+                                             mca_coll_base_module_t *module,
+                                             uint32_t segsize )
+{
+    //printf("In topoaware chain\n");
+    int segcount = count;
+    size_t typelng;
+    mca_coll_base_comm_t *data = module->base_data;
+    
+    if( !( (data->cached_topochain) && (data->cached_topochain_root == root) ) ) {
+        if( data->cached_topochain ) { /* destroy previous binomial if defined */
+            ompi_coll_base_topo_destroy_tree( &(data->cached_topochain) );
+        }
+        data->cached_topochain = ompi_coll_base_topo_build_topoaware_chain(comm, root, module, 3, 0, NULL);
+        data->cached_topochain_root = root;
+    }
+    
+    /**
+     * Determine number of elements sent per operation.
+     */
+    ompi_datatype_type_size( datatype, &typelng );
+    COLL_BASE_COMPUTED_SEGCOUNT( segsize, typelng, segcount );
+    
+    OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:bcast_intra_topoaware_chain rank %d ss %5d typelng %lu segcount %d",
+                 ompi_comm_rank(comm), segsize, (unsigned long)typelng, segcount));
+    
+    return ompi_coll_base_bcast_intra_generic( buffer, count, datatype, root, comm, module,
+                                              segcount, data->cached_topochain );
+}
+
 int
 ompi_coll_base_bcast_intra_bintree ( void* buffer,
                                       int count,

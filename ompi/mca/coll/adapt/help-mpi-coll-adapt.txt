@@ -1,0 +1,29 @@
+# -*- text -*-
+#
+# Copyright (c) 2014      The University of Tennessee and The University
+#                         of Tennessee Research Foundation.  All rights
+#                         reserved.
+# $COPYRIGHT$
+# 
+# Additional copyrights may follow
+# 
+# $HEADER$
+#
+# This is the US/English general help file for Open MPI's Shared memory
+# collective component.
+#
+[tree-degree-larger-than-control]
+The specified shared memory collective tree degree
+(coll_sm_tree_degree = %d) is too large.  It must be less than or
+equal to the control size (coll_sm_control_size = %d).
+
+Automatically adjusting the tree degree to be equal to the control
+size and continuing...
+#
+[tree-degree-larger-than-255]
+The specified shared memory collective tree degree
+(coll_sm_tree_degree = %d) is too large.  It must be less than or
+equal to 255.
+
+Automatically adjusting the tree degree to be 255 and continuing...
+#

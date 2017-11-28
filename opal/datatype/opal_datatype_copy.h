@@ -39,7 +39,8 @@
 #define _contiguous_loop        DT_CONCAT(MEM_OP_NAME,_contiguous_loop)
 #define _copy_content_same_ddt  DT_CONCAT(MEM_OP_NAME,_copy_content_same_ddt)
 
-static inline void _predefined_data( const dt_elem_desc_t* ELEM,
+static inline void _predefined_data( const opal_datatype_t* datatype,
+                                     const dt_elem_desc_t* ELEM,
                                      const opal_datatype_t* DATATYPE,
                                      unsigned char* SOURCE_BASE,
                                      size_t TOTAL_COUNT,
@@ -63,7 +64,11 @@ static inline void _predefined_data( const dt_elem_desc_t* ELEM,
         /* the extent and the size of the basic datatype are equals */
         DO_DEBUG( opal_output( 0, "copy 1. %s( %p, %p, %lu ) => space %lu\n",
                                STRINGIFY(MEM_OP_NAME), (void*)_destination, (void*)_source, (unsigned long)_copy_blength, (unsigned long)(*(SPACE)) ); );
-        MEM_OP( _destination, _source, _copy_blength );
+        if (datatype->flags & OPAL_DATATYPE_FLAG_GPU_MEMCPY_ASYNC) {
+            MEM_OP_ASYNC( _destination, _source, _copy_blength );
+        } else {
+            MEM_OP( _destination, _source, _copy_blength );
+        }
         _source      += _copy_blength;
         _destination += _copy_blength;
     } else {
@@ -73,7 +78,11 @@ static inline void _predefined_data( const dt_elem_desc_t* ELEM,
                                         (DATATYPE), (TOTAL_COUNT) );
             DO_DEBUG( opal_output( 0, "copy 2. %s( %p, %p, %lu ) => space %lu\n",
                                    STRINGIFY(MEM_OP_NAME), (void*)_destination, (void*)_source, (unsigned long)_copy_blength, (unsigned long)(*(SPACE) - (_i * _copy_blength)) ); );
-            MEM_OP( _destination, _source, _copy_blength );
+            if (datatype->flags & OPAL_DATATYPE_FLAG_GPU_MEMCPY_ASYNC) {
+                MEM_OP_ASYNC( _destination, _source, _copy_blength );
+            } else {
+                MEM_OP( _destination, _source, _copy_blength );
+            }
             _source      += _elem->extent;
             _destination += _elem->extent;
         }
@@ -82,7 +91,8 @@ static inline void _predefined_data( const dt_elem_desc_t* ELEM,
     *(SPACE)      -= _copy_blength;
 }
 
-static inline void _contiguous_loop( const dt_elem_desc_t* ELEM,
+static inline void _contiguous_loop( const opal_datatype_t* datatype,
+                                     const dt_elem_desc_t* ELEM,
                                      const opal_datatype_t* DATATYPE,
                                      unsigned char* SOURCE_BASE,
                                      size_t TOTAL_COUNT,
@@ -102,14 +112,22 @@ static inline void _contiguous_loop( const dt_elem_desc_t* ELEM,
         _copy_loops *= _end_loop->size;
         OPAL_DATATYPE_SAFEGUARD_POINTER( _source, _copy_loops, (SOURCE_BASE),
                                     (DATATYPE), (TOTAL_COUNT) );
-        MEM_OP( _destination, _source, _copy_loops );
+        if (datatype->flags & OPAL_DATATYPE_FLAG_GPU_MEMCPY_ASYNC) {
+            MEM_OP_ASYNC( _destination, _source, _copy_loops );
+        } else {
+            MEM_OP( _destination, _source, _copy_loops );
+        }
     } else {
         for( _i = 0; _i < _copy_loops; _i++ ) {
             OPAL_DATATYPE_SAFEGUARD_POINTER( _source, _end_loop->size, (SOURCE_BASE),
                                         (DATATYPE), (TOTAL_COUNT) );
             DO_DEBUG( opal_output( 0, "copy 3. %s( %p, %p, %lu ) => space %lu\n",
                                    STRINGIFY(MEM_OP_NAME), (void*)_destination, (void*)_source, (unsigned long)_end_loop->size, (unsigned long)(*(SPACE) - _i * _end_loop->size) ); );
-            MEM_OP( _destination, _source, _end_loop->size );
+            if (datatype->flags & OPAL_DATATYPE_FLAG_GPU_MEMCPY_ASYNC) {
+                MEM_OP_ASYNC( _destination, _source, _end_loop->size );
+            } else {
+                MEM_OP( _destination, _source, _end_loop->size );
+            }
             _source      += _loop->extent;
             _destination += _loop->extent;
         }
@@ -157,7 +175,11 @@ static inline int32_t _copy_content_same_ddt( const opal_datatype_t* datatype, i
                                             (unsigned char*)source_base, datatype, count );
                 DO_DEBUG( opal_output( 0, "copy c1. %s( %p, %p, %lu ) => space %lu\n",
                                        STRINGIFY(MEM_OP_NAME), (void*)destination, (void*)source, (unsigned long)memop_chunk, (unsigned long)total_length ); );
-                MEM_OP( destination, source, memop_chunk );
+                if (datatype->flags & OPAL_DATATYPE_FLAG_GPU_MEMCPY_ASYNC) {
+                    MEM_OP_ASYNC( destination, source, memop_chunk );
+                } else {
+                    MEM_OP( destination, source, memop_chunk );
+                }
                 destination   += memop_chunk;
                 source        += memop_chunk;
                 total_length  -= memop_chunk;
@@ -172,7 +194,11 @@ static inline int32_t _copy_content_same_ddt( const opal_datatype_t* datatype, i
             DO_DEBUG( opal_output( 0, "copy c2. %s( %p, %p, %lu ) => space %lu\n",
                                    STRINGIFY(MEM_OP_NAME), (void*)destination, (void*)source, (unsigned long)datatype->size,
                                    (unsigned long)(iov_len_local - (pos_desc * datatype->size)) ); );
-            MEM_OP( destination, source, datatype->size );
+            if (datatype->flags & OPAL_DATATYPE_FLAG_GPU_MEMCPY_ASYNC) {
+                MEM_OP_ASYNC( destination, source, datatype->size );
+            } else {
+                MEM_OP( destination, source, datatype->size );
+            }
             destination += extent;
             source += extent;
         }
@@ -201,7 +227,7 @@ static inline int32_t _copy_content_same_ddt( const opal_datatype_t* datatype, i
     while( 1 ) {
         while( OPAL_LIKELY(pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA) ) {
             /* now here we have a basic datatype */
-            _predefined_data( pElem, datatype, (unsigned char*)source_base, count, count_desc,
+            _predefined_data( datatype, pElem, datatype, (unsigned char*)source_base, count, count_desc,
                               source, destination, &iov_len_local );
             pos_desc++;  /* advance to the next data */
             UPDATE_INTERNAL_COUNTERS( description, pos_desc, pElem, count_desc );
@@ -235,7 +261,7 @@ static inline int32_t _copy_content_same_ddt( const opal_datatype_t* datatype, i
         if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
             ptrdiff_t local_disp = (ptrdiff_t)source;
             if( pElem->loop.common.flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
-                _contiguous_loop( pElem, datatype, (unsigned char*)source_base, count, count_desc,
+                _contiguous_loop( datatype, pElem, datatype, (unsigned char*)source_base, count, count_desc,
                                   source, destination, &iov_len_local );
                 pos_desc += pElem->loop.items + 1;
                 goto update_loop_description;

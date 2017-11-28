@@ -105,6 +105,27 @@ coll_base_comm_destruct(mca_coll_base_comm_t *data)
     if (data->cached_in_order_bintree) { /* destroy in order bintree if defined */
         ompi_coll_base_topo_destroy_tree (&data->cached_in_order_bintree);
     }
+    if (data->cached_linear) {
+        ompi_coll_base_topo_destroy_tree (&data->cached_linear);
+    }
+    if (data->cached_topolinear) {
+        ompi_coll_base_topo_destroy_tree (&data->cached_topolinear);
+    }
+    if (data->cached_topochain) {
+        ompi_coll_base_topo_destroy_tree (&data->cached_topochain);
+    }
+    if (data->cached_two_trees_binary) {
+        ompi_coll_base_topo_destroy_two_trees (data->cached_two_trees_binary);
+    }
+    if (data->cached_two_trees_binomial) {
+        ompi_coll_base_topo_destroy_two_trees (data->cached_two_trees_binomial);
+    }
+    if (data->cached_topo) {
+        free(data->cached_topo);
+    }
+    if (data->cached_ranks_a) {
+        free(data->cached_ranks_a);
+    }
 }
 
 OBJ_CLASS_INSTANCE(mca_coll_base_comm_t, opal_object_t,

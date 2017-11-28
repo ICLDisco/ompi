@@ -37,7 +37,7 @@
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
-int
+int 
 mca_coll_base_alltoallv_intra_basic_inplace(const void *rbuf, const int *rcounts, const int *rdisps,
                                             struct ompi_datatype_t *rdtype,
                                             struct ompi_communicator_t *comm,
@@ -136,8 +136,7 @@ ompi_coll_base_alltoallv_intra_pairwise(const void *sbuf, const int *scounts, co
     if (MPI_IN_PLACE == sbuf) {
         return mca_coll_base_alltoallv_intra_basic_inplace (rbuf, rcounts, rdisps,
                                                              rdtype, comm, module);
-    }
-
+    } 
     size = ompi_comm_size(comm);
     rank = ompi_comm_rank(comm);
 
@@ -204,7 +203,6 @@ ompi_coll_base_alltoallv_intra_basic_linear(const void *sbuf, const int *scounts
         return  mca_coll_base_alltoallv_intra_basic_inplace (rbuf, rcounts, rdisps,
                                                               rdtype, comm, module);
     }
-
     size = ompi_comm_size(comm);
     rank = ompi_comm_rank(comm);
 

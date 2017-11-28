@@ -62,10 +62,12 @@ static void ompi_request_construct(ompi_request_t* req)
     req->req_complete_cb_data = NULL;
     req->req_f_to_c_index = MPI_UNDEFINED;
     req->req_mpi_object.comm = (struct ompi_communicator_t*) NULL;
+    req->req_lock = OBJ_NEW(opal_mutex_t);
 }
 
 static void ompi_request_destruct(ompi_request_t* req)
 {
+    OBJ_RELEASE(req->req_lock);
     assert( MPI_UNDEFINED == req->req_f_to_c_index );
     assert( OMPI_REQUEST_INVALID == req->req_state );
 }

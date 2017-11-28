@@ -220,6 +220,7 @@ int ompi_coll_base_bcast_intra_pipeline(BCAST_ARGS, uint32_t segsize);
 int ompi_coll_base_bcast_intra_binomial(BCAST_ARGS, uint32_t segsize);
 int ompi_coll_base_bcast_intra_bintree(BCAST_ARGS, uint32_t segsize);
 int ompi_coll_base_bcast_intra_split_bintree(BCAST_ARGS, uint32_t segsize);
+int ompi_coll_base_bcast_intra_topoaware_chain(BCAST_ARGS, uint32_t segsize);
 
 /* Exscan */
 
@@ -233,6 +234,7 @@ int ompi_coll_base_gather_intra_linear_sync(GATHER_ARGS, int first_segment_size)
 /* Reduce */
 int ompi_coll_base_reduce_generic(REDUCE_ARGS, ompi_coll_tree_t* tree, int count_by_segment, int max_outstanding_reqs);
 int ompi_coll_base_reduce_intra_basic_linear(REDUCE_ARGS);
+int ompi_coll_base_reduce_intra_topoaware_chain(REDUCE_ARGS, uint32_t segsize, int max_outstanding_reqs );
 int ompi_coll_base_reduce_intra_chain(REDUCE_ARGS, uint32_t segsize, int fanout, int max_outstanding_reqs );
 int ompi_coll_base_reduce_intra_pipeline(REDUCE_ARGS, uint32_t segsize, int max_outstanding_reqs );
 int ompi_coll_base_reduce_intra_binary(REDUCE_ARGS, uint32_t segsize, int max_outstanding_reqs );
@@ -427,6 +429,35 @@ struct mca_coll_base_comm_t {
 
     /* in-order binary tree (root of the in-order binary tree is rank 0) */
     ompi_coll_tree_t *cached_in_order_bintree;
+    
+    /* linear */
+    ompi_coll_tree_t *cached_linear;
+    int cached_linear_root;
+    
+    /* topo linear */
+    ompi_coll_tree_t *cached_topolinear;
+    int cached_topolinear_root;
+    
+    /* topo chain */
+    ompi_coll_tree_t *cached_topochain;
+    int cached_topochain_root;
+    
+    /* two tree binary */
+    ompi_coll_tree_t **cached_two_trees_binary;
+    int cached_two_trees_binary_root;
+    
+    /* two tree binomial */
+    ompi_coll_tree_t **cached_two_trees_binomial;
+    int cached_two_trees_binomial_root;
+    
+    /* two chains */
+    ompi_coll_tree_t **cached_two_chains;
+    int cached_two_chains_root;
+    
+    /* topo */
+    int *cached_topo;
+    struct ompi_communicator_t* cached_old_comm;
+    int *cached_ranks_a;
 };
 typedef struct mca_coll_base_comm_t mca_coll_base_comm_t;
 OMPI_DECLSPEC OBJ_CLASS_DECLARATION(mca_coll_base_comm_t);

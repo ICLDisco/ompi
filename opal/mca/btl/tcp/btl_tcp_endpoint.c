@@ -989,7 +989,6 @@ static void mca_btl_tcp_endpoint_send_handler(int sd, short flags, void* user)
     /* if another thread is already here, give up */
     if( OPAL_THREAD_TRYLOCK(&btl_endpoint->endpoint_send_lock) )
         return;
-
     switch(btl_endpoint->endpoint_state) {
     case MCA_BTL_TCP_CONNECTING:
         mca_btl_tcp_endpoint_complete_connect(btl_endpoint);

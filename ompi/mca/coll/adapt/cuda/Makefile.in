@@ -1,0 +1,58 @@
+@SET_MAKE@
+
+AM_CPPFLAGS = @common_cuda_CPPFLAGS@
+srcdir = @srcdir@
+top_builddir = @top_builddir@
+top_srcdir = @top_srcdir@
+VPATH = @srcdir@
+
+NVCC       = nvcc
+ARCH       = @AR@
+ARCHFLAGS  = cr
+STLIB     ?= mca_coll_adapt_cuda_kernel.a
+DYLIB     ?= mca_coll_adapt_cuda_kernel.so
+EXTLIB     =
+subdir     = ompi/mca/coll/adapt/cuda
+
+CFLAGS  = -I$(top_builddir)/ompi/include -I$(top_srcdir)/ompi/include -I$(top_builddir)/opal/include -I$(top_srcdir)/opal/include -I$(top_builddir) -I$(top_srcdir)  --compiler-options '-fPIC -g'
+LDFLAGS = -shared --compiler-options '-fPIC @LDFLAGS@'
+
+SRC := \
+    coll_adapt_cuda.cu
+
+OBJ := $(SRC:.cu=.o)
+
+.PHONY: all clean cleanall
+
+all: Makefile $(STLIB) $(DYLIB)
+
+Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+	@case '$?' in \
+	  *config.status*) \
+	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+	  *) \
+	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe);; \
+	esac;
+
+$(STLIB): $(OBJ)
+	$(ARCH) $(ARCHFLAGS) $@ $(OBJ) 
+	@RANLIB@ $@
+
+$(DYLIB): $(OBJ)
+	$(NVCC) $(LDFLAGS) $(EXTLIB) -o $(DYLIB) $(OBJ)
+
+%.o: %.cu
+	$(NVCC) $(CFLAGS) $(EXTLIB) $(INC) -c $< -o $@ 
+
+install: $(DYLIB)
+	mkdir -p @OMPI_WRAPPER_LIBDIR@
+	cp -f $(DYLIB) @OMPI_WRAPPER_LIBDIR@/
+
+clean:
+	rm -f $(OBJ) $(STLIB) $(DYLIB)
+
+cleanall: clean
+	rm -f $(STLIB) $(DYLIB)
+
+check:

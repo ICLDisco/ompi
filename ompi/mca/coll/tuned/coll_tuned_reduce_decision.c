@@ -41,6 +41,7 @@ static mca_base_var_enum_value_t reduce_algorithms[] = {
     {4, "binary"},
     {5, "binomial"},
     {6, "in-order_binary"},
+    {7, "topo_chain"},
     {0, NULL}
 };
 
@@ -79,7 +80,7 @@ int ompi_coll_tuned_reduce_intra_check_forced_init (coll_tuned_force_algorithm_m
     mca_param_indices->algorithm_param_index =
         mca_base_component_var_register(&mca_coll_tuned_component.super.collm_version,
                                         "reduce_algorithm",
-                                        "Which reduce algorithm is used. Can be locked down to choice of: 0 ignore, 1 linear, 2 chain, 3 pipeline, 4 binary, 5 binomial, 6 in-order binary",
+                                        "Which reduce algorithm is used. Can be locked down to choice of: 0 ignore, 1 linear, 2 chain, 3 pipeline, 4 binary, 5 binomial, 6 in-order binary, 7 topology-aware chain",
                                         MCA_BASE_VAR_TYPE_INT, new_enum, 0, MCA_BASE_VAR_FLAG_SETTABLE,
                                         OPAL_INFO_LVL_5,
                                         MCA_BASE_VAR_SCOPE_ALL,
@@ -173,6 +174,9 @@ int ompi_coll_tuned_reduce_intra_do_this(const void *sbuf, void* rbuf, int count
     case (6):  return ompi_coll_base_reduce_intra_in_order_binary(sbuf, rbuf, count, dtype,
                                                                   op, root, comm, module,
                                                                   segsize, max_requests);
+    case (7): return ompi_coll_base_reduce_intra_topoaware_chain(sbuf, rbuf, count, dtype,
+                                                                     op, root, comm, module,
+                                                                     segsize, max_requests);
     } /* switch */
     OPAL_OUTPUT((ompi_coll_tuned_stream,"coll:tuned:reduce_intra_do_this attempt to select algorithm %d when only 0-%d is valid?",
                  algorithm, ompi_coll_tuned_forced_max_algorithms[REDUCE]));

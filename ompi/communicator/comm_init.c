@@ -377,6 +377,10 @@ static void ompi_comm_construct(ompi_communicator_t* comm)
     comm->error_handler  = NULL;
     comm->c_pml_comm     = NULL;
     comm->c_topo         = NULL;
+    /* For adapt module */
+    comm->c_ibcast_tag = 0;
+    comm->c_ireduce_tag = 0;
+    comm->c_iallreduce_tag = 0;
     comm->c_coll         = NULL;
 
     /* A keyhash will be created if/when an attribute is cached on

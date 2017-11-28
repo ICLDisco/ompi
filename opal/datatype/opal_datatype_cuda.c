@@ -132,6 +132,20 @@ void *opal_cuda_memcpy_sync(void *dest, const void *src, size_t size)
     }
 }
 
+void *opal_cuda_memcpy_async(void *dest, const void *src, size_t size)
+{
+    int res;
+    res = ftable.gpu_cu_memcpy_async(dest, (void *)src, size, NULL);
+    if (res != 0) {
+        opal_output(0, "CUDA: Error in cuMemcpyAsync: res=%d, dest=%p, src=%p, size=%d",
+                    res, dest, src, (int)size);
+        abort();
+        return NULL;    
+    } else {
+        return dest;
+    }
+}
+
 /*
  * In some cases, need an implementation of memmove.  This is not fast, but
  * it is not often needed.

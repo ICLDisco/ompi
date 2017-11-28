@@ -1399,6 +1399,10 @@ m4_ifdef([project_oshmem],
 
 opal_show_subtitle "Final output"
 
+if test "$OPAL_cuda_support" != "0"; then
+    AC_CONFIG_FILES([ompi/mca/coll/adapt/cuda/Makefile])
+fi
+
 AC_CONFIG_FILES([
     Makefile
 

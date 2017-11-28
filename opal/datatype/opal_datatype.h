@@ -71,6 +71,7 @@ BEGIN_C_DECLS
 #define OPAL_DATATYPE_FLAG_USER_LB       0x0040  /**< has a user defined LB */
 #define OPAL_DATATYPE_FLAG_USER_UB       0x0080  /**< has a user defined UB */
 #define OPAL_DATATYPE_FLAG_DATA          0x0100  /**< data or control structure */
+#define OPAL_DATATYPE_FLAG_GPU_MEMCPY_ASYNC     0x8000  /**< use async memcpy to copy gpu datatype */
 /*
  * We should make the difference here between the predefined contiguous and non contiguous
  * datatypes. The OPAL_DATATYPE_FLAG_BASIC is held by all predefined contiguous datatypes.
