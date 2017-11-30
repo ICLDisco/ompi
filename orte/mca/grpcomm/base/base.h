@@ -84,10 +84,15 @@ ORTE_DECLSPEC int orte_grpcomm_API_allgather(orte_grpcomm_signature_t *sig,
                                              opal_buffer_t *buf,
                                              orte_grpcomm_cbfunc_t cbfunc,
                                              void *cbdata);
+ORTE_DECLSPEC int orte_grpcomm_API_rbcast(orte_grpcomm_signature_t *sig,
+                                         orte_rml_tag_t tag,
+                                         opal_buffer_t *buf);
+ORTE_DECLSPEC int orte_grpcomm_API_register_cb(orte_grpcomm_rbcast_cb_t callback);
 
 ORTE_DECLSPEC orte_grpcomm_coll_t* orte_grpcomm_base_get_tracker(orte_grpcomm_signature_t *sig, bool create);
 ORTE_DECLSPEC void orte_grpcomm_base_mark_distance_recv(orte_grpcomm_coll_t *coll, uint32_t distance);
 ORTE_DECLSPEC unsigned int orte_grpcomm_base_check_distance_recv(orte_grpcomm_coll_t *coll, uint32_t distance);
+ORTE_DECLSPEC int create_dmns(orte_grpcomm_signature_t *sig,orte_vpid_t **dmns, size_t *ndmns);
 
 END_C_DECLS
 #endif

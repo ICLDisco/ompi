@@ -75,6 +75,7 @@
 #include "orte/mca/state/state.h"
 #include "orte/mca/filem/filem.h"
 #include "orte/mca/dfs/dfs.h"
+#include "orte/mca/propagate/propagate.h"
 
 #include "orte/util/context_fns.h"
 #include "orte/util/name_fns.h"
@@ -100,6 +101,13 @@
 
 #include "orte/mca/odls/base/base.h"
 #include "orte/mca/odls/base/odls_private.h"
+#include "orte/orted/pmix/pmix_server.h"
+
+static void notifycbfunc(int status, void *cbdata)
+{
+    OPAL_OUTPUT_VERBOSE((5, orte_odls_base_framework.framework_output,
+                "%s odls: notify call back",ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
+}
 
 /* IT IS CRITICAL THAT ANY CHANGE IN THE ORDER OF THE INFO PACKED IN
  * THIS FUNCTION BE REFLECTED IN THE CONSTRUCT_CHILD_LIST PARSER BELOW
@@ -1329,11 +1337,15 @@ void ompi_odls_base_default_wait_local_proc(orte_proc_t *proc, void* cbdata)
     orte_job_t *jobdat;
     orte_proc_state_t state=ORTE_PROC_STATE_WAITPID_FIRED;
     orte_proc_t *cptr;
+    /* event codes for error propagating */
+    opal_list_t* einfo;
+    opal_value_t *kv;
 
     opal_output_verbose(5, orte_odls_base_framework.framework_output,
                         "%s odls:wait_local_proc child process %s pid %ld terminated",
                         ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                         ORTE_NAME_PRINT(&proc->name), (long)proc->pid);
+
 
     /* if the child was previously flagged as dead, then just
      * update its exit status and
@@ -1373,6 +1385,7 @@ void ompi_odls_base_default_wait_local_proc(orte_proc_t *proc, void* cbdata)
         /* regardless of our eventual code path, we need to
          * flag that this proc has had its waitpid fired */
         ORTE_FLAG_SET(proc, ORTE_PROC_FLAG_WAITPID);
+
         goto MOVEON;
     }
 
@@ -1521,6 +1534,27 @@ void ompi_odls_base_default_wait_local_proc(orte_proc_t *proc, void* cbdata)
                              "%s odls:waitpid_fired child process %s terminated with signal",
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                              ORTE_NAME_PRINT(&proc->name) ));
+
+        /* register an event handler for the OPAL_ERR_PROC_ABORTED event */
+        einfo = OBJ_NEW(opal_list_t);
+        kv = OBJ_NEW(opal_value_t);
+        kv->key = strdup(OPAL_PMIX_EVENT_AFFECTED_PROC);
+        kv->type = OPAL_NAME;
+        kv->data.name.jobid = proc->name.jobid;
+        kv->data.name.vpid = proc->name.vpid;
+        opal_list_append(einfo, &kv->super);
+
+        if (OPAL_SUCCESS != opal_pmix.notify_event(OPAL_ERR_PROC_ABORTED, (opal_process_name_t*)ORTE_PROC_MY_NAME,
+                    OPAL_PMIX_RANGE_LOCAL,einfo,
+                    NULL,NULL )) {
+            OPAL_OUTPUT_VERBOSE((5, orte_odls_base_framework.framework_output,
+                        "%s odls:notify failed, release einfo",ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
+            OBJ_RELEASE(einfo);
+        }
+        OPAL_OUTPUT_VERBOSE((5, orte_odls_base_framework.framework_output,
+                    "%s odls:event notify in odls proc %d:%d gone",
+                    ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), proc->name.jobid,proc->name.vpid));
+
         /* Do not decrement the number of local procs here. That is handled in the errmgr */
     }
 

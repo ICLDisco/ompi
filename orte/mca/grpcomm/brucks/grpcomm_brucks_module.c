@@ -51,7 +51,10 @@ orte_grpcomm_base_module_t orte_grpcomm_brucks_module = {
     init,
     finalize,
     NULL,
-    allgather
+    allgather,
+    NULL,
+    NULL,
+    NULL
 };
 
 /**

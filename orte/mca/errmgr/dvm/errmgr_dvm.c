@@ -74,7 +74,8 @@ orte_errmgr_base_module_t orte_errmgr_dvm_module = {
     .finalize = finalize,
     .logfn = orte_errmgr_base_log,
     .abort = orte_errmgr_base_abort,
-    .abort_peers = orte_errmgr_base_abort_peers
+    .abort_peers = orte_errmgr_base_abort_peers,
+    NULL
 };
 
 

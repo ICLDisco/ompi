@@ -175,6 +175,17 @@ BEGIN_C_DECLS
 /* warmup connection - simply establishes the connection */
 #define ORTE_RML_TAG_WARMUP_CONNECTION      63
 
+/* heartbeat request */
+#define ORTE_RML_TAG_HEARTBEAT_REQUEST      68
+
+/* error propagate  */
+#define ORTE_RML_TAG_PROPAGATE              99
+
+/* error propagate  */
+#define ORTE_RML_TAG_RBCAST                 64
+#define ORTE_RML_TAG_BMGXCAST               65
+#define ORTE_RML_TAG_ALLGATHER_BMG          66
+#define ORTE_RML_TAG_BMG_COLL_RELEASE       67
 #define ORTE_RML_TAG_MAX                   100
 
 

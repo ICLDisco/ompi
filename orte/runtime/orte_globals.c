@@ -214,6 +214,9 @@ bool orte_in_parallel_debugger = false;
 
 char *orte_daemon_cores = NULL;
 
+/* enable/disable value for errmgr error detector */
+bool orte_errmgr_detector_enable_flag = false;
+
 int orte_dt_init(void)
 {
     int rc;

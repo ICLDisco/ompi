@@ -60,6 +60,7 @@
 #include "orte/mca/odls/base/base.h"
 #include "orte/mca/errmgr/errmgr.h"
 #include "orte/mca/rmaps/base/base.h"
+#include "orte/mca/propagate/base/base.h"
 #if OPAL_ENABLE_FT_CR == 1
 #include "orte/mca/snapc/base/base.h"
 #include "orte/mca/sstore/base/base.h"
@@ -225,6 +226,12 @@ int orte_ess_base_orted_setup(void)
     if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_errmgr_base_framework, 0))) {
         ORTE_ERROR_LOG(ret);
         error = "orte_errmgr_base_open";
+        goto error;
+    }
+    /* open the propagate */
+    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_propagate_base_framework, 0))) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_propagate_base_open";
         goto error;
     }
     /* some environments allow remote launches - e.g., ssh - so
@@ -453,6 +460,13 @@ int orte_ess_base_orted_setup(void)
     if (ORTE_SUCCESS != (ret = orte_errmgr_base_select())) {
         ORTE_ERROR_LOG(ret);
         error = "orte_errmgr_base_select";
+        goto error;
+    }
+
+    /* select the propagate */
+    if (ORTE_SUCCESS != (ret = orte_propagate_base_select())) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_propagate_base_select";
         goto error;
     }
 
@@ -707,8 +721,18 @@ int orte_ess_base_orted_finalize(void)
     }
     /* shutdown the pmix server */
     pmix_server_finalize();
+
     (void) mca_base_framework_close(&opal_pmix_base_framework);
 
+    if ( NULL != orte_propagate.finalize ) {
+        orte_propagate.finalize();
+    }
+    (void) mca_base_framework_close(&orte_propagate_base_framework);
+
+    if ( NULL != orte_errmgr.finalize ) {
+        orte_errmgr.finalize();
+    }
+    (void) mca_base_framework_close(&orte_errmgr_base_framework);
     /* release the conduits */
     orte_rml.close_conduit(orte_mgmt_conduit);
     orte_rml.close_conduit(orte_coll_conduit);
@@ -717,7 +741,6 @@ int orte_ess_base_orted_finalize(void)
     (void) mca_base_framework_close(&orte_filem_base_framework);
     (void) mca_base_framework_close(&orte_grpcomm_base_framework);
     (void) mca_base_framework_close(&orte_iof_base_framework);
-    (void) mca_base_framework_close(&orte_errmgr_base_framework);
     (void) mca_base_framework_close(&orte_plm_base_framework);
     /* close the dfs so its threads can exit */
     (void) mca_base_framework_close(&orte_dfs_base_framework);

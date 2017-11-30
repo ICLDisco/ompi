@@ -119,6 +119,86 @@ typedef int (*orte_errmgr_base_module_abort_peers_fn_t)(orte_process_name_t *pro
                                                         orte_std_cntr_t num_procs,
                                                         int error_code);
 
+typedef void (*orte_errmgr_base_module_start_error_detector_fn_t)(void);
+/**
+ * Predicted process/node failure notification
+ *
+ * @param[in] proc_list List of processes (or NULL if none)
+ * @param[in] node_list List of nodes (or NULL if none)
+ * @param[in] suggested_map List of mapping suggestions to use on recovery (or NULL if none)
+ *
+ * @retval ORTE_SUCCESS The operation completed successfully
+ * @retval ORTE_ERROR   An unspecifed error occurred
+ */
+typedef int (*orte_errmgr_base_module_predicted_fault_fn_t)(opal_list_t *proc_list,
+                                                            opal_list_t *node_list,
+                                                            opal_list_t *suggested_map);
+
+/**
+ * Suggest a node to map a restarting process onto
+ *
+ * @param[in] proc Process that is being mapped
+ * @param[in] oldnode Previous node where this process resided
+ * @param[in|out] node_list List of nodes to select from
+ *
+ * @retval ORTE_SUCCESS The operation completed successfully
+ * @retval ORTE_ERROR   An unspecifed error occurred
+ */
+typedef int (*orte_errmgr_base_module_suggest_map_targets_fn_t)(orte_proc_t *proc,
+                                                                orte_node_t *oldnode,
+                                                                opal_list_t *node_list);
+
+/**
+ * Handle fault tolerance updates
+ *
+ * @param[in] state Fault tolerance state update
+ *
+ * @retval ORTE_SUCCESS The operation completed successfully
+ * @retval ORTE_ERROR   An unspecifed error occurred
+ */
+typedef int  (*orte_errmgr_base_module_ft_event_fn_t)(int state);
+
+/**
+ * Function to perform actions that require the rest of the ORTE layer to be up
+ * and running.
+ *
+ * @retval ORTE_SUCCESS The operation completed successfully
+ * @retval ORTE_ERROR   An unspecified error occured
+ */
+typedef void (*orte_errmgr_base_module_register_migration_warning_fn_t)(struct timeval *tv);
+
+typedef enum {
+    ORTE_ERRMGR_CALLBACK_FIRST,
+    ORTE_ERRMGR_CALLBACK_LAST,
+    ORTE_ERRMGR_CALLBACK_PREPEND,
+    ORTE_ERRMGR_CALLBACK_APPEND
+} orte_errmgr_error_order_t;
+
+/**
+ * Register a callback function for faults.
+ *
+ * This callback function will be used anytime (other than during finalize) the
+ * runtime detects and handles a critical failure. The runtime will complete all
+ * its stabilization before cycling thru all registered callbacks. The order of
+ * the callbacks will proceed in the indicated order with which they were registered.
+ *
+ * The parameter to the callback function will be the orte_process_name_t
+ * of the process involved in the error.
+ *
+ * @param[in] cbfunc The callback function.
+ *
+ */
+typedef struct {
+    orte_process_name_t proc;
+    int errcode;
+} orte_error_t;
+
+typedef int (orte_errmgr_error_callback_fn_t)(opal_pointer_array_t *errors);
+typedef int (*orte_errmgr_base_module_register_error_callback_fn_t)(orte_errmgr_error_callback_fn_t *cbfunc,
+                                                                    orte_errmgr_error_order_t order);
+typedef void (*orte_errmgr_base_module_execute_error_callbacks_fn_t)(opal_pointer_array_t *errors);
+
+typedef void (*orte_errmgr_base_module_enable_detector_fn_t)(bool flag);
 /*
  * Module Structure
  */
@@ -131,6 +211,9 @@ struct orte_errmgr_base_module_2_3_0_t {
     orte_errmgr_base_module_log_fn_t                        logfn;
     orte_errmgr_base_module_abort_fn_t                      abort;
     orte_errmgr_base_module_abort_peers_fn_t                abort_peers;
+
+    /* start error detector and propagator */
+    orte_errmgr_base_module_enable_detector_fn_t        enable_detector;
 };
 typedef struct orte_errmgr_base_module_2_3_0_t orte_errmgr_base_module_2_3_0_t;
 typedef orte_errmgr_base_module_2_3_0_t orte_errmgr_base_module_t;

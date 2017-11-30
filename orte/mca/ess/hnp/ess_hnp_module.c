@@ -64,6 +64,7 @@
 #include "orte/mca/rtc/base/base.h"
 #include "orte/mca/dfs/base/base.h"
 #include "orte/mca/errmgr/base/base.h"
+#include "orte/mca/propagate/base/base.h"
 #include "orte/mca/grpcomm/base/base.h"
 #include "orte/mca/iof/base/base.h"
 #include "orte/mca/ras/base/base.h"
@@ -249,6 +250,12 @@ static int rte_init(void)
         goto error;
     }
 
+    /* open the propagator */
+    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_propagate_base_framework, 0))) {
+        error = "orte_propagate_base_open";
+        goto error;
+    }
+
     /* Since we are the HNP, then responsibility for
      * defining the name falls to the PLM component for our
      * respective environment - hence, we have to open the PLM
@@ -413,10 +420,14 @@ static int rte_init(void)
         goto error;
     }
 
-
     /* setup the error manager */
     if (ORTE_SUCCESS != (ret = orte_errmgr_base_select())) {
         error = "orte_errmgr_base_select";
+        goto error;
+    }
+    /* setup the propagate */
+    if (ORTE_SUCCESS != (ret = orte_propagate_base_select())) {
+        error = "orte_propagate_base_select";
         goto error;
     }
     /* setup the global job and node arrays */
@@ -830,6 +841,7 @@ static int rte_finalize(void)
     (void) mca_base_framework_close(&orte_errmgr_base_framework);
     (void) mca_base_framework_close(&orte_state_base_framework);
 
+    (void) mca_base_framework_close(&orte_propagate_base_framework);
     /* cleanup the pstat stuff */
     (void) mca_base_framework_close(&opal_pstat_base_framework);
 

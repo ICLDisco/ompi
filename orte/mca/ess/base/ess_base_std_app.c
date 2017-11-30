@@ -58,6 +58,7 @@
 #include "orte/mca/odls/odls_types.h"
 #include "orte/mca/filem/base/base.h"
 #include "orte/mca/errmgr/base/base.h"
+#include "orte/mca/propagate/base/base.h"
 #if OPAL_ENABLE_FT_CR == 1
 #include "orte/mca/snapc/base/base.h"
 #include "orte/mca/sstore/base/base.h"
@@ -120,6 +121,13 @@ int orte_ess_base_app_setup(bool db_restrict_local)
     if (ORTE_SUCCESS != (ret = orte_state_base_select())) {
         ORTE_ERROR_LOG(ret);
         error = "orte_state_base_select";
+        goto error;
+    }
+
+    /* open the propagate */
+    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_propagate_base_framework, 0))) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_propagate_base_open";
         goto error;
     }
 
@@ -355,6 +363,8 @@ int orte_ess_base_app_finalize(void)
         (void) mca_base_framework_close(&opal_pmix_base_framework);
     }
     (void) mca_base_framework_close(&orte_oob_base_framework);
+    (void) mca_base_framework_close(&orte_propagate_base_framework);
+    (void) mca_base_framework_close(&orte_errmgr_base_framework);
     (void) mca_base_framework_close(&orte_state_base_framework);
 
     orte_session_dir_finalize(ORTE_PROC_MY_NAME);

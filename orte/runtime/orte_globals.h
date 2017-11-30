@@ -586,6 +586,9 @@ ORTE_DECLSPEC extern char *orte_daemon_cores;
 /* Max time to wait for stack straces to return */
 ORTE_DECLSPEC extern int orte_stack_trace_wait_timeout;
 
+/* Detector enable/disable flag */
+ORTE_DECLSPEC extern bool orte_errmgr_detector_enable_flag;
+
 END_C_DECLS
 
 #endif /* ORTE_RUNTIME_ORTE_GLOBALS_H */

@@ -61,7 +61,8 @@
     .finalize = finalize,
     .logfn = orte_errmgr_base_log,
     .abort = orte_errmgr_base_abort,
-    .abort_peers = abort_peers
+    .abort_peers = abort_peers,
+    NULL
 };
 
 static void proc_errors(int fd, short args, void *cbdata);

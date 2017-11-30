@@ -37,6 +37,7 @@
 #include "opal/util/output.h"
 #include "opal/util/path.h"
 #include "opal/util/argv.h"
+#include "opal/mca/pmix/pmix.h"
 
 #include "orte/mca/errmgr/errmgr.h"
 #include "orte/mca/plm/plm_types.h"
