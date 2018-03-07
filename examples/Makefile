@@ -2,7 +2,7 @@
 # Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
 #                         University Research and Technology
 #                         Corporation.  All rights reserved.
-# Copyright (c) 2004-2005 The University of Tennessee and The University
+# Copyright (c) 2004-2018 The University of Tennessee and The University
 #                         of Tennessee Research Foundation.  All rights
 #                         reserved.
 # Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -67,14 +67,15 @@ EXAMPLES = \
 	 oshmem_circular_shift \
 	 oshmem_max_reduction \
 	 oshmem_strided_puts \
-	 oshmem_symmetric_data
+	 oshmem_symmetric_data \
+	 spc_example
 
 
 # Default target.  Always build the C MPI examples.  Only build the
 # others if we have the appropriate Open MPI / OpenSHMEM language
 # bindings.
 
-all: hello_c ring_c connectivity_c
+all: hello_c ring_c connectivity_c spc_example
 	@ if which ompi_info >/dev/null 2>&1 ; then \
 	    $(MAKE) mpi; \
 	fi
