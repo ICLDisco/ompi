@@ -335,8 +335,23 @@ int NBC_Progress(NBC_Handle *handle) {
     while (handle->req_count) {
         ompi_request_t *subreq = handle->req_array[handle->req_count - 1];
         if (REQUEST_COMPLETE(subreq)) {
-            ompi_request_free(&subreq);
             handle->req_count--;
+            if(OPAL_UNLIKELY( MPI_SUCCESS != subreq->req_status.MPI_ERROR )) {
+                NBC_Error ("MPI Error in NBC subrequest %p: %d", subreq, subreq->req_status.MPI_ERROR);
+                /* clear all other requests for the round */
+                while (handle->req_count) {
+                    ompi_request_t *other_subreq;
+                    other_subreq = handle->req_array[handle->req_count - 1];
+                    ompi_request_cancel(other_subreq);
+                    ompi_request_wait_completion(other_subreq);
+                    ompi_request_free(&other_subreq);
+                    handle->req_count--;
+                }
+                /* copy the error code from the underlying request and let the  
+                 * round finish */
+                handle->super.req_status.MPI_ERROR = subreq->req_status.MPI_ERROR;
+            }
+            ompi_request_free(&subreq);
         } else {
             flag = false;
             break;
@@ -349,6 +364,25 @@ int NBC_Progress(NBC_Handle *handle) {
 
   /* a round is finished */
   if (flag) {
+    if (NULL != handle->req_array) {
+      /* free request array */
+      free (handle->req_array);
+      handle->req_array = NULL;
+    }
+
+    handle->req_count = 0;
+
+    /* Error case */
+    if(handle->super.req_status.MPI_ERROR != MPI_SUCCESS) {
+        res = handle->super.req_status.MPI_ERROR;
+        NBC_Error("NBC_Progress: an error %d was found during schedule %p at row-offset %li - aborting the schedule\n", res, handle->schedule, handle->row_offset);
+        handle->nbc_complete = true;
+        if (!handle->super.req_persistent) {
+            NBC_Free(handle);
+        }
+        return res;
+    }
+
     /* adjust delim to start of current round */
     NBC_DEBUG(5, "NBC_Progress: going in schedule %p to row-offset: %li\n", handle->schedule, handle->row_offset);
     delim = handle->schedule->data + handle->row_offset;
@@ -357,14 +391,6 @@ int NBC_Progress(NBC_Handle *handle) {
     NBC_DEBUG(10, "size: %li\n", size);
     /* adjust delim to end of current round -> delimiter */
     delim = delim + size;
-
-    if (NULL != handle->req_array) {
-      /* free request array */
-      free (handle->req_array);
-      handle->req_array = NULL;
-    }
-
-    handle->req_count = 0;
 
     if (*delim == 0) {
       /* this was the last round - we're done */
