@@ -324,6 +324,215 @@ complete_contiguous_data_unpack:
     return pConv->fAdvance( pConv, iov, out_size, max_data );
 }
 
+    int32_t
+opal_iovec_set_position( opal_convertor_t *convertor, size_t *position )
+{
+    if( 0 == *position ) {
+        convertor->pStack[0].count = convertor->count;
+        convertor->pStack[0].disp = 0;
+        convertor->pStack[1].index = 0;
+        convertor->pStack[1].disp = 0;
+        convertor->bConverted = 0;
+
+        return 0;
+    }
+
+    const opal_datatype_t *pData = convertor->pDesc;
+    size_t done_count = *position / pData->size;
+
+    struct iovec *iov = pData->iov;
+    uint32_t i = 0;
+
+
+    if( *position == convertor->local_size ) {
+        convertor->flags |= CONVERTOR_COMPLETED;
+        return OPAL_SUCCESS;
+    }
+
+    convertor->bConverted = *position;
+    convertor->pStack[0].count = convertor->count - done_count;
+
+    size_t local_position = *position % pData->size, track = 0;
+    for( i = 0; i < pData->iovcnt; i++ ) {
+        if( track + iov[i].iov_len > local_position )
+            break;
+        track += iov[i].iov_len;
+    }
+
+    convertor->pStack[1].index = i;
+    convertor->pStack[1].disp = local_position - track;
+    convertor->pStack[0].disp = done_count * (pData->ub - pData->lb);
+
+    return 0;
+}
+
+int32_t
+opal_iovec_pack( opal_convertor_t *convertor,
+        struct iovec *out_iov,
+        uint32_t *out_size,
+        size_t *max_data )
+{
+    const opal_datatype_t *pData = convertor->pDesc;
+    struct iovec *iov = pData->iov;
+    char *dst = out_iov[0].iov_base,
+         *src = convertor->pBaseBuf + convertor->pStack[0].disp;
+    size_t track = *max_data, iov_track;
+    uint32_t i, iov_count = 0;
+
+    dst = out_iov[iov_count].iov_base;
+    iov_track = out_iov[iov_count].iov_len;
+
+    while( convertor->pStack[0].count ){
+        for( i = convertor->pStack[1].index; i < pData->iovcnt; i++ ) {
+            /* exceed chunk size */
+            if( track == 0 ){
+                convertor->pStack[1].index = i;
+                goto complete_pack;
+            }
+
+restart_pack:
+            if( iov_track < (iov[i].iov_len - convertor->pStack[1].disp) && iov_track < track ){
+                memcpy( dst,
+                        src + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
+                        iov_track);
+                convertor->pStack[1].disp += iov_track;
+                convertor->pStack[1].index = i;
+                track -= iov_track;
+
+                iov_count++;
+                if( iov_count == *out_size )
+                    goto complete_pack;
+
+                dst = out_iov[iov_count].iov_base;
+                iov_track = out_iov[iov_count].iov_len;
+
+                goto restart_pack;
+            }
+
+            if( track < (iov[i].iov_len - convertor->pStack[1].disp) ){
+                memcpy( dst,
+                        src + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
+                        track);
+
+                convertor->pStack[1].disp  += track;
+                convertor->pStack[1].index = i;
+                track = 0;
+
+                goto complete_pack;
+            }
+
+            /* or not */
+            memcpy( dst,
+                    src + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
+                    iov[i].iov_len - convertor->pStack[1].disp );
+
+            dst += iov[i].iov_len - convertor->pStack[1].disp;
+            iov_track -= iov[i].iov_len - convertor->pStack[1].disp;
+            track -= iov[i].iov_len - convertor->pStack[1].disp;
+            convertor->pStack[1].disp = 0;
+        }
+
+        convertor->pStack[0].disp += pData->ub - pData->lb;
+        convertor->pStack[1].index = 0;
+        convertor->pStack[0].count--;
+
+        src += pData->ub - pData->lb;
+    }
+
+complete_pack:
+    *max_data -= track;
+    convertor->bConverted += *max_data;
+
+    if( convertor->bConverted < convertor->local_size ){
+        return 0;
+    }
+
+    convertor->flags |= CONVERTOR_COMPLETED;
+    return 1;
+}
+
+int32_t
+opal_iovec_unpack( opal_convertor_t *convertor,
+        struct iovec *out_iov,
+        uint32_t *out_size,
+        size_t *max_data )
+{
+    const opal_datatype_t *pData = convertor->pDesc;
+    struct iovec *iov = pData->iov;
+    char *dst = convertor->pBaseBuf + convertor->pStack[0].disp,
+         *src = out_iov[0].iov_base;
+    size_t track = *max_data, iov_track;
+    uint32_t i, iov_count = 0;
+
+    src = out_iov[iov_count].iov_base;
+    iov_track = out_iov[iov_count].iov_len;
+
+    while( convertor->pStack[0].count ) {
+        for( i = convertor->pStack[1].index; i < pData->iovcnt; i++ ) {
+            /* exceed chunk size */
+            if( track == 0 ){
+                convertor->pStack[1].index = i;
+                goto complete_unpack;
+            }
+restart_unpack:
+            if( iov_track < (iov[i].iov_len - convertor->pStack[1].disp) && iov_track < track ){
+                memcpy( dst + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
+                        src,
+                        iov_track);
+                convertor->pStack[1].disp += iov_track;
+                convertor->pStack[1].index = i;
+                track -= iov_track;
+
+                iov_count++;
+                if( iov_count == *out_size )
+                    goto complete_unpack;
+
+                src = out_iov[iov_count].iov_base;
+                iov_track = out_iov[iov_count].iov_len;
+
+                goto restart_unpack;
+            }
+
+            if( track < (iov[i].iov_len - convertor->pStack[1].disp) ) {
+                memcpy( dst + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
+                        src,
+                        track);
+
+                convertor->pStack[1].disp += track;
+                convertor->pStack[1].index = i;
+                track = 0;
+                goto complete_unpack;  /* jump outside via the last if */
+            }
+            /* or not */
+            memcpy( dst + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
+                    src,
+                    iov[i].iov_len - convertor->pStack[1].disp );
+
+            src += iov[i].iov_len - convertor->pStack[1].disp;
+            track -= iov[i].iov_len - convertor->pStack[1].disp;
+            iov_track -= iov[i].iov_len - convertor->pStack[1].disp;
+            convertor->pStack[1].disp = 0;
+        }
+
+        convertor->pStack[0].disp += pData->ub - pData->lb;
+        convertor->pStack[1].index = 0;
+        convertor->pStack[0].count--;
+        dst += pData->ub - pData->lb;
+    }
+
+
+complete_unpack:
+    *max_data -= track;
+    convertor->bConverted += *max_data;
+
+    if( convertor->bConverted < convertor->local_size ){
+        return 0;
+    }
+
+    convertor->flags |= CONVERTOR_COMPLETED;
+    return 1;
+}
+
 static inline int
 opal_convertor_create_stack_with_pos_contig( opal_convertor_t* pConvertor,
                                              size_t starting_point, const size_t* sizes )
@@ -427,9 +636,12 @@ int32_t opal_convertor_set_position_nocheck( opal_convertor_t* convertor,
     } else {
         if( (0 == (*position)) || ((*position) < convertor->bConverted) ) {
             rc = opal_convertor_create_stack_at_begining( convertor, opal_datatype_local_sizes );
-            if( 0 == (*position) ) return rc;
+            if( 0 == (*position) ){
+                opal_iovec_set_position( convertor, position );
+                return rc;
+            }
         }
-        rc = opal_convertor_generic_simple_position( convertor, position );
+        rc = opal_iovec_set_position( convertor, position );
         /**
          * If we have a non-contigous send convertor don't allow it move in the middle
          * of a predefined datatype, it won't be able to copy out the left-overs
@@ -438,7 +650,7 @@ int32_t opal_convertor_set_position_nocheck( opal_convertor_t* convertor,
          * case, we should be accepted by any receiver convertor.
          */
         if( CONVERTOR_SEND & convertor->flags ) {
-            convertor->bConverted -= convertor->partial_length;
+            convertor->bConverted = *position;
             convertor->partial_length = 0;
         }
     }
@@ -598,7 +810,7 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
             if( convertor->pDesc->flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
                 convertor->fAdvance = opal_unpack_homogeneous_contig;
             } else {
-                convertor->fAdvance = opal_generic_simple_unpack;
+                convertor->fAdvance = opal_iovec_unpack;
             }
         }
     return OPAL_SUCCESS;
@@ -646,7 +858,7 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
                 else
                     convertor->fAdvance = opal_pack_homogeneous_contig_with_gaps;
             } else {
-                convertor->fAdvance = opal_generic_simple_pack;
+                convertor->fAdvance = opal_iovec_pack;
             }
         }
     return OPAL_SUCCESS;
