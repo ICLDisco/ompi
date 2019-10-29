@@ -55,6 +55,8 @@ static void opal_datatype_construct( opal_datatype_t* pData )
 
     pData->ptypes             = NULL;
     pData->loops              = 0;
+
+    pData->iov                = NULL;
 }
 
 static void opal_datatype_destruct( opal_datatype_t* datatype )
