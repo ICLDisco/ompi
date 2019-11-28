@@ -126,6 +126,9 @@ struct opal_datatype_t {
     dt_type_desc_t     opt_desc; /**< short description of the data used when conversion is useless
                                       or in the send case (without conversion) */
 
+    struct iovec       *iov;     /**< iovec description */
+    uint32_t           iovcnt;   /**< number of iovec */
+
     size_t             *ptypes;  /**< array of basic predefined types that facilitate the computing
                                       of the remote size in heterogeneous environments. The length of the
                                       array is dependent on the maximum number of predefined datatypes of
