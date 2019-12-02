@@ -310,5 +310,39 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
         pLast->first_elem_disp = first_elem_disp;
         pLast->size            = pData->size;
     }
+
+    /* generate iovec */
+    if( pData->iov == NULL )
+        opal_generate_iovec( pData );
+
     return OPAL_SUCCESS;
+}
+
+int32_t
+opal_generate_iovec( opal_datatype_t *pData )
+{
+    opal_convertor_t *local_convertor = opal_convertor_create( opal_local_arch, 0 );
+
+    size_t max = SIZE_MAX;
+    int rc;
+
+    opal_convertor_prepare_for_send( local_convertor, pData, 1, (void*)0 );
+
+    pData->iovcnt = 512;
+    uint32_t save_iov = 0;
+    uint32_t leftover_iovec = 0;
+    do {
+        pData->iovcnt *= 2;
+        pData->iov = realloc( pData->iov, sizeof(struct iovec) * pData->iovcnt );
+        leftover_iovec = pData->iovcnt - save_iov;
+        rc = opal_convertor_raw( local_convertor, pData->iov + save_iov, &leftover_iovec, &max );
+        leftover_iovec += save_iov;  /* for the case we leave the loop */
+        save_iov = pData->iovcnt;
+
+    } while (0 == rc);
+
+    pData->iov = realloc( pData->iov, sizeof(struct iovec) * leftover_iovec );
+    pData->iovcnt = leftover_iovec;
+
+    return 1;
 }
