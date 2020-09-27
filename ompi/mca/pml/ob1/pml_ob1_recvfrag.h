@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2018 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -29,6 +29,7 @@
 #define MCA_PML_OB1_RECVFRAG_H
 
 #include "pml_ob1_hdr.h"
+#include "ompi/runtime/ompi_spc.h"
 
 BEGIN_C_DECLS
 
@@ -80,6 +81,8 @@ do {                                                                    \
         macro_segments[0].seg_addr.pval = frag->addr;                   \
     } else {                                                            \
         buffers[0].len = _size;                                         \
+        SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_QUEUE_ALLOCATION,             \
+                             OMPI_SPC_QUEUE_ALLOCATION, _size);         \
         buffers[0].addr = (char*)                                       \
             mca_pml_ob1.allocator->alc_alloc( mca_pml_ob1.allocator,    \
                                               buffers[0].len,           \
@@ -99,6 +102,7 @@ do {                                                                    \
 do {                                                                    \
     if( frag->segments[0].seg_len > mca_pml_ob1.unexpected_limit ) {    \
         /* return buffers */                                            \
+        SPC_RECORD(OMPI_SPC_QUEUE_ALLOCATION, -frag->buffers[0].len);   \
         mca_pml_ob1.allocator->alc_free( mca_pml_ob1.allocator,         \
                                          frag->buffers[0].addr );       \
     }                                                                   \

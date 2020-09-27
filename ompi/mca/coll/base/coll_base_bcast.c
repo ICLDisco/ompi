@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -31,6 +31,7 @@
 #include "ompi/mca/coll/base/coll_tags.h"
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
@@ -265,6 +266,8 @@ ompi_coll_base_bcast_intra_bintree ( void* buffer,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:bcast_intra_binary rank %d ss %5d typelng %lu segcount %d",
                  ompi_comm_rank(comm), segsize, (unsigned long)typelng, segcount));
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_BCAST_BINTREE, count * datatype->super.size, ompi_comm_size(comm));
+
     return ompi_coll_base_bcast_intra_generic( buffer, count, datatype, root, comm, module,
                                                 segcount, data->cached_bintree );
 }
@@ -292,6 +295,8 @@ ompi_coll_base_bcast_intra_pipeline( void* buffer,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:bcast_intra_pipeline rank %d ss %5d typelng %lu segcount %d",
                  ompi_comm_rank(comm), segsize, (unsigned long)typelng, segcount));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_BCAST_PIPELINE, count*typelng, ompi_comm_size(comm));
 
     return ompi_coll_base_bcast_intra_generic( buffer, count, datatype, root, comm, module,
                                                 segcount, data->cached_pipeline );
@@ -321,6 +326,8 @@ ompi_coll_base_bcast_intra_chain( void* buffer,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:bcast_intra_chain rank %d fo %d ss %5d typelng %lu segcount %d",
                  ompi_comm_rank(comm), chains, segsize, (unsigned long)typelng, segcount));
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_BCAST_CHAIN, count*typelng, ompi_comm_size(comm));
+
     return ompi_coll_base_bcast_intra_generic( buffer, count, datatype, root, comm, module,
                                                 segcount, data->cached_chain );
 }
@@ -348,6 +355,8 @@ ompi_coll_base_bcast_intra_binomial( void* buffer,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:bcast_intra_binomial rank %d ss %5d typelng %lu segcount %d",
                  ompi_comm_rank(comm), segsize, (unsigned long)typelng, segcount));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_BCAST_BINOMIAL, count*typelng, ompi_comm_size(comm));
 
     return ompi_coll_base_bcast_intra_generic( buffer, count, datatype, root, comm, module,
                                                 segcount, data->cached_bmtree );
@@ -387,6 +396,8 @@ ompi_coll_base_bcast_intra_split_bintree ( void* buffer,
     tree = module->base_data->cached_bintree;
 
     err = ompi_datatype_type_size( datatype, &type_size );
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_BCAST_SPLIT_BINTREE, count*type_size, ompi_comm_size(comm));
 
     /* Determine number of segments and number of elements per segment */
     counts[0] = count/2;
@@ -684,6 +695,11 @@ ompi_coll_base_bcast_intra_basic_linear(void *buff, int count,
         }
         ompi_coll_base_free_reqs(reqs, i);
     }
+
+    size_t typelng;
+    ompi_datatype_type_size( datatype, &typelng );
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_BCAST_LINEAR, count*typelng, size);
 
     /* All done */
     return err;

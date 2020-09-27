@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2019 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2008 High Performance Computing Center Stuttgart,
@@ -644,9 +644,10 @@ int mca_pml_ob1_send_request_start_prepare( mca_pml_ob1_send_request_t* sendreq,
 
     /* send */
     rc = mca_bml_base_send(bml_btl, des, MCA_PML_OB1_HDR_TYPE_MATCH);
-    SPC_USER_OR_MPI(sendreq->req_send.req_base.req_ompi.req_status.MPI_TAG, (ompi_spc_value_t)size,
-                    OMPI_SPC_BYTES_SENT_USER, OMPI_SPC_BYTES_SENT_MPI);
+
     if( OPAL_LIKELY( rc >= OPAL_SUCCESS ) ) {
+        SPC_USER_OR_MPI(sendreq->req_send.req_base.req_tag, (ompi_spc_value_t)size,
+                        OMPI_SPC_BYTES_SENT_USER, OMPI_SPC_BYTES_SENT_MPI);
         if( OPAL_LIKELY( 1 == rc ) ) {
             mca_pml_ob1_match_completion_free_request( bml_btl, sendreq );
         }

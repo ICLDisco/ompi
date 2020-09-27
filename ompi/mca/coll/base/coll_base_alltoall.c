@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -32,6 +32,7 @@
 #include "ompi/mca/coll/base/coll_tags.h"
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
@@ -52,6 +53,8 @@ mca_coll_base_alltoall_intra_basic_inplace(const void *rbuf, int rcount,
 
     size = ompi_comm_size(comm);
     rank = ompi_comm_rank(comm);
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLTOALL_INPLACE, rcount * rdtype->super.size, size);
 
     /* If only one process, we're done. */
     if (1 == size) {
@@ -151,6 +154,8 @@ int ompi_coll_base_alltoall_intra_pairwise(const void *sbuf, int scount,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "coll:base:alltoall_intra_pairwise rank %d", rank));
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLTOALL_PAIRWISE, rcount * rdtype->super.size, size);
+
     err = ompi_datatype_get_extent (sdtype, &lb, &sext);
     if (err != MPI_SUCCESS) { line = __LINE__; goto err_hndl; }
     err = ompi_datatype_get_extent (rdtype, &lb, &rext);
@@ -211,6 +216,8 @@ int ompi_coll_base_alltoall_intra_bruck(const void *sbuf, int scount,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "coll:base:alltoall_intra_bruck rank %d", rank));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLTOALL_BRUCK, rcount * rdtype->super.size, size);
 
     err = ompi_datatype_type_extent (sdtype, &sext);
     if (err != MPI_SUCCESS) { line = __LINE__; goto err_hndl; }
@@ -357,6 +364,8 @@ int ompi_coll_base_alltoall_intra_linear_sync(const void *sbuf, int scount,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_alltoall_intra_linear_sync rank %d", rank));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLTOALL_LINEAR_SYNC, rcount * rdtype->super.size, size);
 
     error = ompi_datatype_get_extent(sdtype, &slb, &sext);
     if (OMPI_SUCCESS != error) {
@@ -512,6 +521,8 @@ int ompi_coll_base_alltoall_intra_two_procs(const void *sbuf, int scount,
         return MPI_ERR_UNSUPPORTED_OPERATION;
     }
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLTOALL_TWO_PROCS, rcount * rdtype->super.size, 2);
+
     err = ompi_datatype_get_extent (sdtype, &lb, &sext);
     if (err != MPI_SUCCESS) { line = __LINE__; goto err_hndl; }
 
@@ -593,6 +604,8 @@ int ompi_coll_base_alltoall_intra_basic_linear(const void *sbuf, int scount,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_alltoall_intra_basic_linear rank %d", rank));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLTOALL_LINEAR, rcount * rdtype->super.size, size);
 
     err = ompi_datatype_get_extent(sdtype, &lb, &sndinc);
     if (OMPI_SUCCESS != err) {

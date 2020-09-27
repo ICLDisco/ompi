@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -32,6 +32,7 @@
 #include "ompi/mca/coll/base/coll_tags.h"
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
@@ -60,6 +61,8 @@ ompi_coll_base_gather_intra_binomial(const void *sbuf, int scount,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_gather_intra_binomial rank %d", rank));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_GATHER_BINOMIAL, scount * sdtype->super.size, size);
 
     /* create the binomial tree */
     COLL_BASE_UPDATE_IN_ORDER_BMTREE( comm, base_module, root );
@@ -225,6 +228,8 @@ ompi_coll_base_gather_intra_linear_sync(const void *sbuf, int scount,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_gather_intra_linear_sync rank %d, segment %d", rank, first_segment_size));
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_GATHER_LINEAR_SYNC, scount * sdtype->super.size, size);
+
     if (rank != root) {
         /* Non-root processes:
            - receive zero byte message from the root,
@@ -383,6 +388,8 @@ ompi_coll_base_gather_intra_basic_linear(const void *sbuf, int scount,
     /* Everyone but root sends data and returns. */
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_gather_intra_basic_linear rank %d", rank));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_GATHER_LINEAR, scount * sdtype->super.size, size);
 
     if (rank != root) {
         return MCA_PML_CALL(send(sbuf, scount, sdtype, root,

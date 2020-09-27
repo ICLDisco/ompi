@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2016 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -34,6 +34,7 @@
 #include "pml_ob1_rdmafrag.h"
 #include "ompi/mca/bml/bml.h"
 #include "ompi/memchecker.h"
+#include "ompi/runtime/ompi_spc.h"
 
 BEGIN_C_DECLS
 
@@ -396,7 +397,9 @@ mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
     }
 #endif /* OPAL_CUDA_GDR_SUPPORT */
 
+    SPC_BIN_RECORD(OMPI_SPC_P2P_MESSAGE_SIZE, size);
     if( OPAL_LIKELY(size <= eager_limit) ) {
+        SPC_RECORD(OMPI_SPC_EAGER_MESSAGES, 1);
         switch(sendreq->req_send.req_send_mode) {
         case MCA_PML_BASE_SEND_SYNCHRONOUS:
             rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size, 0);
@@ -416,6 +419,7 @@ mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
             break;
         }
     } else {
+        SPC_RECORD(OMPI_SPC_NOT_EAGER_MESSAGES, 1);
         size = eager_limit;
         if(OPAL_UNLIKELY(btl->btl_rndv_eager_limit < eager_limit))
             size = btl->btl_rndv_eager_limit;

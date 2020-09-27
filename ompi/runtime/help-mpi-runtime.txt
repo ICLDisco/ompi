@@ -3,7 +3,7 @@
 # Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
 #                         University Research and Technology
 #                         Corporation.  All rights reserved.
-# Copyright (c) 2004-2005 The University of Tennessee and The University
+# Copyright (c) 2004-2020 The University of Tennessee and The University
 #                         of Tennessee Research Foundation.  All rights
 #                         reserved.
 # Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -120,6 +120,7 @@ There was an error registering software performance counters (SPCs) as
 MPI_T performance variables.  Your job will continue, but SPCs will be
 disabled for MPI_T.
 #
+
 [no-pmi]
 PMIx_Init failed for the following reason:
 
@@ -128,3 +129,26 @@ PMIx_Init failed for the following reason:
 Open MPI requires access to a local PMIx server to execute. Please ensure
 that either you are operating in a PMIx-enabled environment, or use "mpirun"
 to execute the job.
+
+[spc: default shared memory directory failed]
+Failed to access the default shared memory directory, falling back to storing the shared memory
+file in '%s'.
+#
+[spc: filename creation failure]
+Failed to create an appropriate filename for use in storing data in a
+shared memory file.
+#
+[spc: shm segment creation failure]
+Failed to create a shared memory segment.
+#
+[spc: shm atttach failure]
+Failed to attach to created shared memory segment.
+#
+[spc: shm file open failure]
+Failed to open shared memory file: '%s'.
+#
+[spc: mmap failure]
+Failed to mmap the shared memory file.  mmap had the following error:
+'%s'.  You will be unable to read counters through attaching to the
+shared memory file.
+

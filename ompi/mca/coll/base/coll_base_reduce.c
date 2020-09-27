@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -36,6 +36,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/op/op.h"
 #include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
@@ -399,6 +400,8 @@ int ompi_coll_base_reduce_intra_chain( const void *sendbuf, void *recvbuf, int c
     ompi_datatype_type_size( datatype, &typelng );
     COLL_BASE_COMPUTED_SEGCOUNT( segsize, typelng, segcount );
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_CHAIN, count * datatype->super.size, ompi_comm_size(comm));
+
     return ompi_coll_base_reduce_generic( sendbuf, recvbuf, count, datatype,
                                            op, root, comm, module,
                                            data->cached_chain,
@@ -431,6 +434,8 @@ int ompi_coll_base_reduce_intra_pipeline( const void *sendbuf, void *recvbuf,
     ompi_datatype_type_size( datatype, &typelng );
     COLL_BASE_COMPUTED_SEGCOUNT( segsize, typelng, segcount );
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_PIPELINE, count * datatype->super.size, ompi_comm_size(comm));
+
     return ompi_coll_base_reduce_generic( sendbuf, recvbuf, count, datatype,
                                            op, root, comm, module,
                                            data->cached_pipeline,
@@ -462,6 +467,8 @@ int ompi_coll_base_reduce_intra_binary( const void *sendbuf, void *recvbuf,
     ompi_datatype_type_size( datatype, &typelng );
     COLL_BASE_COMPUTED_SEGCOUNT( segsize, typelng, segcount );
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_BINARY, count * datatype->super.size, ompi_comm_size(comm));
+
     return ompi_coll_base_reduce_generic( sendbuf, recvbuf, count, datatype,
                                            op, root, comm, module,
                                            data->cached_bintree,
@@ -492,6 +499,8 @@ int ompi_coll_base_reduce_intra_binomial( const void *sendbuf, void *recvbuf,
      */
     ompi_datatype_type_size( datatype, &typelng );
     COLL_BASE_COMPUTED_SEGCOUNT( segsize, typelng, segcount );
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_BINOMIAL, count * datatype->super.size, ompi_comm_size(comm));
 
     return ompi_coll_base_reduce_generic( sendbuf, recvbuf, count, datatype,
                                            op, root, comm, module,
@@ -529,6 +538,8 @@ int ompi_coll_base_reduce_intra_in_order_binary( const void *sendbuf, void *recv
                  rank, segsize));
 
     COLL_BASE_UPDATE_IN_ORDER_BINTREE( comm, base_module );
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_IN_ORDER_BINTREE, count * datatype->super.size, size);
 
     /**
      * Determine number of segments and number of elements
@@ -642,6 +653,8 @@ ompi_coll_base_reduce_intra_basic_linear(const void *sbuf, void *rbuf, int count
 
     rank = ompi_comm_rank(comm);
     size = ompi_comm_size(comm);
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_LINEAR, count * dtype->super.size, size);
 
     /* If not root, send data to the root. */
 

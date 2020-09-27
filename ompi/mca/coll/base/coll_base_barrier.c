@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -33,6 +33,7 @@
 #include "ompi/mca/coll/base/coll_tags.h"
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
@@ -109,6 +110,8 @@ int ompi_coll_base_barrier_intra_doublering(struct ompi_communicator_t *comm,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"ompi_coll_base_barrier_intra_doublering rank %d", rank));
 
+    SPC_RECORD(OMPI_SPC_BASE_BARRIER_DOUBLE_RING, 1);
+
     left = ((rank-1)%size);
     right = ((rank+1)%size);
 
@@ -181,6 +184,8 @@ int ompi_coll_base_barrier_intra_recursivedoubling(struct ompi_communicator_t *c
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_barrier_intra_recursivedoubling rank %d",
                  rank));
+
+    SPC_RECORD(OMPI_SPC_BASE_BARRIER_RECURSIVE_DOUBLING, 1);
 
     /* do nearest power of 2 less than size calc */
     adjsize = opal_next_poweroftwo(size);
@@ -262,6 +267,8 @@ int ompi_coll_base_barrier_intra_bruck(struct ompi_communicator_t *comm,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_barrier_intra_bruck rank %d", rank));
 
+    SPC_RECORD(OMPI_SPC_BASE_BARRIER_BRUCK, 1);
+
     /* exchange data with rank-2^k and rank+2^k */
     for (distance = 1; distance < size; distance <<= 1) {
         from = (rank + size - distance) % size;
@@ -304,6 +311,8 @@ int ompi_coll_base_barrier_intra_two_procs(struct ompi_communicator_t *comm,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_barrier_intra_two_procs rank %d", remote));
 
+    SPC_RECORD(OMPI_SPC_BASE_BARRIER_TWO_PROCS, 1);
+
     remote = (remote + 1) & 0x1;
 
     err = ompi_coll_base_sendrecv_zero(remote, MCA_COLL_BASE_TAG_BARRIER,
@@ -337,6 +346,8 @@ int ompi_coll_base_barrier_intra_basic_linear(struct ompi_communicator_t *comm,
     if( 1 == size )
         return MPI_SUCCESS;
     rank = ompi_comm_rank(comm);
+
+    SPC_RECORD(OMPI_SPC_BASE_BARRIER_LINEAR, 1);
 
     /* All non-root send & receive zero-length message. */
     if (rank > 0) {
@@ -413,6 +424,8 @@ int ompi_coll_base_barrier_intra_tree(struct ompi_communicator_t *comm,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_barrier_intra_tree %d",
                  rank));
+
+    SPC_RECORD(OMPI_SPC_BASE_BARRIER_TREE, 1);
 
     /* Find the nearest power of 2 of the communicator size. */
     depth = opal_next_poweroftwo_inclusive(size);

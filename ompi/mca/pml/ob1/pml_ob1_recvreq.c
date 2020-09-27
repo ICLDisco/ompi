@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2019 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2008 High Performance Computing Center Stuttgart,
@@ -1333,6 +1333,13 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req)
             opal_list_remove_item(&proc->unexpected_frags,
                                   (opal_list_item_t*)frag);
 #endif
+#if SPC_ENABLE == 1
+        size_t total_data = frag->segments[0].seg_len;
+        for(int i = 1; i < frag->num_segments; i++) {
+            total_data += frag->segments[i].seg_len;
+        }
+        SPC_RECORD(OMPI_SPC_UNEXPECTED_QUEUE_DATA, -total_data);
+#endif
             SPC_RECORD(OMPI_SPC_UNEXPECTED_IN_QUEUE, -1);
             OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
 
@@ -1368,6 +1375,13 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req)
 #else
             opal_list_remove_item(&proc->unexpected_frags,
                                   (opal_list_item_t*)frag);
+#endif
+#if SPC_ENABLE == 1
+        size_t total_data = frag->segments[0].seg_len;
+        for(int i = 1; i < frag->num_segments; i++) {
+            total_data += frag->segments[i].seg_len;
+        }
+        SPC_RECORD(OMPI_SPC_UNEXPECTED_QUEUE_DATA, -total_data);
 #endif
             SPC_RECORD(OMPI_SPC_UNEXPECTED_IN_QUEUE, -1);
             OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);

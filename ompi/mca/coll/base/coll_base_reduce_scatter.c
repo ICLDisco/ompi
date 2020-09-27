@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -35,6 +35,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "ompi/op/op.h"
 #include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
@@ -61,6 +62,8 @@ int ompi_coll_base_reduce_scatter_intra_nonoverlapping(const void *sbuf, void *r
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,"coll:base:reduce_scatter_intra_nonoverlapping, rank %d", rank));
 
     for (i = 0, total_count = 0; i < size; i++) { total_count += rcounts[i]; }
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_SCATTER_NONOVERLAPPING, total_count * dtype->super.size, size);
 
     /* Reduce to rank 0 (root) and scatterv */
     tmprbuf = (char*) rbuf;
@@ -158,6 +161,8 @@ ompi_coll_base_reduce_scatter_intra_basic_recursivehalving( const void *sbuf,
         disps[i + 1] = disps[i] + rcounts[i];
     }
     count = disps[size - 1] + rcounts[size - 1];
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_SCATTER_RECURSIVE_HALVING, count * dtype->super.size, size);
 
     /* short cut the trivial case */
     if (0 == count) {
@@ -486,6 +491,8 @@ ompi_coll_base_reduce_scatter_intra_ring( const void *sbuf, void *rbuf, const in
         total_count += rcounts[i];
         if (max_block_count < rcounts[i]) max_block_count = rcounts[i];
     }
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_REDUCE_SCATTER_RING, total_count * dtype->super.size, size);
 
     /* Special case for size == 1 */
     if (1 == size) {

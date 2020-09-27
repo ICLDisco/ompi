@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2019 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2007 High Performance Computing Center Stuttgart,
@@ -142,6 +142,7 @@ void append_frag_to_ordered_list (mca_pml_ob1_recv_frag_t **queue,
             d1 = d2;
             prior = (mca_pml_ob1_recv_frag_t*)(prior->super.super.opal_list_prev);
             d2 = prior->hdr.hdr_match.hdr_seq - hdr->hdr_seq;
+            SPC_RECORD(OMPI_SPC_OOS_QUEUE_HOPS, 1);
         } while( (hdr->hdr_seq < prior->hdr.hdr_match.hdr_seq) &&
                  (d1 > d2) && (prior != *queue) );
     } else {
@@ -149,6 +150,7 @@ void append_frag_to_ordered_list (mca_pml_ob1_recv_frag_t **queue,
         next_seq = ((mca_pml_ob1_recv_frag_t*)(prior->super.super.opal_list_next))->hdr.hdr_match.hdr_seq;
         /* prevent rollover */
         while( (hdr->hdr_seq > prior_seq) && (hdr->hdr_seq > next_seq) && (prior_seq < next_seq) ) {
+            SPC_RECORD(OMPI_SPC_OOS_QUEUE_HOPS, 1);
             prior_seq = next_seq;
             prior = (mca_pml_ob1_recv_frag_t*)(prior->super.super.opal_list_next);
             next_seq = ((mca_pml_ob1_recv_frag_t*)(prior->super.super.opal_list_next))->hdr.hdr_match.hdr_seq;
@@ -332,6 +334,7 @@ mca_pml_ob1_recv_frag_t *check_cantmatch_for_match (mca_pml_ob1_comm_proc_t *pro
     mca_pml_ob1_recv_frag_t *frag = proc->frags_cant_match;
 
     if( (NULL != frag) && (frag->hdr.hdr_match.hdr_seq == proc->expected_sequence) ) {
+        SPC_RECORD(OMPI_SPC_OOS_IN_QUEUE, -1);
         return remove_head_from_ordered_list(&proc->frags_cant_match);
     }
     return NULL;
@@ -403,7 +406,15 @@ void mca_pml_ob1_recv_frag_callback_match (mca_btl_base_module_t *btl,
             MCA_PML_OB1_RECV_FRAG_ALLOC(frag);
             MCA_PML_OB1_RECV_FRAG_INIT(frag, hdr, segments, num_segments, btl);
             append_frag_to_ordered_list(&proc->frags_cant_match, frag, proc->expected_sequence);
+#if SPC_ENABLE == 1
+            size_t total_data = segments[0].seg_len;
+            for(int i = 1; i < num_segments; i++) {
+                total_data += segments[i].seg_len;
+            }
+            SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_OOS_QUEUE_DATA, OMPI_SPC_OOS_QUEUE_DATA, total_data);
+#endif
             SPC_RECORD(OMPI_SPC_OUT_OF_SEQUENCE, 1);
+            SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_OOS_IN_QUEUE, OMPI_SPC_OOS_IN_QUEUE, 1);
             OB1_MATCHING_UNLOCK(&comm->matching_lock);
             return;
         }
@@ -499,13 +510,20 @@ void mca_pml_ob1_recv_frag_callback_match (mca_btl_base_module_t *btl,
         mca_pml_ob1_recv_frag_t* frag;
 
         OB1_MATCHING_LOCK(&comm->matching_lock);
+#if SPC_ENABLE == 1
+        opal_timer_t timer;
+        timer = 0;
+#endif
+        SPC_TIMER_START(OMPI_SPC_OOS_MATCH_TIME, &timer);
         if((frag = check_cantmatch_for_match(proc))) {
+            SPC_TIMER_STOP(OMPI_SPC_OOS_MATCH_TIME, &timer);
             /* mca_pml_ob1_recv_frag_match_proc() will release the lock. */
             mca_pml_ob1_recv_frag_match_proc(frag->btl, comm_ptr, proc,
                                              &frag->hdr.hdr_match,
                                              frag->segments, frag->num_segments,
                                              frag->hdr.hdr_match.hdr_common.hdr_type, frag);
         } else {
+            SPC_TIMER_STOP(OMPI_SPC_OOS_MATCH_TIME, &timer);
             OB1_MATCHING_UNLOCK(&comm->matching_lock);
         }
     }
@@ -776,7 +794,8 @@ static mca_pml_ob1_recv_request_t *match_one (mca_btl_base_module_t *btl,
                                               mca_pml_ob1_recv_frag_t* frag)
 {
 #if SPC_ENABLE == 1
-    opal_timer_t timer = 0;
+    opal_timer_t timer;
+    timer = 0;
 #endif
     SPC_TIMER_START(OMPI_SPC_MATCH_TIME, &timer);
 
@@ -830,6 +849,12 @@ static mca_pml_ob1_recv_request_t *match_one (mca_btl_base_module_t *btl,
             SPC_TIMER_STOP(OMPI_SPC_MATCH_TIME, &timer);
             return match;
         }
+        SPC_TIMER_STOP(OMPI_SPC_MATCH_TIME, &timer);
+
+#if SPC_ENABLE == 1
+    opal_timer_t queue_timer = 0;
+#endif
+    SPC_TIMER_START(OMPI_SPC_MATCH_QUEUE_TIME, &queue_timer);
 
         /* if no match found, place on unexpected queue */
 #if MCA_PML_OB1_CUSTOM_MATCH
@@ -839,12 +864,21 @@ static mca_pml_ob1_recv_request_t *match_one (mca_btl_base_module_t *btl,
         append_frag_to_list(&proc->unexpected_frags, btl, hdr, segments,
                             num_segments, frag);
 #endif
+        SPC_TIMER_STOP(OMPI_SPC_MATCH_QUEUE_TIME, &queue_timer);
+
+#if SPC_ENABLE == 1
+        size_t total_data = segments[0].seg_len;
+        for(int i = 1; i < num_segments; i++) {
+            total_data += segments[i].seg_len;
+        }
+        SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_UNEXPECTED_QUEUE_DATA, OMPI_SPC_UNEXPECTED_QUEUE_DATA, total_data);
+#endif
+
         SPC_RECORD(OMPI_SPC_UNEXPECTED, 1);
-        SPC_RECORD(OMPI_SPC_UNEXPECTED_IN_QUEUE, 1);
-        SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_UNEXPECTED_IN_QUEUE, OMPI_SPC_UNEXPECTED_IN_QUEUE);
+        SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_UNEXPECTED_IN_QUEUE, OMPI_SPC_UNEXPECTED_IN_QUEUE, 1);
+
         PERUSE_TRACE_MSG_EVENT(PERUSE_COMM_MSG_INSERT_IN_UNEX_Q, comm_ptr,
                                hdr->hdr_src, hdr->hdr_tag, PERUSE_RECV);
-        SPC_TIMER_STOP(OMPI_SPC_MATCH_TIME, &timer);
         return NULL;
     } while(true);
 }
@@ -929,6 +963,12 @@ static int mca_pml_ob1_recv_frag_match (mca_btl_base_module_t *btl,
      */
     OB1_MATCHING_LOCK(&comm->matching_lock);
 
+#if SPC_ENABLE == 1
+    opal_timer_t timer;
+    timer = 0;
+#endif
+    SPC_TIMER_START(OMPI_SPC_OOS_MATCH_QUEUE_TIME, &timer);
+
     frag_msg_seq = hdr->hdr_seq;
     next_msg_seq_expected = (uint16_t)proc->expected_sequence;
 
@@ -939,15 +979,23 @@ static int mca_pml_ob1_recv_frag_match (mca_btl_base_module_t *btl,
             MCA_PML_OB1_RECV_FRAG_ALLOC(frag);
             MCA_PML_OB1_RECV_FRAG_INIT(frag, hdr, segments, num_segments, btl);
             append_frag_to_ordered_list(&proc->frags_cant_match, frag, next_msg_seq_expected);
+            SPC_TIMER_STOP(OMPI_SPC_OOS_MATCH_QUEUE_TIME, &timer);
 
+#if SPC_ENABLE == 1
+            size_t total_data = segments[0].seg_len;
+            for(int i = 1; i < num_segments; i++) {
+                total_data += segments[i].seg_len;
+            }
+            SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_OOS_QUEUE_DATA, OMPI_SPC_OOS_QUEUE_DATA, total_data);
+#endif
             SPC_RECORD(OMPI_SPC_OUT_OF_SEQUENCE, 1);
-            SPC_RECORD(OMPI_SPC_OOS_IN_QUEUE, 1);
-            SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_OOS_IN_QUEUE, OMPI_SPC_OOS_IN_QUEUE);
+            SPC_UPDATE_WATERMARK(OMPI_SPC_MAX_OOS_IN_QUEUE, OMPI_SPC_OOS_IN_QUEUE, 1);
 
             OB1_MATCHING_UNLOCK(&comm->matching_lock);
             return OMPI_SUCCESS;
         }
     }
+    SPC_TIMER_STOP(OMPI_SPC_OOS_MATCH_QUEUE_TIME, &timer);
 
     /* mca_pml_ob1_recv_frag_match_proc() will release the lock. */
     return mca_pml_ob1_recv_frag_match_proc(btl, comm_ptr, proc, hdr,
@@ -1031,7 +1079,13 @@ mca_pml_ob1_recv_frag_match_proc (mca_btl_base_module_t *btl,
      */
     if(OPAL_UNLIKELY(NULL != proc->frags_cant_match)) {
         OB1_MATCHING_LOCK(&comm->matching_lock);
+#if SPC_ENABLE == 1
+        opal_timer_t timer;
+        timer = 0;
+#endif
+        SPC_TIMER_START(OMPI_SPC_OOS_MATCH_TIME, &timer);
         if((frag = check_cantmatch_for_match(proc))) {
+            SPC_TIMER_STOP(OMPI_SPC_OOS_MATCH_TIME, &timer);
             hdr = &frag->hdr.hdr_match;
             segments = frag->segments;
             num_segments = frag->num_segments;
@@ -1039,6 +1093,7 @@ mca_pml_ob1_recv_frag_match_proc (mca_btl_base_module_t *btl,
             type = hdr->hdr_common.hdr_type;
             goto match_this_frag;
         }
+        SPC_TIMER_STOP(OMPI_SPC_OOS_MATCH_TIME, &timer);
         OB1_MATCHING_UNLOCK(&comm->matching_lock);
     }
 

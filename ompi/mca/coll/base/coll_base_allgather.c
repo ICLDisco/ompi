@@ -2,7 +2,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -31,6 +31,7 @@
 #include "ompi/mca/coll/coll.h"
 #include "ompi/mca/coll/base/coll_tags.h"
 #include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "coll_base_topo.h"
 #include "coll_base_util.h"
 
@@ -98,6 +99,8 @@ int ompi_coll_base_allgather_intra_bruck(const void *sbuf, int scount,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "coll:base:allgather_intra_bruck rank %d", rank));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLGATHER_BRUCK, scount * sdtype->super.size, size);
 
     err = ompi_datatype_get_extent (rdtype, &rlb, &rext);
     if (MPI_SUCCESS != err) { line = __LINE__; goto err_hndl; }
@@ -286,6 +289,8 @@ ompi_coll_base_allgather_intra_recursivedoubling(const void *sbuf, int scount,
                  "coll:base:allgather_intra_recursivedoubling rank %d, size %d",
                  rank, size));
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLGATHER_RECURSIVE_DOUBLING, scount * sdtype->super.size, size);
+
     err = ompi_datatype_get_extent (rdtype, &rlb, &rext);
     if (MPI_SUCCESS != err) { line = __LINE__; goto err_hndl; }
 
@@ -371,6 +376,8 @@ int ompi_coll_base_allgather_intra_ring(const void *sbuf, int scount,
 
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "coll:base:allgather_intra_ring rank %d", rank));
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLGATHER_RING, scount * sdtype->super.size, size);
 
     err = ompi_datatype_get_extent (rdtype, &rlb, &rext);
     if (MPI_SUCCESS != err) { line = __LINE__; goto err_hndl; }
@@ -508,6 +515,8 @@ ompi_coll_base_allgather_intra_neighborexchange(const void *sbuf, int scount,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "coll:base:allgather_intra_neighborexchange rank %d", rank));
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLGATHER_NEIGHBOR_EXCHANGE, scount * sdtype->super.size, size);
+
     err = ompi_datatype_get_extent (rdtype, &rlb, &rext);
     if (MPI_SUCCESS != err) { line = __LINE__; goto err_hndl; }
 
@@ -611,6 +620,8 @@ int ompi_coll_base_allgather_intra_two_procs(const void *sbuf, int scount,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_allgather_intra_two_procs rank %d", rank));
 
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLGATHER_TWO_PROCS, scount * sdtype->super.size, 2);
+
     if (2 != ompi_comm_size(comm)) {
         return MPI_ERR_UNSUPPORTED_OPERATION;
     }
@@ -688,6 +699,8 @@ ompi_coll_base_allgather_intra_basic_linear(const void *sbuf, int scount,
 {
     int err;
     ptrdiff_t lb, extent;
+
+    SPC_COLL_BIN_RECORD(OMPI_SPC_BASE_ALLGATHER_LINEAR, scount * sdtype->super.size, ompi_comm_size(comm));
 
     /* Handle MPI_IN_PLACE (see explanantion in reduce.c for how to
        allocate temp buffer) -- note that rank 0 can use IN_PLACE

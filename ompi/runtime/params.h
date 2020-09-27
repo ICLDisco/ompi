@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2018 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -26,6 +26,9 @@
 #define OMPI_RUNTIME_PARAMS_H
 
 #include "ompi_config.h"
+#if SPC_ENABLE == 1
+#include "ompi_spc.h"
+#endif
 
 BEGIN_C_DECLS
 
@@ -140,20 +143,6 @@ OMPI_DECLSPEC extern bool ompi_async_mpi_init;
 
 /* EXPERIMENTAL: do not perform an RTE barrier at the beginning of MPI_Finalize */
 OMPI_DECLSPEC extern bool ompi_async_mpi_finalize;
-
-/**
- * A comma delimited list of SPC counters to turn on or 'attach'.  To turn
- * all counters on, the string can be simply "all".  An empty string will
- * keep all counters turned off.
- */
-OMPI_DECLSPEC extern char * ompi_mpi_spc_attach_string;
-
-/**
- * A boolean value that determines whether or not to dump the SPC counter
- * values in MPI_Finalize.  A value of true dumps the counters and false does not.
- */
-OMPI_DECLSPEC extern bool ompi_mpi_spc_dump_enabled;
-
 
 /**
  * Register MCA parameters used by the MPI layer.
