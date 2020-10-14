@@ -40,6 +40,7 @@
 #include "ompi/constants.h"
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/coll/base/base.h"
+#include "ompi/mca/coll/base/coll_tags.h"
 #include "ompi/mca/topo/base/base.h"
 #include "ompi/runtime/params.h"
 #include "ompi/communicator/communicator.h"
@@ -382,6 +383,7 @@ static void ompi_comm_construct(ompi_communicator_t* comm)
     comm->c_pml_comm     = NULL;
     comm->c_topo         = NULL;
     comm->c_coll         = NULL;
+    comm->c_nbc_tag      = MCA_COLL_BASE_TAG_NONBLOCKING_BASE;
 
     /* A keyhash will be created if/when an attribute is cached on
        this communicator */
@@ -419,7 +421,7 @@ static void ompi_comm_destruct(ompi_communicator_t* comm)
        from one communicator to another and we end up destroying the
        new communication while propagating the error up the stack.  We
        want to make it all the way up the stack to invoke the MPI
-       exception, not cause a seg fault in pml_del_comm because it was
+       error, not cause a seg fault in pml_del_comm because it was
        never pml_add_com'ed. */
 
     if ( MPI_COMM_NULL != comm && OMPI_COMM_IS_PML_ADDED(comm) ) {

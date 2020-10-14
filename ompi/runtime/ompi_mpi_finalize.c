@@ -23,6 +23,8 @@
  * Copyright (c) 2016-2017 IBM Corporation. All rights reserved.
  * Copyright (c) 2019      Triad National Security, LLC. All rights
  *                         reserved.
+ * Copyright (c) 2020      Amazon.com, Inc. or its affiliates.
+ *                         All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -45,7 +47,7 @@
 #include <netdb.h>
 #endif
 
-#include "opal/mca/event/event.h"
+#include "opal/util/event.h"
 #include "opal/util/output.h"
 #include "opal/runtime/opal_progress.h"
 #include "opal/mca/base/base.h"
@@ -119,7 +121,7 @@ int ompi_mpi_finalize(void)
     if (state < OMPI_MPI_STATE_INIT_COMPLETED ||
         state >= OMPI_MPI_STATE_FINALIZE_STARTED) {
         /* Note that if we're not initialized or already finalized, we
-           cannot raise an MPI exception.  The best that we can do is
+           cannot raise an MPI error.  The best that we can do is
            write something to stderr. */
         const char *hostname;
         pid_t pid = getpid();

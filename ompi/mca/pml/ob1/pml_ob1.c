@@ -47,6 +47,7 @@
 #include "ompi/mca/bml/base/base.h"
 #include "opal/mca/pmix/pmix-internal.h"
 #include "ompi/runtime/ompi_cr.h"
+#include "ompi/runtime/ompi_spc.h"
 
 #include "pml_ob1.h"
 #include "pml_ob1_component.h"
@@ -708,6 +709,7 @@ int mca_pml_ob1_send_fin( ompi_proc_t* proc,
         if( OPAL_LIKELY( 1 == rc ) ) {
             MCA_PML_OB1_PROGRESS_PENDING(bml_btl);
         }
+        SPC_RECORD(OMPI_SPC_BYTES_SENT_MPI, (ompi_spc_value_t)sizeof(mca_pml_ob1_fin_hdr_t));
         return OMPI_SUCCESS;
     }
     mca_bml_base_free(bml_btl, fin);
@@ -826,7 +828,10 @@ void mca_pml_ob1_error_handler(
         return;
     }
 
-    ompi_rte_abort(-1, btlinfo);
+    /* TODO: this error should return to the caller and invoke an error
+     * handler from the MPI API call.
+     * For now, it is fatal. */
+    ompi_mpi_errors_are_fatal_comm_handler(NULL, NULL, btlinfo);
 }
 
 #if OPAL_ENABLE_FT_CR    == 0

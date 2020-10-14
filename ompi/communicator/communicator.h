@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2017 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -187,6 +187,13 @@ struct ompi_communicator_t {
 
     /* Collectives module interface and data */
     mca_coll_base_comm_coll_t *c_coll;
+
+    /* Non-blocking collective tag. These tags might be shared between
+     * all non-blocking collective modules (to avoid message collision
+     * between them in the case where multiple outstanding non-blocking
+     * collective coexists using multiple backends).
+     */
+    opal_atomic_int32_t c_nbc_tag;
 };
 typedef struct ompi_communicator_t ompi_communicator_t;
 
@@ -455,6 +462,21 @@ int ompi_topo_dist_graph_create_adjacent(ompi_communicator_t *old_comm,
  */
 OMPI_DECLSPEC int ompi_comm_split (ompi_communicator_t *comm, int color, int key,
                                    ompi_communicator_t** newcomm, bool pass_on_topo);
+
+/**
+ * split a communicator based on color and key. Parameters
+ * are identical to the MPI-counterpart of the function.
+ * Similar to \see ompi_comm_split with an additional info parameter.
+ *
+ * @param comm: input communicator
+ * @param color
+ * @param key
+ *
+ * @
+ */
+OMPI_DECLSPEC int ompi_comm_split_with_info( ompi_communicator_t* comm, int color, int key,
+                                             opal_info_t *info,
+                                             ompi_communicator_t **newcomm, bool pass_on_topo );
 
 /**
  * split a communicator based on type and key. Parameters

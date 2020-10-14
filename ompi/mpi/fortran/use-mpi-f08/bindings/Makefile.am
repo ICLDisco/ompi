@@ -7,8 +7,8 @@
 # Copyright (c) 2012-2013 Inria.  All rights reserved.
 # Copyright (c) 2013      Los Alamos National Security, LLC. All rights
 #                         reserved.
-# Copyright (c) 2015-2018 Research Organization for Information Science
-#                         and Technology (RIST). All rights reserved.
+# Copyright (c) 2015-2020 Research Organization for Information Science
+#                         and Technology (RIST).  All rights reserved.
 # Copyright (c) 2016      IBM Corporation.  All rights reserved.
 #
 # $COPYRIGHT$
@@ -33,6 +33,7 @@ if OMPI_BUILD_FORTRAN_USEMPIF08_BINDINGS
 
 AM_FCFLAGS = -I$(top_builddir)/ompi/include \
              -I$(top_srcdir)/ompi/include \
+             $(OMPI_FC_MODULE_FLAG)$(top_builddir)/ompi/mpi/fortran/use-mpi \
              $(OMPI_FC_MODULE_FLAG)$(top_builddir)/ompi/$(OMPI_FORTRAN_USEMPI_DIR) \
              $(OMPI_FC_MODULE_FLAG). \
              $(OMPI_FC_MODULE_FLAG)../mod \
