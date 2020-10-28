@@ -13,6 +13,7 @@
  * Copyright (c) 2006-2016 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2007-2015 Los Alamos National Security, LLC.  All rights
  *                         reserved.
+ * Copyright (c) 2010-2012 Oak Ridge National Labs.  All rights reserved.
  * Copyright (c) 2013      NVIDIA Corporation.  All rights reserved.
  * Copyright (c) 2013-2019 Intel, Inc.  All rights reserved.
  * Copyright (c) 2015      Mellanox Technologies, Inc.
@@ -86,9 +87,37 @@ static bool show_enviro_mca_params = false;
 static bool show_override_mca_params = false;
 static bool ompi_mpi_oversubscribe = false;
 
+#if OPAL_ENABLE_FT_MPI
+int ompi_ftmpi_output_handle = 0;
+bool ompi_ftmpi_enabled = false;
+#include "ompi/communicator/communicator.h"
+#endif
+
 int ompi_mpi_register_params(void)
 {
     int value;
+
+#if OPAL_ENABLE_FT_MPI
+    value = 0;
+    (void) mca_base_var_register ("ompi", "mpi", "ft", "verbose",
+                                  "Verbosity level of the ULFM MPI Fault Tolerance framework",
+                                  MCA_BASE_VAR_TYPE_INT, NULL, 0, 0,
+                                  OPAL_INFO_LVL_9, MCA_BASE_VAR_SCOPE_READONLY, &value);
+    if( 0 < value ) {
+        ompi_ftmpi_output_handle = opal_output_open(NULL);
+        opal_output_set_verbosity(ompi_ftmpi_output_handle, value);
+    }
+
+    ompi_ftmpi_enabled = false;
+    (void) mca_base_var_register ("ompi", "mpi", "ft", "enable",
+                                  "Enable UFLM MPI Fault Tolerance framework",
+                                  MCA_BASE_VAR_TYPE_BOOL, NULL, 0, 0,
+                                  OPAL_INFO_LVL_9, MCA_BASE_VAR_SCOPE_READONLY, &ompi_ftmpi_enabled);
+
+    (void) ompi_comm_rbcast_register_params();
+    (void) ompi_comm_failure_propagator_register_params();
+    (void) ompi_comm_failure_detector_register_params();
+#endif
 
     /* Whether we want MPI API function parameter checking or not. Disable this by default if
        parameter checking is compiled out. */

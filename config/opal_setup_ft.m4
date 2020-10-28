@@ -1,4 +1,8 @@
 dnl
+dnl Copyright (c) 2004-2020 The University of Tennessee and The University
+dnl                         of Tennessee Research Foundation.  All rights
+dnl                         reserved.
+dnl Copyright (c) 2009-2012 Oak Ridge National Labs.  All rights reserved.
 dnl Copyright (c) 2013-2014 Intel, Inc.  All rights reserved.
 dnl Copyright (c) 2015      Research Organization for Information Science
 dnl                         and Technology (RIST). All rights reserved.
@@ -12,11 +16,15 @@ dnl
 #
 # --with-ft=TYPE
 #  TYPE:
+#    - mpi (synonym for 'ulfm')
 #    - LAM (synonym for 'cr' currently)
 #    - cr
 #  /* General FT sections */
 #  #if OPAL_ENABLE_FT == 0 /* FT Disabled globaly */
 #  #if OPAL_ENABLE_FT == 1 /* FT Enabled globaly */
+#  /* ULFM Specific sections */
+#  #if OPAL_ENABLE_FT_MPI == 0 /* FT ULFM Disabled */
+#  #if OPAL_ENABLE_FT_MPI == 1 /* FT ULFM Enabled */
 #  /* CR Specific sections */
 #  #if OPAL_ENABLE_FT_CR == 0 /* FT Ckpt/Restart Disabled */
 #  #if OPAL_ENABLE_FT_CR == 1 /* FT Ckpt/Restart Enabled */
@@ -33,9 +41,9 @@ AC_DEFUN([OPAL_SETUP_FT_OPTIONS],[
     opal_setup_ft_options="yes"
     AC_ARG_WITH(ft,
                 [AC_HELP_STRING([--with-ft=TYPE],
-                [Specify the type of fault tolerance to enable. Options: LAM (LAM/MPI-like), cr (Checkpoint/Restart), (default: disabled)])],
-                [opal_want_ft=1],
-                [opal_want_ft=0])
+                [Specify the type of fault tolerance to enable. Options: mpi (ULFM), LAM (LAM/MPI-like), cr (Checkpoint/Restart) (default: mpi)])],
+                [],
+                [with_ft=mpi]) # If not specified act as if --with-ft=mpi
 
     #
     # Checkpoint/restart enabled debugging
@@ -63,9 +71,11 @@ AC_DEFUN([OPAL_SETUP_FT],[
     if test "$opal_setup_ft_options" = "yes"; then
         AC_MSG_CHECKING([if want fault tolerance])
     fi
-    if test "x$with_ft" != "x" || test "$opal_want_ft" = "1"; then
+
+    if test x"$with_ft" != "xno"; then
         opal_want_ft=1
         opal_want_ft_cr=0
+        opal_want_ft_mpi=0
         opal_want_ft_type=none
 
         as_save_IFS=$IFS
@@ -74,8 +84,16 @@ AC_DEFUN([OPAL_SETUP_FT],[
             IFS=$as_save_IFS
 
             # Default value
-            if test "$opt" = "" || test "$opt" = "yes"; then
-                opal_want_ft_cr=1
+            if test "$opt" = "yes"; then
+                opal_want_ft_mpi=1
+            elif test "$opt" = "ULFM"; then
+                opal_want_ft_mpi=1
+            elif test "$opt" = "ulfm"; then
+                opal_want_ft_mpi=1
+            elif test "$opt" = "MPI"; then
+                opal_want_ft_mpi=1
+            elif test "$opt" = "mpi"; then
+                opal_want_ft_mpi=1
             elif test "$opt" = "LAM"; then
                 opal_want_ft_cr=1
             elif test "$opt" = "lam"; then
@@ -89,18 +107,22 @@ AC_DEFUN([OPAL_SETUP_FT],[
                 AC_MSG_ERROR([Cannot continue])
             fi
         done
-        if test "$opal_want_ft_cr" = 1; then
+        if test "$opal_want_ft_mpi" = 1; then
+            opal_want_ft_type="mpi"
+        elif test "$opal_want_ft_cr" = 1; then
             opal_want_ft_type="cr"
         fi
 
         AC_MSG_RESULT([Enabled $opal_want_ft_type (Specified $with_ft)])
         AC_MSG_WARN([**************************************************])
         AC_MSG_WARN([*** Fault Tolerance Integration into Open MPI is *])
-        AC_MSG_WARN([*** a research quality implementation, and care  *])
-        AC_MSG_WARN([*** should be used when choosing to enable it.   *])
+        AC_MSG_WARN([*** compiled-in, but off by default. Use mpiexec *])
+        AC_MSG_WARN([*** and MCA parameters to turn it on.            *])
+        AC_MSG_WARN([*** Not all components support fault tolerance.  *])
         AC_MSG_WARN([**************************************************])
     else
         opal_want_ft=0
+        opal_want_ft_mpi=0
         opal_want_ft_cr=0
         if test "$opal_setup_ft_options" = "yes"; then
             AC_MSG_RESULT([Disabled fault tolerance])
@@ -108,9 +130,12 @@ AC_DEFUN([OPAL_SETUP_FT],[
     fi
     AC_DEFINE_UNQUOTED([OPAL_ENABLE_FT], [$opal_want_ft],
                        [Enable fault tolerance general components and logic])
+    AC_DEFINE_UNQUOTED([OPAL_ENABLE_FT_MPI], [$opal_want_ft_mpi],
+                       [Enable fault tolerance MPI ULFM components and logic])
     AC_DEFINE_UNQUOTED([OPAL_ENABLE_FT_CR], [$opal_want_ft_cr],
                        [Enable fault tolerance checkpoint/restart components and logic])
     AM_CONDITIONAL(WANT_FT, test "$opal_want_ft" = "1")
+    AM_CONDITIONAL(WANT_FT_MPI, test "$opal_want_ft_mpi" = "1")
     AM_CONDITIONAL(WANT_FT_CR,  test "$opal_want_ft_cr" = "1")
 
     if test "$opal_setup_ft_options" = "yes"; then
@@ -175,4 +200,5 @@ AC_DEFUN([OPAL_SETUP_FT],[
     AC_DEFINE_UNQUOTED([OPAL_ENABLE_FT_THREAD], [$opal_want_ft_thread],
                        [Enable fault tolerance thread in Open PAL])
     AM_CONDITIONAL(WANT_FT_THREAD, test "$opal_want_ft_thread" = "1")
+    OPAL_SUMMARY_ADD([[Miscellaneous]],[[Fault Tolerance support]],[unnecessary], [$with_ft])
 ])
