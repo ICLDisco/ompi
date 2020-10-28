@@ -78,7 +78,7 @@ static int _setup_proc_session_dir(char **sdir);
 #define OPAL_PRINT_NAME_ARG_NUM_BUFS    16
 
 static bool fns_init=false;
-static opal_tsd_key_t print_args_tsd_key;
+static opal_tsd_tracked_key_t print_args_tsd_key;
 static char* opal_print_args_null = "NULL";
 typedef struct {
     char *buffers[OPAL_PRINT_NAME_ARG_NUM_BUFS];
@@ -108,14 +108,12 @@ get_print_name_buffer(void)
 
     if (!fns_init) {
         /* setup the print_args function */
-        if (OPAL_SUCCESS != (ret = opal_tsd_key_create(&print_args_tsd_key, buffer_cleanup))) {
-            OPAL_ERROR_LOG(ret);
-            return NULL;
-        }
+        OBJ_CONSTRUCT(&print_args_tsd_key, opal_tsd_tracked_key_t);
+        opal_tsd_tracked_key_set_destructor(&print_args_tsd_key, buffer_cleanup);
         fns_init = true;
     }
 
-    ret = opal_tsd_getspecific(print_args_tsd_key, (void**)&ptr);
+    ret = opal_tsd_tracked_key_get(&print_args_tsd_key, (void**)&ptr);
     if (OPAL_SUCCESS != ret) return NULL;
 
     if (NULL == ptr) {
@@ -124,7 +122,7 @@ get_print_name_buffer(void)
             ptr->buffers[i] = (char *) malloc((OPAL_PRINT_NAME_ARGS_MAX_SIZE+1) * sizeof(char));
         }
         ptr->cntr = 0;
-        ret = opal_tsd_setspecific(print_args_tsd_key, (void*)ptr);
+        ret = opal_tsd_tracked_key_set(&print_args_tsd_key, (void*)ptr);
     }
 
     return (opal_print_args_buffers_t*) ptr;
@@ -587,9 +585,11 @@ int ompi_rte_init(int *pargc, char ***pargv)
             /* just assume 0 */
             u16 = 0;
         } else {
-            ret = opal_pmix_convert_status(rc);
-            error = "node rank";
-            goto error;
+            /* we may be in an environment that doesn't quite adhere
+             * to the Standard - we can safely assume it is the same
+             * as the local rank as such environments probably aren't
+             * going to care */
+            u16 = opal_process_info.my_local_rank;
         }
     }
     opal_process_info.my_node_rank = u16;
@@ -670,6 +670,7 @@ int ompi_rte_init(int *pargc, char ***pargv)
         }
     }
 
+#ifdef PMIX_APP_ARGV
     /* get our command - defaults to our appnum */
     ev1 = NULL;
     OPAL_MODEX_RECV_VALUE_OPTIONAL(rc, PMIX_APP_ARGV,
@@ -683,13 +684,21 @@ int ompi_rte_init(int *pargc, char ***pargv)
             opal_process_info.command = opal_argv_join(tmp, ' ');
         }
     }
+#else
+    tmp = *pargv;
+    if (NULL != tmp) {
+        opal_process_info.command = opal_argv_join(tmp, ' ');
+    }
+#endif
 
+#ifdef PMIX_REINCARNATION
     /* get our reincarnation number */
     OPAL_MODEX_RECV_VALUE_OPTIONAL(rc, PMIX_REINCARNATION,
                                    &OPAL_PROC_MY_NAME, &u32ptr, PMIX_UINT32);
     if (PMIX_SUCCESS == rc) {
         opal_process_info.reincarnation = u32;
     }
+#endif
 
     /* get the number of local peers - required for wireup of
      * shared memory BTL, defaults to local node */
@@ -697,10 +706,6 @@ int ompi_rte_init(int *pargc, char ***pargv)
                                    &pname, &u32ptr, PMIX_UINT32);
     if (PMIX_SUCCESS == rc) {
         opal_process_info.num_local_peers = u32 - 1;  // want number besides ourselves
-    } else {
-        ret = opal_pmix_convert_status(rc);
-        error = "local size";
-        goto error;
     }
 
     /* retrieve temp directories info */
@@ -770,28 +775,27 @@ int ompi_rte_init(int *pargc, char ***pargv)
         opal_process_info.proc_is_bound = false;
     }
 
-    /* get our local peers */
-    if (0 < opal_process_info.num_local_peers) {
-        /* if my local rank if too high, then that's an error */
-        if (opal_process_info.num_local_peers < opal_process_info.my_local_rank) {
-            ret = OPAL_ERR_BAD_PARAM;
-            error = "num local peers";
-            goto error;
-        }
-        /* retrieve the local peers - defaults to local node */
-        val = NULL;
-        OPAL_MODEX_RECV_VALUE(rc, PMIX_LOCAL_PEERS,
-                              &pname, &val, PMIX_STRING);
-        if (PMIX_SUCCESS == rc && NULL != val) {
-            peers = opal_argv_split(val, ',');
-            free(val);
-        } else {
-            ret = opal_pmix_convert_status(rc);
-            error = "local peers";
-            goto error;
-        }
+    /* retrieve the local peers - defaults to local node */
+    val = NULL;
+    OPAL_MODEX_RECV_VALUE(rc, PMIX_LOCAL_PEERS,
+                          &pname, &val, PMIX_STRING);
+    if (PMIX_SUCCESS == rc && NULL != val) {
+        peers = opal_argv_split(val, ',');
+        free(val);
     } else {
-        peers = NULL;
+        ret = opal_pmix_convert_status(rc);
+        error = "local peers";
+        goto error;
+    }
+    /* if we were unable to retrieve the #local peers, set it here */
+    if (0 == opal_process_info.num_local_peers) {
+        opal_process_info.num_local_peers = opal_argv_count(peers) - 1;
+    }
+    /* if my local rank if too high, then that's an error */
+    if (opal_process_info.num_local_peers < opal_process_info.my_local_rank) {
+        ret = OPAL_ERR_BAD_PARAM;
+        error = "num local peers";
+        goto error;
     }
 
     /* set the locality */
@@ -938,6 +942,10 @@ int ompi_rte_finalize(void)
     if (NULL != opal_process_info.initial_errhandler) {
         free(opal_process_info.initial_errhandler);
         opal_process_info.initial_errhandler = NULL;
+    }
+
+    if (fns_init) {
+        OBJ_DESTRUCT(&print_args_tsd_key);
     }
 
     /* cleanup our internal nspace hack */

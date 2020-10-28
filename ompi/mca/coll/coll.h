@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2007 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2015 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -12,13 +12,14 @@
  *                         All rights reserved.
  * Copyright (c) 2007-2008 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2007-2008 UT-Battelle, LLC
- * Copyright (c) 2012      Oak Rigde National Laboratory. All rights reserved.
+ * Copyright (c) 2010-2012 Oak Rigde National Laboratory. All rights reserved.
  * Copyright (c) 2013-2015 Los Alamos National Security, LLC. All rights
  *                         reserved.
  * Copyright (c) 2014-2015 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2016-2017 IBM Corporation.  All rights reserved.
  * Copyright (c) 2017      FUJITSU LIMITED.  All rights reserved.
+ * Copyright (c) 2020      BULL S.A.S. All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -82,7 +83,9 @@ BEGIN_C_DECLS
 struct ompi_communicator_t;
 struct ompi_datatype_t;
 struct ompi_op_t;
-
+#if OPAL_ENABLE_FT_MPI
+struct ompi_group_t;
+#endif /* OPAL_ENABLE_FT_MPI */
 
 /* ******************************************************************** */
 
@@ -180,6 +183,36 @@ typedef struct mca_coll_base_module_2_3_0_t *
 typedef int
 (*mca_coll_base_module_enable_1_1_0_fn_t)(struct mca_coll_base_module_2_3_0_t* module,
                                           struct ompi_communicator_t *comm);
+
+#if 1 /* not conditional on OPAL_ENABLE_FT_MPI for ABI */
+/* Fault Tolerant Agreement - Consensus Protocol */
+
+/**
+ * @param comm: communicator on which to run the agreement
+ * @param failgroup:
+ *               as input: group of locally acknowledged dead processes
+ *               as output: group of globally acknowledged dead processes
+ *               NOTE: iagree does not need to update group
+ *                     as only the blocking agreement function is used
+ *                     in shrink, and only in that case we need the group
+ *                     to be global at output.
+ * @param op: the operand to apply on contrib
+ * @param dt: the datatype of contrib
+ * @param dt_count: the number of dt in contrib
+ * @param contrib: a pointer to the contribution / output
+ * @param module: the MCA module that defines this agreement.
+ */
+typedef int (*mca_coll_base_module_agree_fn_t)
+ (void *contrib, int dt_count, struct ompi_datatype_t *dtype,
+   struct ompi_op_t *op, struct ompi_group_t **failedgroup, bool update_failedgroup,
+   struct ompi_communicator_t *comm,
+   struct mca_coll_base_module_2_3_0_t *module);
+typedef int (*mca_coll_base_module_iagree_fn_t)
+  (void *contrib, int dt_count, struct ompi_datatype_t *dtype,
+   struct ompi_op_t *op, struct ompi_group_t **failedgroup, bool update_failedgroup,
+   struct ompi_communicator_t *comm, ompi_request_t **request,
+   struct mca_coll_base_module_2_3_0_t *module);
+#endif /* OPAL_ENABLE_FT_MPI */
 
 
 /**
@@ -589,6 +622,10 @@ struct mca_coll_base_module_2_3_0_t {
     mca_coll_base_module_alltoallv_init_fn_t coll_neighbor_alltoallv_init;
     mca_coll_base_module_neighbor_alltoallw_init_fn_t coll_neighbor_alltoallw_init;
 
+    /* fault tolerant collective functions */
+    mca_coll_base_module_agree_fn_t coll_agree;
+    mca_coll_base_module_iagree_fn_t coll_iagree;
+
     /** Fault tolerance event trigger function */
     mca_coll_base_module_ft_event_fn_t ft_event;
 
@@ -767,6 +804,14 @@ struct mca_coll_base_comm_coll_t {
 
     mca_coll_base_module_reduce_local_fn_t coll_reduce_local;
     mca_coll_base_module_2_3_0_t *coll_reduce_local_module;
+
+    mca_coll_base_module_agree_fn_t coll_agree;
+    mca_coll_base_module_2_3_0_t *coll_agree_module;
+    mca_coll_base_module_iagree_fn_t coll_iagree;
+    mca_coll_base_module_2_3_0_t *coll_iagree_module;
+
+    /* List of modules initialized, queried and enabled */
+    opal_list_t *module_list;
 };
 typedef struct mca_coll_base_comm_coll_t mca_coll_base_comm_coll_t;
 

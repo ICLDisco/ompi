@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2010 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2007 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2007 High Performance Computing Center Stuttgart,
@@ -56,6 +56,13 @@ int mca_pml_base_progress(void)
     return OMPI_SUCCESS;
 }
 
+#if 1 /* not conditional on OPAL_ENABLE_FT_MPI for ABI */
+int mca_pml_base_revoke_comm(ompi_communicator_t *comm, bool coll_only)
+{
+    return OMPI_ERR_NOT_IMPLEMENTED;
+}
+#endif /* OPAL_ENABLE_FT_MPI */
+
 #define xstringify(pml) #pml
 #define stringify(pml) xstringify(pml)
 
@@ -69,6 +76,7 @@ mca_pml_base_module_t mca_pml = {
     mca_pml_base_progress,   /* pml_progress */
     NULL,                    /* pml_add_comm */
     NULL,                    /* pml_del_comm */
+    mca_pml_base_revoke_comm,/* pml_revoke_comm */
     NULL,                    /* pml_irecv_init */
     NULL,                    /* pml_irecv */
     NULL,                    /* pml_recv */

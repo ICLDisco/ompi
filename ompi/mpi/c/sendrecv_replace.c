@@ -2,7 +2,7 @@
  * Copyright (c) 2004-2007 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2018 The University of Tennessee and The University
+ * Copyright (c) 2004-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2008 High Performance Computing Center Stuttgart,
@@ -63,7 +63,7 @@ int MPI_Sendrecv_replace(void * buf, int count, MPI_Datatype datatype,
         OMPI_CHECK_DATATYPE_FOR_RECV(rc, datatype, count);
 
         if (ompi_comm_invalid(comm)) {
-            return OMPI_ERRHANDLER_INVOKE(MPI_COMM_WORLD, MPI_ERR_COMM, FUNC_NAME);
+            return OMPI_ERRHANDLER_NOHANDLE_INVOKE(MPI_ERR_COMM, FUNC_NAME);
         } else if (dest != MPI_PROC_NULL && ompi_comm_peer_invalid(comm, dest)) {
             rc = MPI_ERR_RANK;
         } else if (sendtag < 0 || sendtag > mca_pml.pml_max_tag) {
@@ -75,6 +75,13 @@ int MPI_Sendrecv_replace(void * buf, int count, MPI_Datatype datatype,
         }
         OMPI_ERRHANDLER_CHECK(rc, comm, rc, FUNC_NAME);
     }
+
+#if OPAL_ENABLE_FT_MPI
+    /*
+     * The final call to Sendrecv will check for process failures inside
+     * So no need to check here.
+     */
+#endif /* OPAL_ENABLE_FT_MPI */
 
     OPAL_CR_ENTER_LIBRARY();
 
@@ -125,7 +132,7 @@ int MPI_Sendrecv_replace(void * buf, int count, MPI_Datatype datatype,
     max_data = packed_size;
     iov_count = 1;
     rc = opal_convertor_pack(&convertor, &iov, &iov_count, &max_data);
-    
+
     /* recv into temporary buffer */
     rc = PMPI_Sendrecv( iov.iov_base, packed_size, MPI_PACKED, dest, sendtag, buf, count,
                         datatype, source, recvtag, comm, &recv_status );

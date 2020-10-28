@@ -3,7 +3,7 @@
  * Copyright (c) 2006      The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2013-2018 The University of Tennessee and The University
+ * Copyright (c) 2013-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2006      The Technical University of Chemnitz. All
@@ -26,6 +26,8 @@
  */
 #include "nbc_internal.h"
 #include "ompi/mca/coll/base/coll_tags.h"
+#include "ompi/mca/coll/base/coll_base_functions.h"
+#include "ompi/mca/coll/base/coll_base_util.h"
 #include "ompi/op/op.h"
 #include "ompi/mca/pml/pml.h"
 
@@ -334,8 +336,20 @@ int NBC_Progress(NBC_Handle *handle) {
     /* don't call ompi_request_test_all as it causes a recursive call into opal_progress */
     while (handle->req_count) {
         ompi_request_t *subreq = handle->req_array[handle->req_count - 1];
+#if OPAL_ENABLE_FT_MPI
+        if (REQUEST_COMPLETE(subreq)
+         || OPAL_UNLIKELY( ompi_request_is_failed(subreq) )) {
+#else
         if (REQUEST_COMPLETE(subreq)) {
+#endif /* OPAL_ENABLE_FT_MPI */
             if(OPAL_UNLIKELY( OMPI_SUCCESS != subreq->req_status.MPI_ERROR )) {
+#if OPAL_ENABLE_FT_MPI
+                if( MPI_ERR_PROC_FAILED == subreq->req_status.MPI_ERROR ||
+                    MPI_ERR_PROC_FAILED_PENDING == subreq->req_status.MPI_ERROR ||
+                    MPI_ERR_REVOKED == subreq->req_status.MPI_ERROR ) {
+                    NBC_DEBUG (1, "MPI Error in NBC subrequest %p : %d)", subreq, subreq->req_status.MPI_ERROR);
+                } else // this 'else' intentionally spills outside the ifdef
+#endif /* OPAL_ENABLE_FT_MPI */
                 NBC_Error ("MPI Error in NBC subrequest %p : %d", subreq, subreq->req_status.MPI_ERROR);
                 /* copy the error code from the underlying request and let the
                  * round finish */
@@ -595,7 +609,6 @@ void NBC_Return_handle(ompi_coll_libnbc_request_t *request) {
 }
 
 int  NBC_Init_comm(MPI_Comm comm, NBC_Comminfo *comminfo) {
-  comminfo->tag= MCA_COLL_BASE_TAG_NONBLOCKING_BASE;
 
 #ifdef NBC_CACHE_SCHEDULE
   /* initialize the NBC_ALLTOALL SchedCache tree */
@@ -672,7 +685,7 @@ int NBC_Start(NBC_Handle *handle) {
 int NBC_Schedule_request(NBC_Schedule *schedule, ompi_communicator_t *comm,
                          ompi_coll_libnbc_module_t *module, bool persistent,
                          ompi_request_t **request, void *tmpbuf) {
-  int ret, tmp_tag;
+  int ret;
   bool need_register = false;
   ompi_coll_libnbc_request_t *handle;
 
@@ -685,13 +698,7 @@ int NBC_Schedule_request(NBC_Schedule *schedule, ompi_communicator_t *comm,
 
     /* update the module->tag here because other processes may have operations
      * and they may update the module->tag */
-    OPAL_THREAD_LOCK(&module->mutex);
-    tmp_tag = module->tag--;
-    if (tmp_tag == MCA_COLL_BASE_TAG_NONBLOCKING_END) {
-      tmp_tag = module->tag = MCA_COLL_BASE_TAG_NONBLOCKING_BASE;
-      NBC_DEBUG(2,"resetting tags ...\n");
-    }
-    OPAL_THREAD_UNLOCK(&module->mutex);
+    (void)ompi_coll_base_nbc_reserve_tags(comm, 1);
 
     OBJ_RELEASE(schedule);
     free(tmpbuf);
@@ -712,20 +719,15 @@ int NBC_Schedule_request(NBC_Schedule *schedule, ompi_communicator_t *comm,
 
   /******************** Do the tag and shadow comm administration ...  ***************/
 
-  OPAL_THREAD_LOCK(&module->mutex);
-  tmp_tag = module->tag--;
-  if (tmp_tag == MCA_COLL_BASE_TAG_NONBLOCKING_END) {
-      tmp_tag = module->tag = MCA_COLL_BASE_TAG_NONBLOCKING_BASE;
-      NBC_DEBUG(2,"resetting tags ...\n");
-  }
+  handle->tag = ompi_coll_base_nbc_reserve_tags(comm, 1);
 
+  OPAL_THREAD_LOCK(&module->mutex);
   if (true != module->comm_registered) {
       module->comm_registered = true;
       need_register = true;
   }
   OPAL_THREAD_UNLOCK(&module->mutex);
 
-  handle->tag = tmp_tag;
 
   /* register progress */
   if (need_register) {
@@ -737,7 +739,6 @@ int NBC_Schedule_request(NBC_Schedule *schedule, ompi_communicator_t *comm,
   }
 
   handle->comm=comm;
-  /*printf("got module: %lu tag: %i\n", module, module->tag);*/
 
   /******************** end of tag and shadow comm administration ...  ***************/
   handle->comminfo = module;

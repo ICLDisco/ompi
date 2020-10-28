@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2001-2011 Mellanox Technologies Ltd. 2001-2011.  ALL RIGHTS RESERVED.
- * Copyright (c) 2016      The University of Tennessee and The University
+ * Copyright (c) 2016-2020 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2018-2019 Research Organization for Information Science
@@ -20,6 +20,7 @@
 #include "opal/mca/pmix/pmix-internal.h"
 #include "ompi/attribute/attribute.h"
 #include "ompi/message/message.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "ompi/mca/pml/base/pml_base_bsend.h"
 #include "opal/mca/common/ucx/common_ucx.h"
 #if OPAL_CUDA_SUPPORT
@@ -79,7 +80,7 @@ mca_pml_ucx_module_t ompi_pml_ucx = {
         .pml_ft_event      = NULL,
         .pml_max_contextid = (1ul << (PML_UCX_CONTEXT_BITS)) - 1,
         .pml_max_tag       = (1ul << (PML_UCX_TAG_BITS - 1)) - 1,
-        0 /* flags */
+        .pml_flags         = 0 /* flags */
     },
     .ucp_context           = NULL,
     .ucp_worker            = NULL
@@ -627,6 +628,13 @@ int mca_pml_ucx_recv(void *buf, size_t count, ompi_datatype_t *datatype, int src
         status = ucp_request_test(req, &info);
         if (status != UCS_INPROGRESS) {
             mca_pml_ucx_set_recv_status_safe(mpi_status, status, &info);
+
+#if SPC_ENABLE == 1
+            size_t dt_size;
+            ompi_datatype_type_size(datatype, &dt_size);
+            SPC_USER_OR_MPI(tag, dt_size*count,
+                            OMPI_SPC_BYTES_RECEIVED_USER, OMPI_SPC_BYTES_RECEIVED_MPI);
+#endif
             return OMPI_SUCCESS;
         }
     }
@@ -827,6 +835,13 @@ int mca_pml_ucx_isend(const void *buf, size_t count, ompi_datatype_t *datatype,
                                                    mca_pml_ucx_send_completion);
 #endif
 
+#if SPC_ENABLE == 1
+    size_t dt_size;
+    ompi_datatype_type_size(datatype, &dt_size);
+    SPC_USER_OR_MPI(tag, dt_size*count,
+                    OMPI_SPC_BYTES_SENT_USER, OMPI_SPC_BYTES_SENT_MPI);
+#endif
+
     if (req == NULL) {
         PML_UCX_VERBOSE(8, "returning completed request");
         *request = &ompi_pml_ucx.completed_send_req;
@@ -917,6 +932,13 @@ int mca_pml_ucx_send(const void *buf, size_t count, ompi_datatype_t *datatype, i
     if (OPAL_UNLIKELY(NULL == ep)) {
         return OMPI_ERROR;
     }
+
+#if SPC_ENABLE == 1
+    size_t dt_size;
+    ompi_datatype_type_size(datatype, &dt_size);
+    SPC_USER_OR_MPI(tag, dt_size*count,
+                    OMPI_SPC_BYTES_SENT_USER, OMPI_SPC_BYTES_SENT_MPI);
+#endif
 
 #if HAVE_DECL_UCP_TAG_SEND_NBR
     if (OPAL_LIKELY((MCA_PML_BASE_SEND_BUFFERED != mode) &&

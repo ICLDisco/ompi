@@ -12,6 +12,9 @@
  *                         All rights reserved.
  * Copyright (c) 2015      Los Alamos National Security, LLC. All rights
  *                         reserved.
+ * Copyright (c) 2020      Google, LLC. All rights reserved.
+ * Copyright (c) 2020      Amazon.com, Inc. or its affiliates.
+ *                         All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -29,7 +32,7 @@
 #include <string.h>
 
 /* Open MPI includes */
-#include "opal/mca/event/event.h"
+#include "opal/util/event.h"
 #include "opal/mca/btl/btl.h"
 #include "opal/mca/btl/base/base.h"
 #include "opal/mca/mpool/mpool.h"
@@ -268,9 +271,8 @@ int mca_btl_template_get (struct mca_btl_base_module_t *btl,
  * @param endpoint(IN)     BTL addressing information (or NULL for all endpoints)
  * @param base (IN)        Pointer to start of region
  * @param size (IN)        Size of region
- * @param flags (IN)       Flags indicating what operation will be performed. Valid
- *                         values are MCA_BTL_DES_FLAGS_PUT, MCA_BTL_DES_FLAGS_GET,
- *                         and MCA_BTL_DES_FLAGS_ATOMIC
+ * @param flags (IN)       Flags indicating what memory access level is requested.
+ *                         See opal/mca/rcache/rcache.h for valid access flags.
  *
  * @returns a memory registration handle valid for both local and remote operations
  * @returns NULL if the region could not be registered

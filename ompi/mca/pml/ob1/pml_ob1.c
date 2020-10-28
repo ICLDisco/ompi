@@ -45,8 +45,10 @@
 #include "ompi/mca/pml/base/base.h"
 #include "ompi/mca/pml/base/base.h"
 #include "ompi/mca/bml/base/base.h"
+#include "ompi/errhandler/errhandler.h"
 #include "opal/mca/pmix/pmix-internal.h"
 #include "ompi/runtime/ompi_cr.h"
+#include "ompi/runtime/ompi_spc.h"
 
 #include "pml_ob1.h"
 #include "pml_ob1_component.h"
@@ -65,6 +67,9 @@ mca_pml_ob1_t mca_pml_ob1 = {
         NULL,  /* mca_pml_ob1_progress, */
         mca_pml_ob1_add_comm,
         mca_pml_ob1_del_comm,
+#if OPAL_ENABLE_FT_MPI
+        mca_pml_ob1_revoke_comm,
+#endif
         mca_pml_ob1_irecv_init,
         mca_pml_ob1_irecv,
         mca_pml_ob1_recv,
@@ -708,6 +713,7 @@ int mca_pml_ob1_send_fin( ompi_proc_t* proc,
         if( OPAL_LIKELY( 1 == rc ) ) {
             MCA_PML_OB1_PROGRESS_PENDING(bml_btl);
         }
+        SPC_RECORD(OMPI_SPC_BYTES_SENT_MPI, (ompi_spc_value_t)sizeof(mca_pml_ob1_fin_hdr_t));
         return OMPI_SUCCESS;
     }
     mca_bml_base_free(bml_btl, fin);
@@ -818,6 +824,7 @@ void mca_pml_ob1_error_handler(
         return;
     }
 #endif /* OPAL_CUDA_SUPPORT */
+
     /* Some BTL report unreachable errors during normal MPI_Finalize
      * termination. Lets simply ignore such errors after MPI is not supposed to
      * be operational anyway.
@@ -826,7 +833,22 @@ void mca_pml_ob1_error_handler(
         return;
     }
 
-    ompi_rte_abort(-1, btlinfo);
+#if OPAL_ENABLE_FT_MPI
+    opal_output_verbose( 1, mca_pml_ob1_output,
+                         "PML:OB1: the error handler was invoked by the %s BTL for proc %s with info %s",
+                         btl->btl_component->btl_version.mca_component_name,
+                         (NULL == errproc ? "null" : OMPI_NAME_PRINT(&errproc->proc_name)), btlinfo);
+    if( ompi_ftmpi_enabled && (NULL != errproc) ) {
+        /* It's safe to upgrade to the OMPI type */
+        ompi_errhandler_proc_failed((ompi_proc_t*)errproc);
+        return;
+    }
+#endif /* OPAL_ENABLE_FT_MPI */
+
+    /* TODO: this error should return to the caller and invoke an error
+     * handler from the MPI API call.
+     * For now, it is fatal. */
+    ompi_mpi_errors_are_fatal_comm_handler(NULL, NULL, btlinfo);
 }
 
 #if OPAL_ENABLE_FT_CR    == 0

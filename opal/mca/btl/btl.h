@@ -179,6 +179,10 @@ typedef uint8_t mca_btl_base_tag_t;
  */
 #define MCA_BTL_AM_FRAMEWORK_MASK   0xD0
 #define MCA_BTL_TAG_BTL             0x20
+#if OPAL_ENABLE_FT_MPI
+#define MCA_BTL_TAG_FT_RBCAST       0x30
+#define MCA_BTL_TAG_FT_AGREE        0x31
+#endif
 #define MCA_BTL_TAG_PML             0x40
 #define MCA_BTL_TAG_OSC_RDMA        0x60
 #define MCA_BTL_TAG_USR             0x80
@@ -490,11 +494,6 @@ OPAL_DECLSPEC OBJ_CLASS_DECLARATION(mca_btl_base_descriptor_t);
 /* Tell the PML that the copy is being done asynchronously
  */
 #define MCA_BTL_DES_FLAGS_CUDA_COPY_ASYNC   0x0008
-
-/* Type of transfer that will be done with this frag.
- */
-#define MCA_BTL_DES_FLAGS_PUT               0x0010
-#define MCA_BTL_DES_FLAGS_GET               0x0020
 
 /* Ask the BTL to wake the remote process (send/sendi) or local process
  * (put/get) to handle this message. The BTL may ignore this flag if

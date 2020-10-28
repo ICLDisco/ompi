@@ -47,7 +47,7 @@ int ompi_errhandler_invoke(ompi_errhandler_t *errhandler, void *mpi_object,
         int32_t state = ompi_mpi_state;
         if (state >= OMPI_MPI_STATE_INIT_COMPLETED &&
             state < OMPI_MPI_STATE_FINALIZE_PAST_COMM_SELF_DESTRUCT) {
-            comm = &ompi_mpi_comm_self.comm;
+            comm = (ompi_mpi_compat_mpi3)? &ompi_mpi_comm_world.comm: &ompi_mpi_comm_self.comm;
             comm->error_handler->eh_comm_fn(&comm, &err_code, message, NULL);
         }
         else {
@@ -141,7 +141,7 @@ int ompi_errhandler_request_invoke(int count,
     ompi_mpi_object_t mpi_object;
 
     /* Find the *first* request that has an error -- that's the one
-       that we'll invoke the exception on.  In an error condition, the
+       that we'll invoke the error on.  In an error condition, the
        request will not have been reset back to MPI_REQUEST_NULL, so
        there's no need to cache values from before we call
        ompi_request_test(). */
@@ -162,18 +162,27 @@ int ompi_errhandler_request_invoke(int count,
 
     /* Since errors on requests cause them to not be freed (until we
        can examine them here), go through and free all requests with
-       errors.  We only invoke the exception on the *first* request
+       errors.  We only invoke the error on the *first* request
        that had an error. */
     for (; i < count; ++i) {
         if (MPI_REQUEST_NULL != requests[i] &&
             MPI_SUCCESS != requests[i]->req_status.MPI_ERROR) {
+#if OPAL_ENABLE_FT_MPI
+            /* Special case for MPI_ANY_SOURCE when marked as
+             * MPI_ERR_PROC_FAILED_PENDING,
+             * This request should not be freed since it is still active. */
+            if( MPI_ERR_PROC_FAILED_PENDING != requests[i]->req_status.MPI_ERROR ) {
+                ompi_request_free(&(requests[i]));
+            }
+#else
             /* Ignore the error -- what are we going to do?  We're
-               already going to invoke an exception */
+               already going to invoke an error */
             ompi_request_free(&(requests[i]));
+#endif /* OPAL_ENABLE_FT_MPI */
         }
     }
 
-    /* Invoke the exception */
+    /* Invoke the error */
     switch (type) {
     case OMPI_REQUEST_PML:
     case OMPI_REQUEST_COLL:

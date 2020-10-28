@@ -137,6 +137,17 @@ ompi_mtl_ofi_context_progress(int ctxt_id)
                             &error,
                             0);
         if (0 > ret) {
+            /*
+             * In multi-threaded scenarios, any thread that attempts to read
+             * a CQ when there's a pending error CQ entry gets an
+             * -FI_EAVAIL. Without any serialization here (which is okay,
+             * since libfabric will protect access to critical CQ objects),
+             * all threads proceed to read from the error CQ, but only one
+             * thread fetches the entry while others get -FI_EAGAIN
+             * indicating an empty queue, which is not erroneous.
+             */
+            if (ret == -FI_EAGAIN)
+                return count;
             opal_output(0, "%s:%d: Error returned from fi_cq_readerr: %s(%zd).\n"
                            "*** The Open MPI OFI MTL is aborting the MPI job (via exit(3)).\n",
                            __FILE__, __LINE__, fi_strerror(-ret), ret);
@@ -950,6 +961,8 @@ ompi_mtl_ofi_imrecv(struct mca_mtl_base_module_t *mtl,
         return ompi_mtl_ofi_get_error(ret);
     }
 
+    *message = MPI_MESSAGE_NULL;
+
     return OMPI_SUCCESS;
 }
 
@@ -978,10 +991,20 @@ __opal_attribute_always_inline__ static inline int
 ompi_mtl_ofi_probe_error_callback(struct fi_cq_err_entry *error,
                                   ompi_mtl_ofi_request_t *ofi_req)
 {
-    ofi_req->status.MPI_ERROR = MPI_ERR_INTERN;
     ofi_req->completion_count--;
 
-    return OMPI_SUCCESS;
+    /*
+     * Receives posted with FI_PEEK and friends will get an error
+     * completion with FI_ENOMSG. This just indicates the lack of a match for
+     * the probe and is not an error case. All other error cases are
+     * provider-internal errors and should be flagged as such.
+     */
+    if (error->err == FI_ENOMSG)
+        return OMPI_SUCCESS;
+
+    ofi_req->status.MPI_ERROR = MPI_ERR_INTERN;
+
+    return OMPI_ERROR;
 }
 
 __opal_attribute_always_inline__ static inline int
@@ -1026,7 +1049,6 @@ ompi_mtl_ofi_iprobe_generic(struct mca_mtl_base_module_t *mtl,
     /**
      * fi_trecvmsg with FI_PEEK:
      * Initiate a search for a match in the hardware or software queue.
-     * The search can complete immediately with -ENOMSG.
      * If successful, libfabric will enqueue a context entry into the completion
      * queue to make the search nonblocking.  This code will poll until the
      * entry is enqueued.
@@ -1047,13 +1069,7 @@ ompi_mtl_ofi_iprobe_generic(struct mca_mtl_base_module_t *mtl,
     ofi_req.match_state = 0;
 
     MTL_OFI_RETRY_UNTIL_DONE(fi_trecvmsg(ompi_mtl_ofi.ofi_ctxt[ctxt_id].rx_ep, &msg, msgflags), ret);
-    if (-FI_ENOMSG == ret) {
-        /**
-         * The search request completed but no matching message was found.
-         */
-        *flag = 0;
-        return OMPI_SUCCESS;
-    } else if (OPAL_UNLIKELY(0 > ret)) {
+    if (OPAL_UNLIKELY(0 > ret)) {
         MTL_OFI_LOG_FI_ERR(ret, "fi_trecvmsg failed");
         return ompi_mtl_ofi_get_error(ret);
     }
@@ -1123,7 +1139,6 @@ ompi_mtl_ofi_improbe_generic(struct mca_mtl_base_module_t *mtl,
     /**
      * fi_trecvmsg with FI_PEEK and FI_CLAIM:
      * Initiate a search for a match in the hardware or software queue.
-     * The search can complete immediately with -ENOMSG.
      * If successful, libfabric will enqueue a context entry into the completion
      * queue to make the search nonblocking.  This code will poll until the
      * entry is enqueued.
@@ -1145,14 +1160,7 @@ ompi_mtl_ofi_improbe_generic(struct mca_mtl_base_module_t *mtl,
     ofi_req->mask_bits = mask_bits;
 
     MTL_OFI_RETRY_UNTIL_DONE(fi_trecvmsg(ompi_mtl_ofi.ofi_ctxt[ctxt_id].rx_ep, &msg, msgflags), ret);
-    if (-FI_ENOMSG == ret) {
-        /**
-         * The search request completed but no matching message was found.
-         */
-        *matched = 0;
-        free(ofi_req);
-        return OMPI_SUCCESS;
-    } else if (OPAL_UNLIKELY(0 > ret)) {
+    if (OPAL_UNLIKELY(0 > ret)) {
         MTL_OFI_LOG_FI_ERR(ret, "fi_trecvmsg failed");
         free(ofi_req);
         return ompi_mtl_ofi_get_error(ret);

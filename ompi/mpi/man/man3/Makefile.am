@@ -2,6 +2,8 @@
 # Copyright (c) 2006-2020 Cisco Systems, Inc.  All rights reserved.
 # Copyright (c) 2008      Sun Microsystems, Inc.  All rights reserved.
 # Copyright (c) 2012-2013 Los Alamos National Security, LLC.  All rights reserved.
+# Copyright (c) 2020      Research Organization for Information Science
+#                         and Technology (RIST).  All rights reserved.
 # $COPYRIGHT$
 #
 # Additional copyrights may follow
@@ -22,7 +24,12 @@ include $(top_srcdir)/Makefile.ompi-rules
 # https://rmarkdown.rstudio.com/authoring_pandoc_markdown.html
 
 MD_FILES = \
-        MPI_T_init_thread.3.md
+        MPI_Barrier.md \
+        MPI_T_init_thread.3.md \
+        MPI_Status_f2c.3.md \
+        MPI_Status_f082c.3.md \
+        MPI_Status_f082f.3.md \
+        MPI_Bcast.md
 
 TEMPLATE_FILES = \
         MPI_Abort.3in \
@@ -49,9 +56,7 @@ TEMPLATE_FILES = \
         MPI_Attr_delete.3in \
         MPI_Attr_get.3in \
         MPI_Attr_put.3in \
-        MPI_Barrier.3in \
         MPI_Ibarrier.3in \
-        MPI_Bcast.3in \
         MPI_Ibcast.3in \
         MPI_Bsend.3in \
         MPI_Bsend_init.3in \
@@ -311,8 +316,9 @@ TEMPLATE_FILES = \
         MPI_Ssend_init.3in \
         MPI_Start.3in \
         MPI_Startall.3in \
+        MPI_Status_c2f08.3in \
         MPI_Status_c2f.3in \
-        MPI_Status_f2c.3in \
+        MPI_Status_f2f08.3in \
         MPI_Status_set_cancelled.3in \
         MPI_Status_set_elements.3in \
         MPI_Status_set_elements_x.3in \

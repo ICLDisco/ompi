@@ -13,6 +13,7 @@
  * Copyright (c) 2006-2017 University of Houston. All rights reserved.
  * Copyright (c) 2007-2018 Cisco Systems, Inc.  All rights reserved
  * Copyright (c) 2009      Sun Microsystems, Inc. All rights reserved.
+ * Copyright (c) 2010-2012 Oak Ridge National Labs.  All rights reserved.
  * Copyright (c) 2012-2015 Los Alamos National Security, LLC.
  *                         All rights reserved.
  * Copyright (c) 2011-2013 Inria.  All rights reserved.
@@ -40,6 +41,7 @@
 #include "ompi/constants.h"
 #include "ompi/mca/pml/pml.h"
 #include "ompi/mca/coll/base/base.h"
+#include "ompi/mca/coll/base/coll_tags.h"
 #include "ompi/mca/topo/base/base.h"
 #include "ompi/runtime/params.h"
 #include "ompi/communicator/communicator.h"
@@ -382,6 +384,7 @@ static void ompi_comm_construct(ompi_communicator_t* comm)
     comm->c_pml_comm     = NULL;
     comm->c_topo         = NULL;
     comm->c_coll         = NULL;
+    comm->c_nbc_tag      = MCA_COLL_BASE_TAG_NONBLOCKING_BASE;
 
     /* A keyhash will be created if/when an attribute is cached on
        this communicator */
@@ -392,6 +395,15 @@ static void ompi_comm_construct(ompi_communicator_t* comm)
     comm->c_peruse_handles = NULL;
 #endif
     OBJ_CONSTRUCT(&comm->c_lock, opal_mutex_t);
+
+#if OPAL_ENABLE_FT_MPI
+    comm->any_source_enabled  = true;
+    comm->any_source_offset   = 0;
+    comm->comm_revoked        = false;
+    comm->coll_revoked        = false;
+    comm->c_epoch             = 0;
+    comm->agreement_specific  = NULL;
+#endif
 }
 
 static void ompi_comm_destruct(ompi_communicator_t* comm)
@@ -419,7 +431,7 @@ static void ompi_comm_destruct(ompi_communicator_t* comm)
        from one communicator to another and we end up destroying the
        new communication while propagating the error up the stack.  We
        want to make it all the way up the stack to invoke the MPI
-       exception, not cause a seg fault in pml_del_comm because it was
+       error, not cause a seg fault in pml_del_comm because it was
        never pml_add_com'ed. */
 
     if ( MPI_COMM_NULL != comm && OMPI_COMM_IS_PML_ADDED(comm) ) {
@@ -453,6 +465,12 @@ static void ompi_comm_destruct(ompi_communicator_t* comm)
         OBJ_RELEASE ( comm->error_handler );
         comm->error_handler = NULL;
     }
+
+#if OPAL_ENABLE_FT_MPI
+    if( NULL != comm->agreement_specific ) {
+        OBJ_RELEASE( comm->agreement_specific );
+    }
+#endif  /* OPAL_ENABLE_FT_MPI */
 
     /* mark this cid as available */
     if ( MPI_UNDEFINED != (int)comm->c_contextid &&
