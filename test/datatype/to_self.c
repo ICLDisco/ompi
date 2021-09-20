@@ -536,7 +536,7 @@ static int do_pipeline_test_for_ddt( int doop, MPI_Datatype sddt, MPI_Datatype r
     if( doop & DO_PACK ) {
         printf("# Pack (max length %zu)\n", length);
         for( i = 1; i < (length / extent); i*=2  ) {
-            pack_pipeline( cycles, sddt, i, sbuf, rbuf );
+            pack_pipeline( cycles, sddt, 20, sbuf, rbuf );
         }
     }
 
@@ -671,16 +671,44 @@ int main( int argc, char* argv[] )
     MPI_Type_free( &ddt );
 
     printf("\n! Trashing TLB datatype\n\n");
-    int disp5[] = { 0, 4096, 64, 4160, 128, 4224, 196, 4288 };
+    int disp5[] = { 0, 4096, 8, 4104, 16, 4112, 24, 4120 };
     int blen5[] = { 1, 1, 1, 1, 1, 1, 1, 1 };
     MPI_Type_indexed( 8, blen5, disp5, MPI_DOUBLE, &ddt );
     MPI_Type_create_resized( ddt, 0, 8192, &ddt );
     MPI_Type_commit( &ddt );
 
-    //ompi_datatype_dump( ddt );
-
     do_test_for_ddt( run_tests, ddt, ddt, MAX_LENGTH );
     MPI_Type_free( &ddt );
+
+    printf("\n! indexed gap\n\n");
+    ddt = create_indexed_gap_ddt();
+    MPI_DDT_DUMP(ddt);
+    do_test_for_ddt(run_tests, ddt, ddt, MAX_LENGTH);
+    MPI_Type_free(&ddt);
+
+    printf("\n! optimized indexed gap\n\n");
+    ddt = create_indexed_gap_optimized_ddt();
+    MPI_DDT_DUMP(ddt);
+    do_test_for_ddt(run_tests, ddt, ddt, MAX_LENGTH);
+    MPI_Type_free(&ddt);
+
+    printf("\n! constant indexed gap\n\n");
+    ddt = create_indexed_constant_gap_ddt(80, 100, 1);
+    MPI_DDT_DUMP(ddt);
+    do_test_for_ddt(run_tests, ddt, ddt, MAX_LENGTH);
+    MPI_Type_free(&ddt);
+
+    printf("\n! optimized constant indexed gap\n\n");
+    ddt = create_optimized_indexed_constant_gap_ddt(80, 100, 1);
+    MPI_DDT_DUMP(ddt);
+    do_test_for_ddt(run_tests, ddt, ddt, MAX_LENGTH);
+    MPI_Type_free(&ddt);
+
+    printf("\n! struct constant gap resized\n\n");
+    ddt = create_merged_contig_with_gaps(1);
+    MPI_DDT_DUMP(ddt);
+    do_test_for_ddt(run_tests, ddt, ddt, MAX_LENGTH);
+    MPI_Type_free(&ddt);
 
     MPI_Finalize();
     exit(0);
