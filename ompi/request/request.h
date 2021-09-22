@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2020 The University of Tennessee and The University
+ * Copyright (c) 2004-2021 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -204,6 +204,28 @@ do {                                                                    \
         (request)->req_f_to_c_index = MPI_UNDEFINED;                    \
     }                                                                   \
 } while (0);
+
+/*
+ * Except in procedures that return MPI_ERR_IN_STATUS, the MPI_ERROR
+ * field of a status object shall never be modified
+ * See MPI-1.1 doc, sec 3.2.5, p.22
+ *
+ * Add a small macro that helps setting the status appropriately
+ * depending on the use case
+ */
+#define OMPI_COPY_STATUS(pdst, src, is_err_in_status)                   \
+do {                                                                    \
+    if (is_err_in_status) {                                             \
+        *(pdst) = (src);                                                \
+    }                                                                   \
+    else {                                                              \
+        (pdst)->MPI_TAG = (src).MPI_TAG;                                \
+        (pdst)->MPI_SOURCE = (src).MPI_SOURCE;                          \
+        (pdst)->_ucount = (src)._ucount;                                \
+        (pdst)->_cancelled = (src)._cancelled;                          \
+    }                                                                   \
+} while(0);
+
 
 /**
  * Non-blocking test for request completion.
@@ -426,39 +448,44 @@ static inline bool ompi_request_tag_is_collective(int tag) {
 
 static inline void ompi_request_wait_completion(ompi_request_t *req)
 {
-    if (opal_using_threads () && !REQUEST_COMPLETE(req)) {
-        void *_tmp_ptr;
-        ompi_wait_sync_t sync;
-#if OPAL_ENABLE_FT_MPI
-redo:
-        if(OPAL_UNLIKELY( ompi_request_is_failed(req) )) {
-            return;
-        }
-#endif /* OPAL_ENABLE_FT_MPI */
-        _tmp_ptr = REQUEST_PENDING;
+    if (opal_using_threads ()) {
+        if(!REQUEST_COMPLETE(req)) {
+            void *_tmp_ptr;
+            ompi_wait_sync_t sync;
 
-        WAIT_SYNC_INIT(&sync, 1);
-
-        if (OPAL_ATOMIC_COMPARE_EXCHANGE_STRONG_PTR(&req->req_complete, &_tmp_ptr, &sync)) {
-            SYNC_WAIT(&sync);
-        } else {
-            /* completed before we had a chance to swap in the sync object */
-            WAIT_SYNC_SIGNALLED(&sync);
-        }
 
 #if OPAL_ENABLE_FT_MPI
-        if (OPAL_UNLIKELY(OMPI_SUCCESS != sync.status)) {
-            OPAL_OUTPUT_VERBOSE((50, ompi_ftmpi_output_handle, "Status %d reported for sync %p rearming req %p", sync.status, (void*)&sync, (void*)req));
-            _tmp_ptr = &sync;
-            if (OPAL_ATOMIC_COMPARE_EXCHANGE_STRONG_PTR(&req->req_complete, &_tmp_ptr, REQUEST_PENDING)) {
-                opal_output_verbose(10, ompi_ftmpi_output_handle, "Status %d reported for sync %p rearmed req %p", sync.status, (void*)&sync, (void*)req);
-                WAIT_SYNC_RELEASE(&sync);
-                goto redo;
+    redo:
+            if(OPAL_UNLIKELY( ompi_request_is_failed(req) )) {
+                return;
             }
-        }
 #endif /* OPAL_ENABLE_FT_MPI */
-        assert(REQUEST_COMPLETE(req));
-        WAIT_SYNC_RELEASE(&sync);
+            _tmp_ptr = REQUEST_PENDING;
+
+            WAIT_SYNC_INIT(&sync, 1);
+
+            if (OPAL_ATOMIC_COMPARE_EXCHANGE_STRONG_PTR(&req->req_complete, &_tmp_ptr, &sync)) {
+                SYNC_WAIT(&sync);
+            } else {
+                /* completed before we had a chance to swap in the sync object */
+                WAIT_SYNC_SIGNALLED(&sync);
+            }
+
+#if OPAL_ENABLE_FT_MPI
+            if (OPAL_UNLIKELY(OMPI_SUCCESS != sync.status)) {
+                OPAL_OUTPUT_VERBOSE((50, ompi_ftmpi_output_handle, "Status %d reported for sync %p rearming req %p", sync.status, (void*)&sync, (void*)req));
+                _tmp_ptr = &sync;
+                if (OPAL_ATOMIC_COMPARE_EXCHANGE_STRONG_PTR(&req->req_complete, &_tmp_ptr, REQUEST_PENDING)) {
+                    opal_output_verbose(10, ompi_ftmpi_output_handle, "Status %d reported for sync %p rearmed req %p", sync.status, (void*)&sync, (void*)req);
+                    WAIT_SYNC_RELEASE(&sync);
+                    goto redo;
+                }
+            }
+#endif /* OPAL_ENABLE_FT_MPI */
+            assert(REQUEST_COMPLETE(req));
+            WAIT_SYNC_RELEASE(&sync);
+     }
+     opal_atomic_rmb();
     } else {
         while(!REQUEST_COMPLETE(req)) {
             opal_progress();

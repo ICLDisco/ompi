@@ -10,7 +10,7 @@
  *
  * $HEADER$
  */
-
+ 
 #define _GNU_SOURCE
 #include <stdio.h>
 
@@ -88,8 +88,11 @@ mca_spml_ucx_ctx_t mca_spml_ucx_ctx_default = {
     .synchronized_quiet = false
 };
 
-#if HAVE_DECL_UCP_ATOMIC_OP_NBX
+#ifdef HAVE_UCP_REQUEST_PARAM_T
 static ucp_request_param_t mca_spml_ucx_request_param = {0};
+static ucp_request_param_t mca_spml_ucx_request_param_b = {
+    .op_attr_mask = UCP_OP_ATTR_FLAG_FAST_CMPL
+};
 #endif
 
 int mca_spml_ucx_enable(bool enable)
@@ -249,7 +252,7 @@ int mca_spml_ucx_ctx_mkey_del(mca_spml_ucx_ctx_t *ucx_ctx, int pe, uint32_t segn
     return OSHMEM_SUCCESS;
 }
 
-int mca_spml_ucx_del_procs(ompi_proc_t** procs, size_t nprocs)
+int mca_spml_ucx_del_procs(oshmem_group_t* group, size_t nprocs)
 {
     size_t ucp_workers = mca_spml_ucx.ucp_workers;
     opal_common_ucx_del_proc_t *del_procs;
@@ -431,7 +434,7 @@ int mca_spml_ucx_clear_put_op_mask(mca_spml_ucx_ctx_t *ctx)
     return OSHMEM_SUCCESS;
 }
 
-int mca_spml_ucx_add_procs(ompi_proc_t** procs, size_t nprocs)
+int mca_spml_ucx_add_procs(oshmem_group_t* group, size_t nprocs)
 {
     int rc                  = OSHMEM_ERROR;
     int my_rank             = oshmem_my_proc_id();
@@ -506,9 +509,6 @@ int mca_spml_ucx_add_procs(ompi_proc_t** procs, size_t nprocs)
             goto error2;
         }
 
-        OSHMEM_PROC_DATA(procs[i])->num_transports = 1;
-        OSHMEM_PROC_DATA(procs[i])->transport_ids = spml_ucx_transport_ids;
-
         /* Initialize mkeys as NULL for all processes */
         mca_spml_ucx_peer_mkey_cache_init(&mca_spml_ucx_ctx_default, i);
     }
@@ -574,7 +574,13 @@ void mca_spml_ucx_rmkey_free(sshmem_mkey_t *mkey, int pe)
     if (!mkey->spml_context) {
         return;
     }
-    segno = memheap_find_segnum(mkey->va_base);
+    segno = memheap_find_segnum(mkey->va_base, pe);
+    if (MEMHEAP_SEG_INVALID == segno) {
+        SPML_UCX_ERROR("mca_spml_ucx_rmkey_free failed because of invalid "
+            "segment number: %d\n", segno);
+        return;
+    }
+
     ucx_mkey = (spml_ucx_mkey_t *)(mkey->spml_context);
     rc = mca_spml_ucx_ctx_mkey_del(&mca_spml_ucx_ctx_default, pe, segno, ucx_mkey);
     if (OSHMEM_SUCCESS != rc) {
@@ -676,7 +682,12 @@ sshmem_mkey_t *mca_spml_ucx_register(void* addr,
         return NULL;
     }
 
-    segno   = memheap_find_segnum(addr);
+    segno   = memheap_find_segnum(addr, my_pe);
+    if (MEMHEAP_SEG_INVALID == segno) {
+        SPML_UCX_ERROR("mca_spml_ucx_register failed because of invalid "
+            "segment number: %d\n", segno);
+        return NULL;
+    }
     mem_seg = memheap_find_seg(segno);
 
     /* if possible use mem handle already created by ucx allocator */
@@ -750,12 +761,18 @@ int mca_spml_ucx_deregister(sshmem_mkey_t *mkeys)
         return OSHMEM_SUCCESS;
 
     mem_seg  = memheap_find_va(mkeys[SPML_UCX_TRANSP_IDX].va_base);
-    ucx_mkey = (spml_ucx_mkey_t*)mkeys[SPML_UCX_TRANSP_IDX].spml_context;
-    segno = memheap_find_segnum(mkeys[SPML_UCX_TRANSP_IDX].va_base);
-
     if (OPAL_UNLIKELY(NULL == mem_seg)) {
         return OSHMEM_ERROR;
     }
+
+    segno = memheap_find_segnum(mkeys[SPML_UCX_TRANSP_IDX].va_base, my_pe);
+    if (MEMHEAP_SEG_INVALID == segno) {
+        SPML_UCX_ERROR("mca_spml_ucx_deregister failed because of invalid "
+            "segment number: %d\n", segno);
+        return OSHMEM_ERROR;
+    }
+
+    ucx_mkey = (spml_ucx_mkey_t*)mkeys[SPML_UCX_TRANSP_IDX].spml_context;
 
     if (MAP_SEGMENT_ALLOC_UCX != mem_seg->type) {
         ucp_mem_unmap(mca_spml_ucx.ucp_context, ucx_mkey->mem_h);
@@ -974,7 +991,7 @@ int mca_spml_ucx_get(shmem_ctx_t ctx, void *src_addr, size_t size, void *dst_add
 
 #if HAVE_DECL_UCP_GET_NBX
     request = ucp_get_nbx(ucx_ctx->ucp_peers[src].ucp_conn, dst_addr, size,
-                          (uint64_t)rva, ucx_mkey->rkey, &mca_spml_ucx_request_param);
+                          (uint64_t)rva, ucx_mkey->rkey, &mca_spml_ucx_request_param_b);
     return opal_common_ucx_wait_request(request, ucx_ctx->ucp_worker[0], "ucp_get_nbx");
 #elif HAVE_DECL_UCP_GET_NB
     request = ucp_get_nb(ucx_ctx->ucp_peers[src].ucp_conn, dst_addr, size,
@@ -1068,7 +1085,7 @@ int mca_spml_ucx_put(shmem_ctx_t ctx, void* dst_addr, size_t size, void* src_add
 
 #if HAVE_DECL_UCP_PUT_NBX
     request = ucp_put_nbx(ucx_ctx->ucp_peers[dst].ucp_conn, src_addr, size,
-                          (uint64_t)rva, ucx_mkey->rkey, &mca_spml_ucx_request_param);
+                          (uint64_t)rva, ucx_mkey->rkey, &mca_spml_ucx_request_param_b);
     res = opal_common_ucx_wait_request(request, ucx_ctx->ucp_worker[0], "ucp_put_nbx");
 #elif HAVE_DECL_UCP_PUT_NB
     request = ucp_put_nb(ucx_ctx->ucp_peers[dst].ucp_conn, src_addr, size,
