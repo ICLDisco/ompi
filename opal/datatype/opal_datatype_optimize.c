@@ -316,38 +316,6 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
     if( pData->iov == NULL ){
         opal_generate_iovec( pData );
         opal_datatype_compress( pData );
-
-        ptrdiff_t disp;
-        size_t length;
-        uint32_t i = 0;
-        char *ptr = pData->compress.storage;
-        for( ptr; ptr < pData->compress.storage + pData->compress.iov_length; i++){
-            if( 0 == ((uint8_t)0x01 & ptr[0]) ) {  /* last bit = 0: 8 bits */
-                opal_datatype_iovec_storage_int8_t* s8 = (opal_datatype_iovec_storage_int8_t*)ptr;
-                length = (size_t)s8->length >> 1;
-                disp = (ptrdiff_t)s8->disp;
-                ptr += sizeof(opal_datatype_iovec_storage_int8_t);
-            } else if( 0 == (0x02 & ptr[0]) ) {  /* last 2 bits = 01: 16 bits */
-                opal_datatype_iovec_storage_int16_t* s16 = (opal_datatype_iovec_storage_int16_t*)ptr;
-                length = (size_t)(s16->length >> 2);
-                disp = (ptrdiff_t)s16->disp;
-                ptr += sizeof(opal_datatype_iovec_storage_int16_t);
-            } else if( 0 == (0x04 & ptr[0]) ) {  /* last 3 bits = 011: 32 bits */
-                opal_datatype_iovec_storage_int32_t* s32 = (opal_datatype_iovec_storage_int32_t*)ptr;
-                length = (size_t)(s32->length >> 3);
-                disp = s32->disp;
-                ptr += sizeof(opal_datatype_iovec_storage_int32_t);
-            } else {  /* last 3 bits = 111: 64 bits */
-                opal_datatype_iovec_storage_int64_t* s64 = (opal_datatype_iovec_storage_int64_t*)ptr;
-                length = s64->length >> 3;
-                disp = s64->disp;
-                ptr += sizeof(opal_datatype_iovec_storage_int64_t);
-            }
-
-//            printf("i %d disp %zu len %zu\n",
-  //                  i,
-    //                disp, length);
-        }
     }
 
     return OPAL_SUCCESS;
@@ -359,31 +327,41 @@ opal_datatype_compress( opal_datatype_t *pData )
     opal_datatype_flexible_storage_t* flexi = (opal_datatype_flexible_storage_t*)&(pData->compress);
     struct iovec *iov = pData->iov;
 
-    uint8_t bytes = sizeof(opal_datatype_iovec_storage_int64_t);
+    uint8_t bytes = sizeof(opal_datatype_iovec_storage_int8_t);
 
     for( uint32_t i = 0; i < pData->iovcnt; i++ ){
         if( 0 == (0x7FFFFFFFFFFFFF80 & (intptr_t)iov[i].iov_base) ) {
-            bytes = sizeof(opal_datatype_iovec_storage_int8_t);
+            //bytes = sizeof(opal_datatype_iovec_storage_int8_t);
         } else if( 0 == (0x7FFFFFFFFFFF8000 & (intptr_t)iov[i].iov_base) ) {
-            bytes = sizeof(opal_datatype_iovec_storage_int16_t);
+            if( bytes < sizeof(opal_datatype_iovec_storage_int16_t) )
+                bytes = sizeof(opal_datatype_iovec_storage_int16_t);
+            
         } else if( 0 == (0x7FFFFFFF80000000 & (intptr_t)iov[i].iov_base) ) {
-            bytes = sizeof(opal_datatype_iovec_storage_int32_t);
+            if( bytes < sizeof(opal_datatype_iovec_storage_int32_t) )
+                bytes = sizeof(opal_datatype_iovec_storage_int32_t);
+        
         }
         if( bytes < sizeof(opal_datatype_iovec_storage_int32_t) ) {
             if( 0 == (0xFFFFFFFFFFFFFF80 & iov[i].iov_len) ) {  /* single bit = 0 */
                 /* follow the number of bits in the displacement */
             } else if( 0 == (0xFFFFFFFFFFFFC000 & iov[i].iov_len) ) {  /* 2 bits = 10 */
+            if( bytes < sizeof(opal_datatype_iovec_storage_int16_t) )
                 bytes = sizeof(opal_datatype_iovec_storage_int16_t);
             }
         } else if( 0 != (0xFFFFFFFFE0000000 & iov[i].iov_len) ) {  /* 3 bits = 110 */
-            bytes = sizeof(opal_datatype_iovec_storage_int64_t);
+            if( bytes < sizeof(opal_datatype_iovec_storage_int64_t) )
+                bytes = sizeof(opal_datatype_iovec_storage_int64_t);
         }  /* otherwise 3 bits = 111 */
 
-        bytes = sizeof(opal_datatype_iovec_storage_int32_t);
+    }
+
+    pData->bytes = bytes;
+
+    for( uint32_t i = 0; i < pData->iovcnt; i++ ){
         if( (flexi->iov_pos + bytes) > flexi->iov_length ) {
             size_t new_length = (0 == flexi->iov_length ? 128 : (flexi->iov_length * 2));
             void* ptr = realloc( flexi->storage, new_length);
-            if( NULL == ptr ) {  /* oops */
+            if( NULL == ptr ) {  
                 return 1;
             }
             flexi->storage = ptr;

@@ -159,6 +159,7 @@ struct opal_datatype_t {
                                       or in the send case (without conversion) */
 
     opal_datatype_flexible_storage_t compress;
+    uint8_t            bytes;
 
     struct iovec       *iov;     /**< iovec description */
     uint32_t           iovcnt;   /**< number of iovec */
