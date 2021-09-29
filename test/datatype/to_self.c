@@ -397,14 +397,18 @@ static int pack( int cycles,
 }
 
 static int do_pipeline_pack( const void *inbuf, int incount, MPI_Datatype datatype,
-                             void *outbuf, int outsize )
+                             void *outbuf, int outsize, int pipe_size )
 {
     opal_convertor_t local_convertor;
     struct iovec invec;
     unsigned int iov_count = 1;
-    size_t size, pack_size;
-    int seg = 4, i, t, c;
+    int size, pack_size;
+    int seg = incount / pipe_size;
+    int i, t, c;
     int position = 0;
+
+    MPI_Type_size( datatype, &size );
+    pack_size = size * pipe_size;
 
     double timers[trials];
 
@@ -417,19 +421,15 @@ static int do_pipeline_pack( const void *inbuf, int incount, MPI_Datatype dataty
             opal_convertor_copy_and_prepare_for_send( ompi_mpi_local_convertor, &(datatype->super),
                     incount, (void *) inbuf, 0, &local_convertor );
 
-            opal_convertor_get_packed_size( &local_convertor, &size );
-            pack_size = size / 4;
-
-
             for( i = 0; i < seg; i++ ){
                 invec.iov_base = (char*)outbuf + position;
                 if( i != seg - 1 ){
-                    invec.iov_len = size / 4;
+                    invec.iov_len = pack_size;
                 } else
                     invec.iov_len = outsize - position;
 
                 opal_convertor_pack( &local_convertor, &invec, &iov_count, &size );
-                position += size;
+                position += pack_size;
 
             }
 
@@ -445,7 +445,7 @@ static int do_pipeline_pack( const void *inbuf, int incount, MPI_Datatype dataty
 
 static int pack_pipeline( int cycles,
         MPI_Datatype sdt, int scount, void* sbuf,
-        void* packed_buf )
+        void* packed_buf, int pipe_size )
 {
     int position, myself, c, t, outsize;
     double timers[trials];
@@ -453,7 +453,7 @@ static int pack_pipeline( int cycles,
     MPI_Type_size( sdt, &outsize );
     outsize *= scount;
 
-    do_pipeline_pack(sbuf, scount, sdt, packed_buf, outsize);
+    do_pipeline_pack(sbuf, scount, sdt, packed_buf, outsize, pipe_size);
     return 0;
 }
 
@@ -532,11 +532,12 @@ static int do_pipeline_test_for_ddt( int doop, MPI_Datatype sddt, MPI_Datatype r
     sbuf = (char*)malloc( length );
     rbuf = (char*)malloc( length );
 
-
-    if( doop & DO_PACK ) {
-        printf("# Pack (max length %zu)\n", length);
-        for( i = 1; i < (length / extent); i*=2  ) {
-            pack_pipeline( cycles, sddt, 20, sbuf, rbuf );
+    for( int j = 8; j < 128; j *= 2 ){
+        printf("# Pack (max length %zu) Pipeline %d ddt per segment\n", 
+                length,
+                j);
+        for( i = j; i < (length / extent); i*=2  ) {
+            pack_pipeline( cycles, sddt, i, sbuf, rbuf, j );
         }
     }
 
