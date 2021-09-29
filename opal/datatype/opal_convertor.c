@@ -328,12 +328,12 @@ int32_t
 opal_iovec_compress_set_position( opal_convertor_t *convertor, size_t *position )
 {
     if( 0 == *position ) {
-        convertor->pStack[2].count = convertor->count;
-        convertor->pStack[2].disp = 0;
-        convertor->pStack[2].index = 0;
-        convertor->pStack[3].disp = 0;
+        convertor->pStack[0].count = convertor->count;
+        convertor->pStack[0].disp = 0;
+        convertor->pStack[0].index = 0;
+        convertor->pStack[1].disp = 0;
         convertor->bConverted = 0;
-        convertor->pStack[4].disp = 0;
+        convertor->pStack[2].disp = 0;
 
         return 0;
     }
@@ -343,15 +343,15 @@ opal_iovec_compress_set_position( opal_convertor_t *convertor, size_t *position 
     size_t track = *position % pData->size;
 
     convertor->bConverted = *position;
-    convertor->pStack[2].disp = *position / pData->size * (pData->ub - pData->lb);
-    convertor->pStack[2].count = convertor->count - (*position / pData->size);
+    convertor->pStack[0].disp = *position / pData->size * (pData->ub - pData->lb);
+    convertor->pStack[0].count = convertor->count - (*position / pData->size);
 
     ptrdiff_t disp;
     size_t length;
     char *ptr;
     
     int i = 0;
-    convertor->pStack[4].disp = 0;
+    convertor->pStack[2].disp = 0;
     for( ptr = compress_iov; ptr < pData->compress.storage + pData->compress.iov_length; i++){
         if( 0 == ((uint8_t)0x01 & ptr[0]) ) {  /* last bit = 0: 8 bits */
             opal_datatype_iovec_storage_int8_t* s8 = (opal_datatype_iovec_storage_int8_t*)ptr;
@@ -360,7 +360,7 @@ opal_iovec_compress_set_position( opal_convertor_t *convertor, size_t *position 
             if( track < length ) break;
             track -= length;
             ptr += sizeof(opal_datatype_iovec_storage_int8_t);
-            convertor->pStack[4].disp += sizeof(opal_datatype_iovec_storage_int8_t);
+            convertor->pStack[2].disp += sizeof(opal_datatype_iovec_storage_int8_t);
         } else if( 0 == (0x02 & ptr[0]) ) {  /* last 2 bits = 01: 16 bits */
             opal_datatype_iovec_storage_int16_t* s16 = (opal_datatype_iovec_storage_int16_t*)ptr;
             length = (size_t)(s16->length >> 2);
@@ -368,7 +368,7 @@ opal_iovec_compress_set_position( opal_convertor_t *convertor, size_t *position 
             if( track < length ) break;
             track -= length;
             ptr += sizeof(opal_datatype_iovec_storage_int16_t);
-            convertor->pStack[4].disp += sizeof(opal_datatype_iovec_storage_int16_t);
+            convertor->pStack[2].disp += sizeof(opal_datatype_iovec_storage_int16_t);
         } else if( 0 == (0x04 & ptr[0]) ) {  /* last 3 bits = 011: 32 bits */
             opal_datatype_iovec_storage_int32_t* s32 = (opal_datatype_iovec_storage_int32_t*)ptr;
             length = (size_t)(s32->length >> 3);
@@ -376,7 +376,7 @@ opal_iovec_compress_set_position( opal_convertor_t *convertor, size_t *position 
             if( track < length ) break;
             track -= length;
             ptr += sizeof(opal_datatype_iovec_storage_int32_t);
-            convertor->pStack[4].disp += sizeof(opal_datatype_iovec_storage_int32_t);
+            convertor->pStack[2].disp += sizeof(opal_datatype_iovec_storage_int32_t);
         } else {  /* last 3 bits = 111: 64 bits */
             opal_datatype_iovec_storage_int64_t* s64 = (opal_datatype_iovec_storage_int64_t*)ptr;
             length = s64->length >> 3;
@@ -384,362 +384,141 @@ opal_iovec_compress_set_position( opal_convertor_t *convertor, size_t *position 
             if( track < length ) break;
             track -= length;
             ptr += sizeof(opal_datatype_iovec_storage_int64_t);
-            convertor->pStack[4].disp += sizeof(opal_datatype_iovec_storage_int64_t);
+            convertor->pStack[2].disp += sizeof(opal_datatype_iovec_storage_int64_t);
         }
     }
 
-    convertor->pStack[3].disp = track;
+    convertor->pStack[1].disp = track;
 
     return 0;
 }
 
-int32_t 
-opal_iovec_compress_pack_int8( opal_convertor_t *convertor, struct iovec *out_iov,
-                                uint32_t *out_size, size_t *max_data )
+int32_t
+opal_iovec_gather( opal_convertor_t *convertor, ptrdiff_t disp,
+                   size_t length, int do_count,
+                   char *dst, char *src, size_t *track, int *flag )
 {
     const opal_datatype_t *pData = convertor->pDesc;
-    char *dst,
-         *src = convertor->pBaseBuf + convertor->pStack[2].disp;
-    size_t track = *max_data, iov_track;
-    uint32_t i, iov_count = 0;
+    size_t ddt_size = pData->size, 
+           extent = pData->ub - pData->lb;
+    int i = 0, j;
+    ptrdiff_t hold = convertor->pStack[1].disp;
+    int rc = 1;
 
-    dst = out_iov[iov_count].iov_base;
-    iov_track = out_iov[iov_count].iov_len;
+    if( do_count != 0 ){
+        memcpy( dst,
+                src + disp + hold + i * extent,
+                length - hold );
+        convertor->pStack[1].disp = 0;
 
-    ptrdiff_t disp;
-    size_t length;
-    int8_t type_case;
-
-    char *ptr;
-    
-    while( convertor->pStack[2].count ){
-        for( ptr = pData->compress.storage + convertor->pStack[4].disp; 
-                ptr < pData->compress.storage + pData->compress.iov_length; ) {
-                opal_datatype_iovec_storage_int8_t* s8 = (opal_datatype_iovec_storage_int8_t*)ptr;
-                length = (size_t)s8->length >> 1;
-                disp = (ptrdiff_t)s8->disp;
-                type_case = sizeof(opal_datatype_iovec_storage_int8_t);
-
-restart_compress_pack:
-            if( iov_track < (length - convertor->pStack[3].disp) && iov_track < track ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        iov_track);
-
-                convertor->pStack[3].disp += iov_track;
-                track -= iov_track;
-
-                iov_count++;
-                if( iov_count == *out_size )
-                    goto complete_compress_pack;
-
-                dst = out_iov[iov_count].iov_base;
-                iov_track = out_iov[iov_count].iov_len;
-
-                goto restart_compress_pack;
-            }
-
-            if( track < (length - convertor->pStack[3].disp) || track == 0 ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        track);
-
-                convertor->pStack[3].disp += track;
-                track = 0;
-
-                goto complete_compress_pack;
-            }
-
-            memcpy( dst,
-                    src + disp + convertor->pStack[3].disp,
-                    length - convertor->pStack[3].disp );
-
-            dst += length - convertor->pStack[3].disp;
-            iov_track -= length - convertor->pStack[3].disp;
-            track -= length - convertor->pStack[3].disp;
-            convertor->pStack[3].disp = 0;
-
-            ptr += type_case;
-            convertor->pStack[4].disp += type_case;
+        for( i = 1; i < do_count; i++ ){
+            memcpy( dst + i * ddt_size - hold,
+                    src + disp + i * extent,
+                    length );
         }
 
-        convertor->pStack[2].disp += pData->ub - pData->lb;
-        convertor->pStack[4].disp = 0;
-        convertor->pStack[2].count--;
-        src += pData->ub - pData->lb;
+        hold = 0;
     }
 
-complete_compress_pack:
-    *max_data -= track;
-    convertor->bConverted += *max_data;
+    if( *flag == 1 ){
+        if( *track != 0 ){
+            if( *track > length - hold ){
+                memcpy( dst + i * ddt_size,
+                        src + disp + convertor->pStack[1].disp + i * extent,
+                        length - hold );
+                convertor->pStack[1].disp = 0;
+                *track -= length - hold;
+            } else if( *track <= length - hold && *track != 0 ) {
+                memcpy( dst + i * ddt_size,
+                        src + disp + convertor->pStack[1].disp + i * extent,
+                        *track );
+                convertor->pStack[1].disp += *track;
 
-    if( convertor->bConverted < convertor->local_size ){
-        return 0;
+                *track = 0;
+                rc = 0;
+
+                *flag = 0;
+            }
+        } else {
+            
+            *flag = 0;
+        }
     }
 
-    convertor->flags |= CONVERTOR_COMPLETED;
-    return 1;
-
+    return rc;
 }
 
-int32_t 
-opal_iovec_compress_pack_int16( opal_convertor_t *convertor, struct iovec *out_iov,
-                                uint32_t *out_size, size_t *max_data )
+int32_t
+opal_iovec_do_gather_pack( opal_convertor_t *convertor, struct iovec *out_iov, 
+                           uint32_t *out_size, size_t *max_data )
 {
     const opal_datatype_t *pData = convertor->pDesc;
     char *dst,
-         *src = convertor->pBaseBuf + convertor->pStack[2].disp;
-    size_t track = *max_data, iov_track;
+         *src = convertor->pBaseBuf + convertor->pStack[0].disp;
+    size_t track, iov_track;
     uint32_t i, iov_count = 0;
+    int do_count;
+    ptrdiff_t hold_disp = convertor->pStack[1].disp;
+    int rc, flag = 1;
 
     dst = out_iov[iov_count].iov_base;
     iov_track = out_iov[iov_count].iov_len;
-
-    ptrdiff_t disp;
-    size_t length;
-    int8_t type_case;
+    do_count = iov_track / pData->size;
+    track = iov_track % pData->size;
 
     char *ptr;
-    
-    while( convertor->pStack[2].count ){
-        for( ptr = pData->compress.storage + convertor->pStack[4].disp; 
-                ptr < pData->compress.storage + pData->compress.iov_length; ) {
-            
+    ptrdiff_t disp;
+    size_t length, keep, final, constdisp = convertor->pStack[2].disp;
+    int8_t type_case = pData->bytes;
+
+    keep = convertor->pStack[2].disp;
+    ptr = pData->compress.storage + convertor->pStack[2].disp;
+   
+    do{
+        if( 0 == ((uint8_t)0x01 & ptr[0]) ) {
+            opal_datatype_iovec_storage_int8_t* s8 = (opal_datatype_iovec_storage_int8_t*)ptr;
+            length = (size_t)s8->length >> 1;
+            disp = (ptrdiff_t)s8->disp;
+            type_case = sizeof(opal_datatype_iovec_storage_int8_t);
+        } else if( 0 == (0x02 & ptr[0]) ) {
             opal_datatype_iovec_storage_int16_t* s16 = (opal_datatype_iovec_storage_int16_t*)ptr;
             length = (size_t)(s16->length >> 2);
             disp = (ptrdiff_t)s16->disp;
             type_case = sizeof(opal_datatype_iovec_storage_int16_t);
-
-restart_compress_pack:
-            if( iov_track < (length - convertor->pStack[3].disp) && iov_track < track ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        iov_track);
-
-                convertor->pStack[3].disp += iov_track;
-                track -= iov_track;
-
-                iov_count++;
-                if( iov_count == *out_size )
-                    goto complete_compress_pack;
-
-                dst = out_iov[iov_count].iov_base;
-                iov_track = out_iov[iov_count].iov_len;
-
-                goto restart_compress_pack;
-            }
-
-            if( track < (length - convertor->pStack[3].disp) || track == 0 ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        track);
-
-                convertor->pStack[3].disp += track;
-                track = 0;
-
-                goto complete_compress_pack;
-            }
-
-            memcpy( dst,
-                    src + disp + convertor->pStack[3].disp,
-                    length - convertor->pStack[3].disp );
-
-            dst += length - convertor->pStack[3].disp;
-            iov_track -= length - convertor->pStack[3].disp;
-            track -= length - convertor->pStack[3].disp;
-            convertor->pStack[3].disp = 0;
-
-            ptr += type_case;
-            convertor->pStack[4].disp += type_case;
-        }
-
-        convertor->pStack[2].disp += pData->ub - pData->lb;
-        convertor->pStack[4].disp = 0;
-        convertor->pStack[2].count--;
-        src += pData->ub - pData->lb;
-    }
-
-complete_compress_pack:
-    *max_data -= track;
-    convertor->bConverted += *max_data;
-
-    if( convertor->bConverted < convertor->local_size ){
-        return 0;
-    }
-
-    convertor->flags |= CONVERTOR_COMPLETED;
-    return 1;
-
-}
-
-
-int32_t 
-opal_iovec_compress_pack_int32( opal_convertor_t *convertor, struct iovec *out_iov,
-                                uint32_t *out_size, size_t *max_data )
-{
-    const opal_datatype_t *pData = convertor->pDesc;
-    char *dst,
-         *src = convertor->pBaseBuf + convertor->pStack[2].disp;
-    size_t track = *max_data, iov_track;
-    uint32_t i, iov_count = 0;
-
-    dst = out_iov[iov_count].iov_base;
-    iov_track = out_iov[iov_count].iov_len;
-
-    ptrdiff_t disp;
-    size_t length;
-    int8_t type_case;
-
-    char *ptr;
-    
-    while( convertor->pStack[2].count ){
-        for( ptr = pData->compress.storage + convertor->pStack[4].disp; 
-                ptr < pData->compress.storage + pData->compress.iov_length; ) {
-            
+        } else if( 0 == (0x04 & ptr[0]) ) {
             opal_datatype_iovec_storage_int32_t* s32 = (opal_datatype_iovec_storage_int32_t*)ptr;
             length = (size_t)(s32->length >> 3);
             disp = s32->disp;
             type_case = sizeof(opal_datatype_iovec_storage_int32_t);
-
-restart_compress_pack:
-            if( iov_track < (length - convertor->pStack[3].disp) && iov_track < track ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        iov_track);
-
-                convertor->pStack[3].disp += iov_track;
-                track -= iov_track;
-
-                iov_count++;
-                if( iov_count == *out_size )
-                    goto complete_compress_pack;
-
-                dst = out_iov[iov_count].iov_base;
-                iov_track = out_iov[iov_count].iov_len;
-
-                goto restart_compress_pack;
-            }
-
-            if( track < (length - convertor->pStack[3].disp) || track == 0 ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        track);
-
-                convertor->pStack[3].disp += track;
-                track = 0;
-
-                goto complete_compress_pack;
-            }
-
-            memcpy( dst,
-                    src + disp + convertor->pStack[3].disp,
-                    length - convertor->pStack[3].disp );
-
-            dst += length - convertor->pStack[3].disp;
-            iov_track -= length - convertor->pStack[3].disp;
-            track -= length - convertor->pStack[3].disp;
-            convertor->pStack[3].disp = 0;
-
-            ptr += type_case;
-            convertor->pStack[4].disp += type_case;
-        }
-
-        convertor->pStack[2].disp += pData->ub - pData->lb;
-        convertor->pStack[4].disp = 0;
-        convertor->pStack[2].count--;
-        src += pData->ub - pData->lb;
-    }
-
-complete_compress_pack:
-    *max_data -= track;
-    convertor->bConverted += *max_data;
-
-    if( convertor->bConverted < convertor->local_size ){
-        return 0;
-    }
-
-    convertor->flags |= CONVERTOR_COMPLETED;
-    return 1;
-
-}
-
-int32_t 
-opal_iovec_compress_pack_int64( opal_convertor_t *convertor, struct iovec *out_iov,
-                                uint32_t *out_size, size_t *max_data )
-{
-    const opal_datatype_t *pData = convertor->pDesc;
-    char *dst,
-         *src = convertor->pBaseBuf + convertor->pStack[2].disp;
-    size_t track = *max_data, iov_track;
-    uint32_t i, iov_count = 0;
-
-    dst = out_iov[iov_count].iov_base;
-    iov_track = out_iov[iov_count].iov_len;
-
-    ptrdiff_t disp;
-    size_t length;
-    int8_t type_case;
-
-    char *ptr;
-    
-    while( convertor->pStack[2].count ){
-        for( ptr = pData->compress.storage + convertor->pStack[4].disp; 
-                ptr < pData->compress.storage + pData->compress.iov_length; ) {
+        } else {
             opal_datatype_iovec_storage_int64_t* s64 = (opal_datatype_iovec_storage_int64_t*)ptr;
             length = s64->length >> 3;
             disp = s64->disp;
             type_case = sizeof(opal_datatype_iovec_storage_int64_t);
-
-restart_compress_pack:
-            if( iov_track < (length - convertor->pStack[3].disp) && iov_track < track ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        iov_track);
-
-                convertor->pStack[3].disp += iov_track;
-                track -= iov_track;
-
-                iov_count++;
-                if( iov_count == *out_size )
-                    goto complete_compress_pack;
-
-                dst = out_iov[iov_count].iov_base;
-                iov_track = out_iov[iov_count].iov_len;
-
-                goto restart_compress_pack;
-            }
-
-            if( track < (length - convertor->pStack[3].disp) || track == 0 ){
-                memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
-                        track);
-
-                convertor->pStack[3].disp += track;
-                track = 0;
-
-                goto complete_compress_pack;
-            }
-
-            memcpy( dst,
-                    src + disp + convertor->pStack[3].disp,
-                    length - convertor->pStack[3].disp );
-
-            dst += length - convertor->pStack[3].disp;
-            iov_track -= length - convertor->pStack[3].disp;
-            track -= length - convertor->pStack[3].disp;
-            convertor->pStack[3].disp = 0;
-
-            ptr += type_case;
-            convertor->pStack[4].disp += type_case;
         }
 
-        convertor->pStack[2].disp += pData->ub - pData->lb;
-        convertor->pStack[4].disp = 0;
-        convertor->pStack[2].count--;
-        src += pData->ub - pData->lb;
-    }
+        rc = opal_iovec_gather( convertor, disp, length, do_count, dst, src, &track, &flag );
+        dst += length - hold_disp;
+        hold_disp = 0;
 
-complete_compress_pack:
+        if( rc == 0 )
+            final = keep;
+
+        keep += type_case;
+        ptr += type_case;
+
+        if( keep == pData->compress.iov_length ){
+            ptr = pData->compress.storage;
+            keep = 0;
+        } 
+
+    } while( ptr != pData->compress.storage + constdisp );
+   
+    convertor->pStack[2].disp = final;
+    convertor->pStack[0].disp += do_count * ( pData->ub - pData->lb );
+    convertor->pStack[0].count -= do_count;
+
+complete_pack:
     *max_data -= track;
     convertor->bConverted += *max_data;
 
@@ -749,18 +528,21 @@ complete_compress_pack:
 
     convertor->flags |= CONVERTOR_COMPLETED;
     return 1;
-
 }
 
 int32_t 
 opal_iovec_compress_pack( opal_convertor_t *convertor, struct iovec *out_iov,
-                                uint32_t *out_size, size_t *max_data )
+                          uint32_t *out_size, size_t *max_data )
 {
     const opal_datatype_t *pData = convertor->pDesc;
     char *dst,
-         *src = convertor->pBaseBuf + convertor->pStack[2].disp;
+         *src = convertor->pBaseBuf + convertor->pStack[0].disp;
     size_t track = *max_data, iov_track;
     uint32_t i, iov_count = 0;
+
+    if( track / pData->size > 1 ){
+        return opal_iovec_do_gather_pack( convertor, out_iov, out_size, max_data );
+    }
 
     dst = out_iov[iov_count].iov_base;
     iov_track = out_iov[iov_count].iov_len;
@@ -770,9 +552,9 @@ opal_iovec_compress_pack( opal_convertor_t *convertor, struct iovec *out_iov,
     int8_t type_case;
 
     char *ptr;
-    
-    while( convertor->pStack[2].count ){
-        for( ptr = pData->compress.storage + convertor->pStack[4].disp; 
+
+    while( convertor->pStack[0].count ){
+        for( ptr = pData->compress.storage + convertor->pStack[2].disp; 
                 ptr < pData->compress.storage + pData->compress.iov_length; ) {
             if( 0 == ((uint8_t)0x01 & ptr[0]) ) { 
                 opal_datatype_iovec_storage_int8_t* s8 = (opal_datatype_iovec_storage_int8_t*)ptr;
@@ -785,24 +567,24 @@ opal_iovec_compress_pack( opal_convertor_t *convertor, struct iovec *out_iov,
                 disp = (ptrdiff_t)s16->disp;
                 type_case = sizeof(opal_datatype_iovec_storage_int16_t);
             } else if( 0 == (0x04 & ptr[0]) ) { 
-            opal_datatype_iovec_storage_int32_t* s32 = (opal_datatype_iovec_storage_int32_t*)ptr;
+                opal_datatype_iovec_storage_int32_t* s32 = (opal_datatype_iovec_storage_int32_t*)ptr;
                 length = (size_t)(s32->length >> 3);
                 disp = s32->disp;
                 type_case = sizeof(opal_datatype_iovec_storage_int32_t);
-        } else { 
+            } else { 
                 opal_datatype_iovec_storage_int64_t* s64 = (opal_datatype_iovec_storage_int64_t*)ptr;
                 length = s64->length >> 3;
                 disp = s64->disp;
                 type_case = sizeof(opal_datatype_iovec_storage_int64_t);
-        }
+            }
 
 restart_compress_pack:
-            if( iov_track < (length - convertor->pStack[3].disp) && iov_track < track ){
+            if( iov_track < (length - convertor->pStack[1].disp) && iov_track < track ){
                 memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
+                        src + disp + convertor->pStack[1].disp,
                         iov_track);
 
-                convertor->pStack[3].disp += iov_track;
+                convertor->pStack[1].disp += iov_track;
                 track -= iov_track;
 
                 iov_count++;
@@ -815,33 +597,33 @@ restart_compress_pack:
                 goto restart_compress_pack;
             }
 
-            if( track < (length - convertor->pStack[3].disp) || track == 0 ){
+            if( track < (length - convertor->pStack[1].disp) || track == 0 ){
                 memcpy( dst,
-                        src + disp + convertor->pStack[3].disp,
+                        src + disp + convertor->pStack[1].disp,
                         track);
 
-                convertor->pStack[3].disp += track;
+                convertor->pStack[1].disp += track;
                 track = 0;
 
                 goto complete_compress_pack;
             }
 
             memcpy( dst,
-                    src + disp + convertor->pStack[3].disp,
-                    length - convertor->pStack[3].disp );
+                    src + disp + convertor->pStack[1].disp,
+                    length - convertor->pStack[1].disp );
 
-            dst += length - convertor->pStack[3].disp;
-            iov_track -= length - convertor->pStack[3].disp;
-            track -= length - convertor->pStack[3].disp;
-            convertor->pStack[3].disp = 0;
+            dst += length - convertor->pStack[1].disp;
+            iov_track -= length - convertor->pStack[1].disp;
+            track -= length - convertor->pStack[1].disp;
+            convertor->pStack[1].disp = 0;
 
             ptr += type_case;
-            convertor->pStack[4].disp += type_case;
+            convertor->pStack[2].disp += type_case;
         }
 
-        convertor->pStack[2].disp += pData->ub - pData->lb;
-        convertor->pStack[4].disp = 0;
-        convertor->pStack[2].count--;
+        convertor->pStack[0].disp += pData->ub - pData->lb;
+        convertor->pStack[2].disp = 0;
+        convertor->pStack[0].count--;
         src += pData->ub - pData->lb;
     }
 
@@ -863,7 +645,7 @@ opal_iovec_compress_unpack( opal_convertor_t *convertor, struct iovec *out_iov,
         uint32_t *out_size, size_t *max_data )
 {
     const opal_datatype_t *pData = convertor->pDesc;
-    char *dst = convertor->pBaseBuf + convertor->pStack[2].disp,
+    char *dst = convertor->pBaseBuf + convertor->pStack[0].disp,
          *src;
     size_t track = *max_data, iov_track;
     uint32_t i, iov_count = 0;
@@ -877,8 +659,8 @@ opal_iovec_compress_unpack( opal_convertor_t *convertor, struct iovec *out_iov,
 
     char *ptr;
 
-    while( convertor->pStack[2].count ) {
-        for( ptr = pData->compress.storage + convertor->pStack[4].disp; 
+    while( convertor->pStack[0].count ) {
+        for( ptr = pData->compress.storage + convertor->pStack[2].disp; 
                 ptr < pData->compress.storage + pData->compress.iov_length; ) {
             if( 0 == ((uint8_t)0x01 & ptr[0]) ) { 
                 opal_datatype_iovec_storage_int8_t* s8 = (opal_datatype_iovec_storage_int8_t*)ptr;
@@ -904,11 +686,11 @@ opal_iovec_compress_unpack( opal_convertor_t *convertor, struct iovec *out_iov,
             }
 
 restart_compress_unpack:
-            if( iov_track < (length - convertor->pStack[3].disp) && iov_track < track ){
-                memcpy( dst + disp + convertor->pStack[3].disp,
+            if( iov_track < (length - convertor->pStack[1].disp) && iov_track < track ){
+                memcpy( dst + disp + convertor->pStack[1].disp,
                         src,
                         iov_track );
-                convertor->pStack[3].disp += iov_track;
+                convertor->pStack[1].disp += iov_track;
                 track -= iov_track;
 
                 iov_count++;
@@ -921,33 +703,33 @@ restart_compress_unpack:
                 goto restart_compress_unpack;
             }
 
-            if( track < (length - convertor->pStack[3].disp) || track == 0 ) {
-                memcpy( dst + disp + convertor->pStack[3].disp,
+            if( track < (length - convertor->pStack[1].disp) || track == 0 ) {
+                memcpy( dst + disp + convertor->pStack[1].disp,
                         src,
                         track);
 
-                convertor->pStack[3].disp += track;
+                convertor->pStack[1].disp += track;
                 track = 0;
                 
                 goto complete_compress_unpack;
             }
 
-            memcpy( dst + disp + convertor->pStack[3].disp,
+            memcpy( dst + disp + convertor->pStack[1].disp,
                     src,
-                    length - convertor->pStack[3].disp );
+                    length - convertor->pStack[1].disp );
 
-            src += length - convertor->pStack[3].disp;
-            track -= length - convertor->pStack[3].disp;
-            iov_track -= length - convertor->pStack[3].disp;
-            convertor->pStack[3].disp = 0;
+            src += length - convertor->pStack[1].disp;
+            track -= length - convertor->pStack[1].disp;
+            iov_track -= length - convertor->pStack[1].disp;
+            convertor->pStack[1].disp = 0;
 
             ptr += type_case;
-            convertor->pStack[4].disp += type_case;
+            convertor->pStack[2].disp += type_case;
         }
 
-        convertor->pStack[2].disp += pData->ub - pData->lb;
-        convertor->pStack[4].disp = 0;
-        convertor->pStack[2].count--;
+        convertor->pStack[0].disp += pData->ub - pData->lb;
+        convertor->pStack[2].disp = 0;
+        convertor->pStack[0].count--;
         dst += pData->ub - pData->lb;
     }
 
@@ -1484,17 +1266,7 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
                 else
                     convertor->fAdvance = opal_pack_homogeneous_contig_with_gaps;
             } else {
-
-                if( datatype->bytes == sizeof(opal_datatype_iovec_storage_int8_t) )
-                    convertor->fAdvance = opal_iovec_compress_pack_int8;
-                else if( datatype->bytes == sizeof(opal_datatype_iovec_storage_int16_t) )
-                    convertor->fAdvance = opal_iovec_compress_pack_int16;
-                else if( datatype->bytes == sizeof(opal_datatype_iovec_storage_int32_t) )
-                    convertor->fAdvance = opal_iovec_compress_pack_int32;
-                else if( datatype->bytes == sizeof(opal_datatype_iovec_storage_int64_t) )
-                    convertor->fAdvance = opal_iovec_compress_pack_int64;
-
-                //convertor->fAdvance = opal_iovec_compress_pack;
+                convertor->fAdvance = opal_iovec_compress_pack;
             }
         }
     return OPAL_SUCCESS;
