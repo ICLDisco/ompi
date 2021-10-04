@@ -465,7 +465,6 @@ opal_iovec_do_gather_pack( opal_convertor_t *convertor,
         }
     }
 
-
     if( hold_1_disp != 0 ){
         convertor->pStack[1].disp = hold_1_disp;
     }
