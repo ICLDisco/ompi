@@ -613,7 +613,7 @@ int main( int argc, char* argv[] )
     do_pipeline_test_for_ddt( run_tests, ddt, ddt, MAX_LENGTH );
     MPI_Type_free( &ddt );
 
-    printf("\n! contig 3 doubles 1 next cache line\n\n");
+    printf("\n! 3 doubles 1 next cache line\n\n");
     int blen2[] = { 3, 1 };
     int disp2[] = { 0, 64 };
     MPI_Type_indexed( 2, blen2, disp2, MPI_DOUBLE, &ddt );
@@ -625,7 +625,7 @@ int main( int argc, char* argv[] )
     do_pipeline_test_for_ddt( run_tests, ddt, ddt, MAX_LENGTH );
     MPI_Type_free( &ddt );
 
-    printf("\n! contig 2 doubles 1 next 1 next cache line\n\n");
+    printf("\n! 2 doubles 1 next 1 next cache line\n\n");
     int blen3[] = { 2, 1, 1 };
     int disp3[] = { 0, 64, 128 };
     MPI_Type_indexed( 3, blen3, disp3, MPI_DOUBLE, &ddt );
