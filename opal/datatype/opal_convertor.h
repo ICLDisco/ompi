@@ -143,8 +143,8 @@ OPAL_DECLSPEC int32_t opal_iovec_compress_unpack( opal_convertor_t *outside_conv
 
 OPAL_DECLSPEC int32_t opal_iovec_do_gather_pack( opal_convertor_t *convertor, struct iovec *out_iov,
         uint32_t *out_size, size_t *max_data );
-OPAL_DECLSPEC int32_t opal_iovec_gather( opal_convertor_t *convertor, ptrdiff_t disp,
-        size_t length, int do_count,
+OPAL_DECLSPEC size_t opal_iovec_gather( opal_convertor_t *convertor, ptrdiff_t disp,
+        size_t length, size_t keep, int8_t type_case, int do_count,
         char *dst, char *src, size_t *track, int *flag );
 
 OPAL_DECLSPEC int32_t opal_generate_iovec( opal_datatype_t *pData );
