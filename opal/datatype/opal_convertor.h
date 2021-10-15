@@ -136,13 +136,28 @@ static inline uint32_t opal_convertor_get_checksum( opal_convertor_t* convertor 
 
 OPAL_DECLSPEC int32_t opal_datatype_compress( opal_datatype_t *pData );
 OPAL_DECLSPEC int32_t opal_iovec_compress_set_position( opal_convertor_t *convertor, size_t *position );
-OPAL_DECLSPEC int32_t opal_iovec_compress_pack( opal_convertor_t *outside_convertor, struct iovec *out_iov,
+
+OPAL_DECLSPEC int32_t opal_iovec_compress_pack_8( opal_convertor_t *outside_convertor, struct iovec *out_iov,
         uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_iovec_compress_pack_16( opal_convertor_t *outside_convertor, struct iovec *out_iov,
+        uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_iovec_compress_pack_32( opal_convertor_t *outside_convertor, struct iovec *out_iov,
+        uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_iovec_compress_pack_64( opal_convertor_t *outside_convertor, struct iovec *out_iov,
+        uint32_t *out_size, size_t *max_data );
+
 OPAL_DECLSPEC int32_t opal_iovec_compress_unpack( opal_convertor_t *outside_convertor, struct iovec *out_iov,
         uint32_t *out_size, size_t *max_data );
 
-OPAL_DECLSPEC int32_t opal_iovec_do_gather_pack( opal_convertor_t *convertor, struct iovec *out_iov,
+OPAL_DECLSPEC int32_t opal_iovec_do_gather_pack_8( opal_convertor_t *convertor, struct iovec *out_iov,
         uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_iovec_do_gather_pack_16( opal_convertor_t *convertor, struct iovec *out_iov,
+        uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_iovec_do_gather_pack_32( opal_convertor_t *convertor, struct iovec *out_iov,
+        uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_iovec_do_gather_pack_64( opal_convertor_t *convertor, struct iovec *out_iov,
+        uint32_t *out_size, size_t *max_data );
+
 OPAL_DECLSPEC size_t opal_iovec_gather( opal_convertor_t *convertor, ptrdiff_t disp,
         size_t length, size_t keep, int8_t type_case, int do_count,
         char *dst, char *src, size_t *track, int *flag );
