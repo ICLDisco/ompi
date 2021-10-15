@@ -521,7 +521,7 @@ static int do_pipeline_test_for_ddt( int doop, MPI_Datatype sddt, MPI_Datatype r
     sbuf = (char*)malloc( length );
     rbuf = (char*)malloc( length );
 
-    for( int j = 4; j < 512; j *= 2 ){
+    for( int j = 4; j < 4096; j *= 2 ){
         printf("\n# Pack (max length %zu) Pipeline %d ddt per segment\n", 
                 length,
                 j);
