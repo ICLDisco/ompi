@@ -25,6 +25,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "opal/datatype/opal_datatype.h"
 #include "opal/datatype/opal_convertor.h"
@@ -312,8 +313,9 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
     }
 
     /* generate iovec */
-    if( pData->iov == NULL )
+    if( pData->iov == NULL ){
         opal_generate_iovec( pData );
+    }
 
     return OPAL_SUCCESS;
 }

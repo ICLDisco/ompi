@@ -92,9 +92,12 @@ opal_datatype_t* test_create_twice_two_doubles( void )
   --C-----D*-[ C ][INT]        MPI_INT count 1 disp 0xa80 (2688) extent 4
 */
 static int blacs_length[] = { 13, 13, 13, 13, 13, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 };
-static int blacs_indices[] = { 1144/4, 1232/4, 1320/4, 1408/4, 1496/4, 1584/4, 1676/4, 1768/4,
-                               1860/4, 1952/4, 2044/4, 2136/4, 2228/4, 2320/4, 2412/4, 2504/4,
-                               2596/4, 2688/4 };
+//static int blacs_indices[] = { 1144/4, 1232/4, 1320/4, 1408/4, 1496/4, 1584/4, 1676/4, 1768/4,
+  //                             1860/4, 1952/4, 2044/4, 2136/4, 2228/4, 2320/4, 2412/4, 2504/4,
+    //                           2596/4, 2688/4 };
+static int blacs_indices[] = { 0/4, 88/4, 176/4, 264/4, 352/4, 440/4, 532/4, 624/4,
+                               716/4, 808/4, 900/4, 992/4, 1084/4, 1176/4, 1268/4, 1360/4,
+                               1452/4, 1544/4 };
 opal_datatype_t* test_create_blacs_type( void )
 {
     opal_datatype_t *pdt;
@@ -106,6 +109,8 @@ opal_datatype_t* test_create_blacs_type( void )
     }
     return pdt;
 }
+
+
 
 opal_datatype_t* test_create_blacs_type1( opal_datatype_t const * const base_type )
 {

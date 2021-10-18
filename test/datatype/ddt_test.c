@@ -214,9 +214,9 @@ local_copy_with_convertor_2datatypes( ompi_datatype_t* send_type, int send_count
     while( (done1 & done2) != 1 ) {
         /* They are supposed to finish in exactly the same time. */
         if( done1 | done2 ) {
-            printf( "WRONG !!! the send is %s but the receive is %s in local_copy_with_convertor_2datatypes\n",
-                    (done1 ? "finish" : "not finish"),
-                    (done2 ? "finish" : "not finish") );
+      //      printf( "WRONG !!! the send is %s but the receive is %s in local_copy_with_convertor_2datatypes\n",
+        //            (done1 ? "finish" : "not finish"),
+          //          (done2 ? "finish" : "not finish") );
         }
 
         max_data = chunk;
@@ -293,9 +293,9 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     while( (done1 & done2) != 1 ) {
         /* They are supposed to finish in exactly the same time. */
         if( done1 | done2 ) {
-            printf( "WRONG !!! the send is %s but the receive is %s in local_copy_with_convertor\n",
-                    (done1 ? "finish" : "not finish"),
-                    (done2 ? "finish" : "not finish") );
+//            printf( "WRONG !!! the send is %s but the receive is %s in local_copy_with_convertor\n",
+  //                  (done1 ? "finish" : "not finish"),
+    //                (done2 ? "finish" : "not finish") );
         }
 
         max_data = chunk;

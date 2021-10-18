@@ -359,6 +359,143 @@ opal_iovec_set_position( opal_convertor_t *convertor, size_t *position )
     return 0;
 }
 
+size_t 
+opal_iovec_gather( opal_convertor_t *convertor, int index, int do_count, 
+                   char *dst, char *src, size_t *track, int *flag )
+{
+    const opal_datatype_t *pData = convertor->pDesc;
+    struct iovec *iov = pData->iov;
+    size_t ddt_size = pData->size, extent = pData->ub - pData->lb;
+    int i = 0, j;
+    ptrdiff_t hold = convertor->pStack[1].disp;
+    size_t rc = 0;
+
+    memcpy( dst,
+            src + (ptrdiff_t)( iov[index].iov_base ) + convertor->pStack[1].disp,
+            iov[index].iov_len - convertor->pStack[1].disp );
+    convertor->pStack[1].disp = 0;
+
+    for( i = 1; i < do_count; i++ ){
+        memcpy( dst + i * ddt_size - hold,
+                src + (ptrdiff_t)( iov[index].iov_base ) + i * extent,
+                iov[index].iov_len );
+    }
+
+    if( hold != 0 && convertor->pStack[0].count != 0 ) {
+        memcpy( dst + i * ddt_size - hold,
+                src + (ptrdiff_t)( iov[index].iov_base ) + i * extent,
+                hold );
+        rc = hold;
+    } 
+
+    if( *flag == 1 ){
+        if( *track != 0 ){
+            if( *track >= iov[index].iov_len - hold ){
+                memcpy( dst + i * ddt_size,
+                        src + (ptrdiff_t)( iov[index].iov_base ) + i * extent + hold,
+                        iov[index].iov_len - hold );
+
+                if( index == pData->iovcnt - 1 && *track == iov[index].iov_len - hold ){
+                    convertor->pStack[0].count--;
+                    convertor->pStack[0].disp += pData->ub - pData->lb;
+                    *flag = 0;
+                    rc = 0;
+                }
+
+                convertor->pStack[1].disp = 0;
+                *track -= iov[index].iov_len - hold;
+                convertor->pStack[1].index = (index + 1) % pData->iovcnt;
+
+            } else if( *track < iov[index].iov_len - hold ) {
+                memcpy( dst + i * ddt_size,
+                        src + (ptrdiff_t)( iov[index].iov_base ) + i * extent + hold,
+                        *track );
+
+                rc = hold + *track;
+                *track = 0;
+                convertor->pStack[1].disp = 0;
+                convertor->pStack[1].index = index;
+                *flag = 0;
+
+                return rc;
+            }
+        } else {
+            *flag = 0;
+            convertor->pStack[1].disp = 0;
+        }
+    }
+
+    return rc;
+}
+
+int32_t
+opal_iovec_do_gather_pack( opal_convertor_t *convertor,
+        struct iovec *out_iov,
+        uint32_t *out_size,
+        size_t *max_data )
+{
+    const opal_datatype_t *pData = convertor->pDesc;
+    struct iovec *iov = pData->iov;
+    char *dst,
+         *src = convertor->pBaseBuf + convertor->pStack[0].disp;
+    size_t track, iov_track;
+    uint32_t i, iov_count = 0;
+    int do_count;
+    int32_t index = convertor->pStack[1].index;
+    ptrdiff_t hold_disp = convertor->pStack[1].disp;
+    int flag = 1;
+    size_t rc, hold_1_disp = 0;
+
+    dst = out_iov[iov_count].iov_base;
+    iov_track = out_iov[iov_count].iov_len;
+    do_count = iov_track / pData->size;
+    track = iov_track % pData->size;
+
+    if( do_count > convertor->pStack[0].count ){
+        do_count = convertor->pStack[0].count;
+        track = 0;
+        *max_data = convertor->local_size - convertor->bConverted;
+    }
+
+    convertor->pStack[0].disp += do_count * ( pData->ub - pData->lb );
+    convertor->pStack[0].count -= do_count;
+    for( i = convertor->pStack[1].index; i < pData->iovcnt + index; i++ ) {
+
+        if( i == pData->iovcnt ){
+            if( track > 0 ){
+                convertor->pStack[0].count--;
+                convertor->pStack[0].disp += pData->ub - pData->lb;
+            }
+            src += pData->ub - pData->lb;
+            if( convertor->pStack[0].count == 0 )
+                do_count--;
+        }
+
+        rc = opal_iovec_gather( convertor, i % pData->iovcnt, do_count, dst, src, &track, &flag );
+        dst += iov[i % pData->iovcnt].iov_len - hold_disp;
+        hold_disp = 0;
+
+        if( rc != 0 && flag == 0 ){
+            hold_1_disp = rc;
+        }
+    }
+
+    if( hold_1_disp != 0 ){
+        convertor->pStack[1].disp = hold_1_disp;
+    }
+
+complete_pack:
+    *max_data -= track;
+    convertor->bConverted += *max_data;
+
+    if( convertor->bConverted < convertor->local_size ){
+        return 0;
+    }
+
+    convertor->flags |= CONVERTOR_COMPLETED;
+    return 1;
+}
+
 int32_t
 opal_iovec_pack( opal_convertor_t *convertor,
         struct iovec *out_iov,
@@ -372,13 +509,17 @@ opal_iovec_pack( opal_convertor_t *convertor,
     size_t track = *max_data, iov_track;
     uint32_t i, iov_count = 0;
 
+    if( track / pData->size > 1 ){
+        return opal_iovec_do_gather_pack( convertor, out_iov, out_size, max_data );
+    }
+
     dst = out_iov[iov_count].iov_base;
     iov_track = out_iov[iov_count].iov_len;
 
     while( convertor->pStack[0].count ){
-        for( i = convertor->pStack[1].index; i < pData->iovcnt; i++ ) {
+        for( i = convertor->pStack[1].index; i < pData->iovcnt; i++ ){
 restart_pack:
-            if( iov_track < (iov[i].iov_len - convertor->pStack[1].disp) && iov_track < track ){
+            if( OPAL_UNLIKELY( iov_track < (iov[i].iov_len - convertor->pStack[1].disp) && iov_track < track )){
                 memcpy( dst,
                         src + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
                         iov_track);
@@ -396,7 +537,7 @@ restart_pack:
                 goto restart_pack;
             }
 
-            if( track < (iov[i].iov_len - convertor->pStack[1].disp) || track == 0 ){
+            if( OPAL_UNLIKELY( track < (iov[i].iov_len - convertor->pStack[1].disp) || track == 0) ){
                 memcpy( dst,
                         src + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
                         track);
@@ -421,7 +562,6 @@ restart_pack:
         convertor->pStack[0].disp += pData->ub - pData->lb;
         convertor->pStack[1].index = 0;
         convertor->pStack[0].count--;
-
         src += pData->ub - pData->lb;
     }
 
@@ -429,7 +569,7 @@ complete_pack:
     *max_data -= track;
     convertor->bConverted += *max_data;
 
-    if( convertor->bConverted < convertor->local_size ){
+    if( OPAL_LIKELY( convertor->bConverted < convertor->local_size ) ){
         return 0;
     }
 

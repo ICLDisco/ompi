@@ -26,6 +26,8 @@
 #include "ompi_config.h"
 
 #include <stddef.h>
+#include <stdio.h>
+#include <math.h>
 
 #include "opal/align.h"
 #include "opal/types.h"
@@ -814,6 +816,7 @@ ompi_datatype_t* ompi_datatype_create_from_packed_description( void** packed_buf
         return NULL;
     }
     ompi_datatype_commit( &datatype );
+
     return datatype;
 }
 
