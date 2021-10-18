@@ -36,6 +36,11 @@
 #endif
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include "opal_ddt_lib.h"
+#include "opal/constants.h"
 
 /* Compile with:
 gcc -DHAVE_CONFIG_H -I. -I../../include -I../.. -I../../include -I../../../ompi-trunk/opal -I../../../ompi-trunk/orte -g opal_datatype_test.c -o opal_datatype_test
@@ -111,7 +116,7 @@ static int test_upper( unsigned int length )
         a.iov_len = split_chunk;
         iov_count = 1;
         max_data = split_chunk;
-        opal_convertor_unpack( pConv, &a, &iov_count, &max_data );
+        opal_iovec_unpack( pConv, &a, &iov_count, &max_data );
         ptr += max_data;
         i -= max_data;
         if( mat2[0] != inbuf[0] ) assert(0);
@@ -178,7 +183,7 @@ static int local_copy_ddt_count( opal_datatype_t const * const pdt, int count )
     if(outputFlags & VALIDATE_DATA) {
         for( size_t i = 0; i < malloced_size; i++ ) {
             if( odst[i] != osrc[i] ) {
-                printf("error at position %lu (%d != %d)\n",
+                printf("local_copy error at position %lu (%d != %d)\n",
                        (unsigned long)i, (int)(odst[i]), (int)(osrc[i]));
                 errors++;
                 if(outputFlags & QUIT_ON_FIRST_ERROR) {
@@ -263,12 +268,12 @@ local_copy_with_convertor_2datatypes( opal_datatype_t const * const send_type, i
         iov.iov_len = chunk;
 
         if( done1 == 0 ) {
-            done1 = opal_convertor_pack( send_convertor, &iov, &iov_count, &max_data );
+            done1 = opal_iovec_pack( send_convertor, &iov, &iov_count, &max_data );
         }
 
         if( done2 == 0 ) {
             GET_TIME( unpack_start );
-            done2 = opal_convertor_unpack( recv_convertor, &iov, &iov_count, &max_data );
+            done2 = opal_iovec_unpack( recv_convertor, &iov, &iov_count, &max_data );
             GET_TIME( unpack_end );
             unpack_time += ELAPSED_TIME( unpack_start, unpack_end );
         }
@@ -277,15 +282,15 @@ local_copy_with_convertor_2datatypes( opal_datatype_t const * const send_type, i
 
         if( outputFlags & RESET_CONVERTORS ) {
             size_t pos = 0;
-            opal_convertor_set_position(send_convertor, &pos);
+            opal_iovec_set_position(send_convertor, &pos);
             pos = length;
-            opal_convertor_set_position(send_convertor, &pos);
+            opal_iovec_set_position(send_convertor, &pos);
             assert(pos == length);
 
             pos = 0;
-            opal_convertor_set_position(recv_convertor, &pos);
+            opal_iovec_set_position(recv_convertor, &pos);
             pos = length;
-            opal_convertor_set_position(recv_convertor, &pos);
+            opal_iovec_set_position(recv_convertor, &pos);
             assert(pos == length);
         }
     }
@@ -325,6 +330,10 @@ static int local_copy_with_convertor( opal_datatype_t const * const pdt, int cou
 
     odst = (char*)malloc( malloced_size );
     osrc = (char*)malloc( malloced_size );
+
+    printf("malloced_size %zu count %d\n",
+            malloced_size,
+            count );
     ptemp = malloc( chunk );
 
     {
@@ -363,12 +372,12 @@ static int local_copy_with_convertor( opal_datatype_t const * const pdt, int cou
         iov.iov_len = chunk;
 
         if( done1 == 0 ) {
-            done1 = opal_convertor_pack( send_convertor, &iov, &iov_count, &max_data );
+            done1 = opal_iovec_pack( send_convertor, &iov, &iov_count, &max_data );
         }
 
         if( done2 == 0 ) {
             GET_TIME( unpack_start );
-            done2 = opal_convertor_unpack( recv_convertor, &iov, &iov_count, &max_data );
+            done2 = opal_iovec_unpack( recv_convertor, &iov, &iov_count, &max_data );
             GET_TIME( unpack_end );
             unpack_time += ELAPSED_TIME( unpack_start, unpack_end );
         }
@@ -382,18 +391,15 @@ static int local_copy_with_convertor( opal_datatype_t const * const pdt, int cou
             if( 0 == done1 ) {
                 memcpy(stack, send_convertor->pStack, (1+send_convertor->stack_pos) * sizeof(struct dt_stack_t));
                 pos = 0;
-                opal_convertor_set_position(send_convertor, &pos);
+                opal_iovec_set_position(send_convertor, &pos);
                 pos = length;
-                opal_convertor_set_position(send_convertor, &pos);
+                opal_iovec_set_position(send_convertor, &pos);
+
                 assert(pos == length);
                 for(i = 0; i <= stack_pos; i++ ) {
-                    if( stack[i].index != send_convertor->pStack[i].index )
-                        {errors = 1; printf("send stack[%d].index differs (orig %d != new %d) (completed %lu/%lu)\n",
-                                            i, stack[i].index, send_convertor->pStack[i].index,
-                                            length, pdt->size * count);}
                     if( stack[i].count != send_convertor->pStack[i].count ) {
                         if( stack[i].type == send_convertor->pStack[i].type ) {
-                            {errors = 1; printf("send stack[%d].count differs (orig %lu != new %lu) (completed %lu/%lu)\n",
+                            {errors = 1; printf("send stack[%d].count differs (orig %lu != should be %lu) (completed %lu/%lu)\n",
                                                     i, stack[i].count, send_convertor->pStack[i].count,
                                                     length, pdt->size * count);}
                         } else {
@@ -410,24 +416,21 @@ static int local_copy_with_convertor( opal_datatype_t const * const pdt, int cou
                         }
                     }
                     if( stack[i].disp != send_convertor->pStack[i].disp )
-                        {errors = 1; printf("send stack[%d].disp differs (orig %p != new %p) (completed %lu/%lu)\n",
-                                            i, (void*)stack[i].disp, (void*)send_convertor->pStack[i].disp,
+                        {errors = 1; printf("send stack[%d].disp differs (orig %zu != new %zu) (completed %lu/%lu)\n",
+                                            i, stack[i].disp, send_convertor->pStack[i].disp,
                                             length, pdt->size * count);}
                     if(0 != errors) {assert(0); exit(-1);}
                 }
             }
+
             if( 0 == done2 ) {
                 memcpy(stack, recv_convertor->pStack, (1+recv_convertor->stack_pos) * sizeof(struct dt_stack_t));
                 pos = 0;
-                opal_convertor_set_position(recv_convertor, &pos);
+                opal_iovec_set_position(recv_convertor, &pos);
                 pos = length;
-                opal_convertor_set_position(recv_convertor, &pos);
+                opal_iovec_set_position(recv_convertor, &pos);
                 assert(pos == length);
                 for(i = 0; i <= stack_pos; i++ ) {
-                    if( stack[i].index != recv_convertor->pStack[i].index )
-                        {errors = 1; printf("recv stack[%d].index differs (orig %d != new %d) (completed %lu/%lu)\n",
-                                            i, stack[i].index, recv_convertor->pStack[i].index,
-                                            length, pdt->size * count);}
                     if( stack[i].count != recv_convertor->pStack[i].count ) {
                         if( stack[i].type == recv_convertor->pStack[i].type ) {
                             {errors = 1; printf("recv stack[%d].count differs (orig %lu != new %lu) (completed %lu/%lu)\n",
@@ -461,22 +464,26 @@ static int local_copy_with_convertor( opal_datatype_t const * const pdt, int cou
     printf( "\t unpack in %ld microsec [pack in %ld microsec]\n", unpack_time,
             total_time - unpack_time );
 
+    sleep(1);
     if(outputFlags & VALIDATE_DATA) {
+        printf("-------------checking\n");
         for( size_t i = errors = 0; i < malloced_size; i++ ) {
             if( odst[i] != osrc[i] ) {
-                printf("error at position %lu (%d != %d)\n",
+                printf("convertor error at position %lu (%d != %d)\n",
                        (unsigned long)i, (int)(odst[i]), (int)(osrc[i]));
                 errors++;
-                if(outputFlags & QUIT_ON_FIRST_ERROR) {
-                    opal_datatype_dump(pdt);
-                    assert(0); exit(-1);
-                }
+        //        if(outputFlags & QUIT_ON_FIRST_ERROR) {
+                //opal_datatype_dump( pdt );
+        //            exit(0);
+          //      }
             }
         }
+    
         if( 0 == errors ) {
             printf("Validation check successfully passed\n");
         } else {
             printf("Found %d errors. Giving up!\n", errors);
+            sleep(1);
             exit(-1);
         }
     }
@@ -499,6 +506,8 @@ static int local_copy_with_convertor( opal_datatype_t const * const pdt, int cou
  */
 int main( int argc, char* argv[] )
 {
+    //sleep(40);
+
     opal_datatype_t *pdt, *pdt1, *pdt2, *pdt3;
     int rc, length = 500;
 
@@ -507,7 +516,10 @@ int main( int argc, char* argv[] )
     /**
      * By default simulate homogeneous architectures.
      */
+
     remote_arch = opal_local_arch;
+
+    /*
     printf( "\n\n#\n * TEST CREATE CONTIGUOUS\n#\n\n" );
     pdt = create_contiguous_type( &opal_datatype_int1, 10 );
     if( outputFlags & CHECK_PACK_UNPACK ) {
@@ -515,20 +527,25 @@ int main( int argc, char* argv[] )
         local_copy_with_convertor(pdt, 100, 956);
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
+    */
 
     printf( "\n\n#\n * TEST STRANGE DATATYPE\n#\n\n" );
     pdt = create_strange_dt();
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 1);
         local_copy_with_convertor(pdt, 1, 956);
+        local_copy_with_convertor( pdt, 4500, 16*1024 );
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
+    
 
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n#\n\n" );
     pdt = upper_matrix(100);
+
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 1);
         local_copy_with_convertor(pdt, 1, 48);
+        local_copy_with_convertor( pdt, 4500, 16*1024 );
     }
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
@@ -547,9 +564,9 @@ int main( int argc, char* argv[] )
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
 
-    printf( "\n\n#\n * TEST CONTIGUOUS\n#\n\n" );
-    pdt = test_contiguous();
-    OBJ_RELEASE( pdt ); assert( pdt == NULL );
+    //printf( "\n\n#\n * TEST CONTIGUOUS\n#\n\n" );
+    //pdt = test_contiguous();
+    //OBJ_RELEASE( pdt ); assert( pdt == NULL );
     printf( "\n\n#\n * TEST STRUCT\n#\n\n" );
     pdt = test_struct();
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
@@ -567,23 +584,25 @@ int main( int argc, char* argv[] )
     opal_datatype_add( pdt1, &opal_datatype_int8, 5, 0, -1 );
     opal_datatype_add( pdt1, &opal_datatype_float16, 2, sizeof(long long) * 5, -1 );
 
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>1--------------------------------------------<<\n" );
     if( outputFlags & DUMP_DATA_AFTER_COMMIT ) {
         opal_datatype_dump( pdt1 );
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>2--------------------------------------------<<\n" );
     if( outputFlags & DUMP_DATA_AFTER_COMMIT ) {
         opal_datatype_dump( pdt2 );
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>3--------------------------------------------<<\n" );
     if( outputFlags & DUMP_DATA_AFTER_COMMIT ) {
         opal_datatype_dump( pdt3 );
     }
 
     OBJ_RELEASE( pdt1 ); assert( pdt1 == NULL );
     OBJ_RELEASE( pdt2 ); assert( pdt2 == NULL );
+
     OBJ_RELEASE( pdt3 ); assert( pdt3 == NULL );
 
+    /*
     printf( ">>--------------------------------------------<<\n" );
     printf( " Contiguous data-type (opal_datatype_float8)\n" );
     if( outputFlags & CHECK_PACK_UNPACK ) {
@@ -593,7 +612,9 @@ int main( int argc, char* argv[] )
         local_copy_with_convertor_2datatypes( ddt, 4500, ddt, 4500, 12 );
     }
     printf( ">>--------------------------------------------<<\n" );
+    */
 
+    /*
     printf( ">>--------------------------------------------<<\n" );
     if( outputFlags & CHECK_PACK_UNPACK ) {
         printf( "Contiguous multiple data-type (4500*1)\n" );
@@ -634,7 +655,9 @@ int main( int argc, char* argv[] )
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
     }
     printf( ">>--------------------------------------------<<\n" );
-    printf( ">>--------------------------------------------<<\n" );
+    */
+
+    printf( ">>4--------------------------------------------<<\n" );
     printf( "Vector data-type (450 times 10 double stride 11)\n" );
     pdt = create_vector_type( &opal_datatype_float8, 450, 10, 11 );
     opal_datatype_dump( pdt );
@@ -648,11 +671,12 @@ int main( int argc, char* argv[] )
         local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 6000 );
         local_copy_with_convertor( pdt, 1, 36000 );
         local_copy_with_convertor_2datatypes( pdt, 1, pdt, 1, 36000 );
+        local_copy_with_convertor( pdt, 4500, 360*1024 );
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>5--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>6--------------------------------------------<<\n" );
     printf( "Struct data-type resized (double unused followed by 2 used doubles)\n" );
     pdt = create_struct_constant_gap_resized_ddt( &opal_datatype_float8 );
     opal_datatype_dump( pdt );
@@ -666,52 +690,61 @@ int main( int argc, char* argv[] )
         local_copy_with_convertor_2datatypes( pdt, 1500, pdt, 1500, 666 );
         local_copy_with_convertor( pdt, 10000, 36000 );
         local_copy_with_convertor_2datatypes( pdt, 10000, pdt, 10000, 1111 );
+        local_copy_with_convertor( pdt, 4500, 16*1024 );
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>7--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>8--------------------------------------------<<\n" );
     pdt = test_struct_char_double();
+    opal_datatype_dump( pdt );
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 4500);
         local_copy_with_convertor( pdt, 4500, 12 );
         local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 12 );
+        local_copy_with_convertor( pdt, 20, 100 );
+        local_copy_with_convertor( pdt, 4500, 1024 );
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>9--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>10--------------------------------------------<<\n" );
     pdt = test_create_twice_two_doubles();
+    opal_datatype_dump( pdt );
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_ddt_count(pdt, 4500);
         local_copy_with_convertor( pdt, 4500, 12 );
         local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 12 );
+        local_copy_with_convertor( pdt, 4500, 16*1024 );
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>11--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>12--------------------------------------------<<\n" );
     pdt = test_create_blacs_type();
+    opal_datatype_dump( pdt );
     if( outputFlags & CHECK_PACK_UNPACK ) {
-        opal_datatype_dump( pdt );
         local_copy_ddt_count(pdt, 4500);
         local_copy_with_convertor( pdt, 4500, 956 );
         local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 956 );
-        local_copy_with_convertor( pdt, 4500, 16*1024 );
+        local_copy_with_convertor( pdt, 45, 16*1024 );
         local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 16*1024 );
         local_copy_with_convertor( pdt, 4500, 64*1024 );
+        printf(">>22--------------------------------------------<<\n");
         local_copy_with_convertor_2datatypes( pdt, 4500, pdt, 4500, 64*1024 );
+        printf(">>33--------------------------------------------<<\n");
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>13--------------------------------------------<<\n" );
+    printf("-------now release\n");
     OBJ_RELEASE( pdt ); assert( pdt == NULL );
 
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>14--------------------------------------------<<\n" );
     pdt1 = test_create_blacs_type1( &opal_datatype_int4 );
     pdt2 = test_create_blacs_type2( &opal_datatype_int4 );
     if( outputFlags & CHECK_PACK_UNPACK ) {
         local_copy_with_convertor_2datatypes( pdt1, 1, pdt2, 1, 100 );
     }
-    printf( ">>--------------------------------------------<<\n" );
+    printf( ">>15--------------------------------------------<<\n" );
     OBJ_RELEASE( pdt1 ); assert( pdt1 == NULL );
     OBJ_RELEASE( pdt2 ); assert( pdt2 == NULL );
 

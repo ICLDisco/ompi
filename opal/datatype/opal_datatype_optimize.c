@@ -25,6 +25,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "opal/datatype/opal_datatype.h"
 #include "opal/datatype/opal_convertor.h"
@@ -312,10 +313,98 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
     }
 
     /* generate iovec */
-    if( pData->iov == NULL )
+    if( pData->iov == NULL ){
         opal_generate_iovec( pData );
+        opal_datatype_compress( pData );
+    }
 
     return OPAL_SUCCESS;
+}
+
+int32_t 
+opal_datatype_compress( opal_datatype_t *pData )
+{
+    opal_datatype_flexible_storage_t* flexi = (opal_datatype_flexible_storage_t*)&(pData->compress);
+    struct iovec *iov = pData->iov;
+
+    uint8_t bytes = sizeof(opal_datatype_iovec_storage_int8_t);
+
+    for( uint32_t i = 0; i < pData->iovcnt; i++ ){
+        if( 0 == (0x7FFFFFFFFFFFFF80 & (intptr_t)iov[i].iov_base) ) {
+            //bytes = sizeof(opal_datatype_iovec_storage_int8_t);
+        } else if( 0 == (0x7FFFFFFFFFFF8000 & (intptr_t)iov[i].iov_base) ) {
+            if( bytes < sizeof(opal_datatype_iovec_storage_int16_t) )
+                bytes = sizeof(opal_datatype_iovec_storage_int16_t);
+            
+        } else if( 0 == (0x7FFFFFFF80000000 & (intptr_t)iov[i].iov_base) ) {
+            if( bytes < sizeof(opal_datatype_iovec_storage_int32_t) )
+                bytes = sizeof(opal_datatype_iovec_storage_int32_t);
+        
+        }
+        if( bytes < sizeof(opal_datatype_iovec_storage_int32_t) ) {
+            if( 0 == (0xFFFFFFFFFFFFFF80 & iov[i].iov_len) ) {  /* single bit = 0 */
+                /* follow the number of bits in the displacement */
+            } else if( 0 == (0xFFFFFFFFFFFFC000 & iov[i].iov_len) ) {  /* 2 bits = 10 */
+            if( bytes < sizeof(opal_datatype_iovec_storage_int16_t) )
+                bytes = sizeof(opal_datatype_iovec_storage_int16_t);
+            }
+        } else if( 0 != (0xFFFFFFFFE0000000 & iov[i].iov_len) ) {  /* 3 bits = 110 */
+            if( bytes < sizeof(opal_datatype_iovec_storage_int64_t) )
+                bytes = sizeof(opal_datatype_iovec_storage_int64_t);
+        }  /* otherwise 3 bits = 111 */
+
+    }
+
+    pData->bytes = bytes;
+
+    for( uint32_t i = 0; i < pData->iovcnt; i++ ){
+        if( (flexi->iov_pos + bytes) > flexi->iov_length ) {
+            size_t new_length = (0 == flexi->iov_length ? 128 : (flexi->iov_length * 2));
+            void* ptr = realloc( flexi->storage, new_length);
+            if( NULL == ptr ) {  
+                return 1;
+            }
+            flexi->storage = ptr;
+            flexi->iov_length = new_length;
+        }
+
+        switch(bytes) {
+            case sizeof(opal_datatype_iovec_storage_int8_t): {
+                                                                 opal_datatype_iovec_storage_int8_t* s8 = (opal_datatype_iovec_storage_int8_t*)(flexi->storage + flexi->iov_pos);
+                                                                 s8->length = (uint8_t)(iov[i].iov_len) << 1;
+                                                                 s8->disp = (int8_t)(intptr_t)(iov[i].iov_base);
+                                                                 flexi->iov_pos += sizeof(opal_datatype_iovec_storage_int8_t);
+                                                                 break;
+                                                             }
+            case sizeof(opal_datatype_iovec_storage_int16_t): {
+                                                                  opal_datatype_iovec_storage_int16_t* s16 = (opal_datatype_iovec_storage_int16_t*)(flexi->storage + flexi->iov_pos);
+                                                                  s16->length = (uint16_t)(iov[i].iov_len) << 2 | (uint16_t)0x01;
+                                                                  s16->disp = (int16_t)(intptr_t)(iov[i].iov_base);
+                                                                  flexi->iov_pos += sizeof(opal_datatype_iovec_storage_int16_t);
+                                                                  break;
+                                                              }
+            case sizeof(opal_datatype_iovec_storage_int32_t): {
+                                                                  opal_datatype_iovec_storage_int32_t* s32 = (opal_datatype_iovec_storage_int32_t*)(flexi->storage + flexi->iov_pos);
+                                                                  s32->length = (uint32_t)(iov[i].iov_len) << 3 | (uint32_t)0x03;
+                                                                  s32->disp = (int32_t)(intptr_t)(iov[i].iov_base);
+                                                                  flexi->iov_pos += sizeof(opal_datatype_iovec_storage_int32_t);
+                                                                  break;
+                                                              }
+            default: {
+                         opal_datatype_iovec_storage_int64_t* s64 = (opal_datatype_iovec_storage_int64_t*)(flexi->storage + flexi->iov_pos);
+                         s64->length = (uint64_t)(iov[i].iov_len) << 3 | 0x07ULL;
+                         s64->disp = (intptr_t)(iov[i].iov_base);
+                         flexi->iov_pos += sizeof(opal_datatype_iovec_storage_int64_t);
+                         break;
+                     }
+        }
+
+    }
+
+    flexi->storage = realloc( flexi->storage, flexi->iov_pos );
+    flexi->iov_length = flexi->iov_pos;
+
+    return 1;
 }
 
 int32_t

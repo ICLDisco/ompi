@@ -100,6 +100,38 @@ struct dt_type_desc_t {
 };
 typedef struct dt_type_desc_t dt_type_desc_t;
 
+typedef struct opal_datatype_flexible_storage_s {
+    int32_t iov_length;
+    int32_t iov_pos;
+    uint32_t size;
+    char* storage;
+} opal_datatype_flexible_storage_t;
+
+typedef struct opal_datatype_iovec_storage_marker_s {
+    uint16_t left;
+    uint16_t right;
+    uint32_t length;
+} opal_datatype_iovec_storage_marker_t;
+
+typedef struct opal_datatype_iovec_storage_int8_s {
+    uint8_t length;
+    int8_t disp;
+} opal_datatype_iovec_storage_int8_t;
+
+typedef struct opal_datatype_iovec_storage_int16_s {
+    uint16_t length;
+    int16_t disp;
+} opal_datatype_iovec_storage_int16_t;
+
+typedef struct opal_datatype_iovec_storage_int32_s {
+    uint32_t length;
+    int32_t disp;
+} opal_datatype_iovec_storage_int32_t;
+
+typedef struct opal_datatype_iovec_storage_int64_s {
+    uint64_t length;
+    int64_t disp;
+} opal_datatype_iovec_storage_int64_t;
 
 /*
  * The datatype description.
@@ -125,6 +157,9 @@ struct opal_datatype_t {
     dt_type_desc_t     desc;     /**< the data description */
     dt_type_desc_t     opt_desc; /**< short description of the data used when conversion is useless
                                       or in the send case (without conversion) */
+
+    opal_datatype_flexible_storage_t compress;
+    uint8_t            bytes;
 
     struct iovec       *iov;     /**< iovec description */
     uint32_t           iovcnt;   /**< number of iovec */
