@@ -57,6 +57,11 @@ static void opal_datatype_construct( opal_datatype_t* pData )
     pData->loops              = 0;
 
     pData->iov                = NULL;
+
+    pData->compress.storage   = malloc(1);
+    pData->compress.size      = 0;
+    pData->compress.iov_length= 0;
+    pData->compress.iov_pos   = 0;
 }
 
 static void opal_datatype_destruct( opal_datatype_t* datatype )

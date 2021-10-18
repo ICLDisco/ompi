@@ -27,7 +27,8 @@ int32_t opal_datatype_destroy( opal_datatype_t** dt )
 {
     opal_datatype_t* pData = *dt;
 
-    free( pData->iov );
+//    free( pData->iov );
+    free( pData->compress.storage );
 
     if( (pData->flags & OPAL_DATATYPE_FLAG_PREDEFINED) &&
         (pData->super.obj_reference_count <= 1) )
