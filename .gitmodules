@@ -1,7 +1,7 @@
 [submodule "prrte"]
 	path = 3rd-party/prrte
-	url = ../../openpmix/prrte
-	branch = master
+	url = ../../icldisco/prrte
+	branch = ulfm/latest
 [submodule "openpmix"]
 	path = 3rd-party/openpmix
 	url = ../../openpmix/openpmix.git
