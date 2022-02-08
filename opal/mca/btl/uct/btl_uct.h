@@ -96,6 +96,9 @@ struct mca_btl_uct_module_t {
     /** registration cache */
     mca_rcache_base_module_t *rcache;
 
+    /** Error callback */
+    mca_btl_base_module_error_cb_fn_t uct_error_cb;
+
     /** name of the memory domain backing this module */
     char *md_name;
 

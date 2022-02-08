@@ -68,6 +68,14 @@ struct mca_btl_base_endpoint_t *mca_btl_uct_get_ep(struct mca_btl_base_module_t 
     return ep;
 }
 
+static int mca_btl_uct_register_error_cb(struct mca_btl_base_module_t *btl,
+                                         mca_btl_base_module_error_cb_fn_t cbfunc)
+{
+    mca_btl_uct_module_t *uct_btl = (mca_btl_uct_module_t *) btl;
+    uct_btl->uct_error_cb = cbfunc;
+    return OPAL_SUCCESS;
+}
+
 static int mca_btl_uct_add_procs(mca_btl_base_module_t *btl, size_t nprocs,
                                  opal_proc_t **opal_procs, mca_btl_base_endpoint_t **peers,
                                  opal_bitmap_t *reachable)
@@ -334,6 +342,7 @@ mca_btl_uct_module_t mca_btl_uct_module_template = {
         .btl_send = mca_btl_uct_send,
         .btl_alloc = mca_btl_uct_alloc,
         .btl_free = mca_btl_uct_free,
+        .btl_register_error = mca_btl_uct_register_error_cb,
 
         /* set the default flags for this btl. uct provides us with rdma and both
          * fetching and non-fetching atomics (though limited to add and cswap) */

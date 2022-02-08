@@ -279,16 +279,53 @@ static void mca_btl_uct_context_enable_progress(mca_btl_uct_device_context_t *co
     }
 }
 
+static ucs_status_t mca_btl_uct_invoke_error_cb(void *arg, uct_ep_h ep, ucs_status_t status) {
+    mca_btl_uct_module_t *module = (mca_btl_uct_module_t*)arg;
+    mca_btl_uct_endpoint_t *btl_endpoint;
+    uint64_t key;
+    opal_proc_t *proc_opal = NULL;
+
+
+    BTL_VERBOSE((__func__));
+    /* find the proc, this is the only place we iterate this list, but it's in
+     * the slow path anyway */
+    OPAL_HASH_TABLE_FOREACH (key, uint64, btl_endpoint, &module->id_to_endpoint) {
+        for(int context_id = 0; context_id < MCA_BTL_UCT_MAX_WORKERS; ++context_id) {
+            for(int tl_index = 0; tl_index < 2; tl_index++) {
+                mca_btl_uct_tl_endpoint_t *tl_endpoint = btl_endpoint->uct_eps[context_id] + tl_index;
+                if(tl_endpoint->uct_ep == ep) {
+                    proc_opal = btl_endpoint->ep_proc;
+                    goto found;
+                }
+            }
+        }
+    }
+
+found:
+    BTL_PEER_ERROR(proc_opal, ("BTL UCT reported an error %d: %s", status, ucs_status_string(status)));
+    if(NULL != module->uct_error_cb) {
+        module->uct_error_cb(&module->super, MCA_BTL_ERROR_FLAGS_NONFATAL,
+                             proc_opal,
+                             "UCT ERROR was reported");
+    }
+    return UCS_OK;
+}
+
 mca_btl_uct_device_context_t *mca_btl_uct_context_create(mca_btl_uct_module_t *module,
                                                          mca_btl_uct_tl_t *tl, int context_id,
                                                          bool enable_progress)
 {
 #if UCT_API >= UCT_VERSION(1, 6)
     uct_iface_params_t iface_params = {.field_mask = UCT_IFACE_PARAM_FIELD_OPEN_MODE
-                                                     | UCT_IFACE_PARAM_FIELD_DEVICE,
+                                                     | UCT_IFACE_PARAM_FIELD_DEVICE
+                                                     | UCT_IFACE_PARAM_FIELD_ERR_HANDLER
+                                                     | UCT_IFACE_PARAM_FIELD_ERR_HANDLER_ARG,
                                        .open_mode = UCT_IFACE_OPEN_MODE_DEVICE,
                                        .mode = {.device = {.tl_name = tl->uct_tl_name,
-                                                           .dev_name = tl->uct_dev_name}}};
+                                                           .dev_name = tl->uct_dev_name}},
+                                       .err_handler = mca_btl_uct_invoke_error_cb,
+                                       .err_handler_arg = (void*)module
+                                      };
 #else
     uct_iface_params_t iface_params = {.rndv_cb = NULL,
                                        .eager_cb = NULL,
