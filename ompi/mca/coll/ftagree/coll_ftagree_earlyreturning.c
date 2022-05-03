@@ -2178,7 +2178,22 @@ static void send_msg(ompi_communicator_t *comm,
     }
     assert(NULL != peer);
     endpoint = mca_bml_base_get_endpoint(peer);
-    assert(NULL != endpoint);
+    if(NULL == endpoint) {
+        opal_output_verbose(5, ompi_ftmpi_output_handle,
+                             "%s ftagree:agreement (ERA) CANNOT send message [(%d.%d).%d, %s, %08x.%d.%d..] to %d/%s %s\n",
+                             OMPI_NAME_PRINT(OMPI_PROC_MY_NAME),
+                             agreement_id.ERAID_FIELDS.contextid,
+                             agreement_id.ERAID_FIELDS.epoch,
+                             agreement_id.ERAID_FIELDS.agreementid,
+                             era_msg_type_to_string(type),
+                             (NULL != value->bytes)? *(int*)value->bytes: 0,
+                             value->header.ret,
+                             value->header.nb_new_dead,
+                             dst,
+                             NULL != proc_name ? OMPI_NAME_PRINT(proc_name) : "(null)",
+                             ompi_proc_is_active(peer)? "(not detected yet)": "(detected dead)");
+        return; /* bail out: the algorithm should reconnect when the failed proc is detected */
+    }
     bml_btl = mca_bml_base_btl_array_get_index(&endpoint->btl_eager, 0);
     assert(NULL != bml_btl);
     btl_endpoint = bml_btl->btl_endpoint;
