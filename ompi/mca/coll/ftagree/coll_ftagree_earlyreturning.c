@@ -414,6 +414,7 @@ static const char *era_status_to_string(era_proc_status_t s) {
     }
     return "UNDEFINED STATUS";
 }
+#endif /* OPAL_ENABLE_DEBUG */
 
 static const char *era_msg_type_to_string(int type) {
     switch(type) {
@@ -426,7 +427,6 @@ static const char *era_msg_type_to_string(int type) {
     }
     return "UNDEFINED MESSAGE TYPE";
 }
-#endif /* OPAL_ENABLE_DEBUG */
 
 static era_agreement_info_t *era_lookup_agreement_info(era_identifier_t agreement_id)
 {
