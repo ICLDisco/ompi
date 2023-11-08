@@ -28,6 +28,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "opal/datatype/opal_convertor.h"
 #include "opal/datatype/opal_datatype.h"
@@ -55,10 +56,29 @@
         }                                                                                   \
     } while (0)
 
-static void *opal_datatype_accelerator_memcpy(void *dest, const void *src, size_t size)
+
+static opal_accelerator_transfer_type_t get_transfer_type(int src_dev, int dst_dev)
+{
+    if (src_dev == MCA_ACCELERATOR_NO_DEVICE_ID) {
+        if (dst_dev == MCA_ACCELERATOR_NO_DEVICE_ID) {
+            return MCA_ACCELERATOR_TRANSFER_HTOH;
+        } else {
+            return MCA_ACCELERATOR_TRANSFER_HTOD;
+        }
+    } else {
+        if (dst_dev == MCA_ACCELERATOR_NO_DEVICE_ID) {
+            return MCA_ACCELERATOR_TRANSFER_DTOH;
+        } else {
+            return MCA_ACCELERATOR_TRANSFER_DTOD;
+        }
+    }
+}
+
+static void *opal_datatype_accelerator_memcpy(void *dest, const void *src, size_t size,
+                                              opal_accelerator_stream_t *stream)
 {
     int res;
-    int dev_id;
+    int src_dev_id = MCA_ACCELERATOR_NO_DEVICE_ID, dst_dev_id = MCA_ACCELERATOR_NO_DEVICE_ID;
     uint64_t flags;
     /* If accelerator check addr returns an error, we can only
      * assume it is a host buffer. If device buffer checking fails,
@@ -67,12 +87,18 @@ static void *opal_datatype_accelerator_memcpy(void *dest, const void *src, size_
      * and retries are also unlikely to succeed. We identify these
      * buffers as host buffers as attempting a memcpy would provide
      * a chance to succeed. */
-    if (0 >= opal_accelerator.check_addr(dest, &dev_id, &flags) &&
-        0 >= opal_accelerator.check_addr(src, &dev_id, &flags)) {
+    if (0 >= opal_accelerator.check_addr(dest, &dst_dev_id, &flags) &&
+        0 >= opal_accelerator.check_addr(src, &src_dev_id, &flags)) {
         return memcpy(dest, src, size);
     }
-    res = opal_accelerator.mem_copy(MCA_ACCELERATOR_NO_DEVICE_ID, MCA_ACCELERATOR_NO_DEVICE_ID,
-                                  dest, src, size, MCA_ACCELERATOR_TRANSFER_UNSPEC);
+    //printf("opal_datatype_accelerator_memcpy: dst %p dev %d src %p dev %d transer_type %d\n", dest, dst_dev_id, src, src_dev_id, get_transfer_type(src_dev_id, dst_dev_id));
+    if (NULL != stream) {
+        res = opal_accelerator.mem_copy_async(dst_dev_id, src_dev_id,
+                                              dest, src, size, stream, get_transfer_type(src_dev_id, dst_dev_id));
+    } else {
+        res = opal_accelerator.mem_copy(dst_dev_id, src_dev_id,
+                                        dest, src, size, get_transfer_type(src_dev_id, dst_dev_id));
+    }
     if (OPAL_SUCCESS != res) {
         opal_output(0, "Error in accelerator memcpy");
         abort();
@@ -80,7 +106,8 @@ static void *opal_datatype_accelerator_memcpy(void *dest, const void *src, size_
     return dest;
 }
 
-static void *opal_datatype_accelerator_memmove(void *dest, const void *src, size_t size)
+static void *opal_datatype_accelerator_memmove(void *dest, const void *src, size_t size,
+                                               opal_accelerator_stream_t *stream)
 {
     int res;
     int dev_id;
@@ -96,8 +123,13 @@ static void *opal_datatype_accelerator_memmove(void *dest, const void *src, size
         0 >= opal_accelerator.check_addr(src, &dev_id, &flags)) {
         return memmove(dest, src, size);
     }
-    res = opal_accelerator.mem_move(MCA_ACCELERATOR_NO_DEVICE_ID, MCA_ACCELERATOR_NO_DEVICE_ID,
-                                    dest, src, size, MCA_ACCELERATOR_TRANSFER_UNSPEC);
+    if (NULL == stream) {
+        res = opal_accelerator.mem_move(MCA_ACCELERATOR_NO_DEVICE_ID, MCA_ACCELERATOR_NO_DEVICE_ID,
+                                        dest, src, size, MCA_ACCELERATOR_TRANSFER_UNSPEC);
+    } else {
+        res = opal_accelerator.mem_move_async(MCA_ACCELERATOR_NO_DEVICE_ID, MCA_ACCELERATOR_NO_DEVICE_ID,
+                                              dest, src, size, stream, MCA_ACCELERATOR_TRANSFER_UNSPEC);
+    }
     if (OPAL_SUCCESS != res) {
         opal_output(0, "Error in accelerator memmove");
         abort();
@@ -121,11 +153,12 @@ static void *opal_datatype_accelerator_memmove(void *dest, const void *src, size
 #define MEM_OP opal_datatype_accelerator_memmove
 #include "opal_datatype_copy.h"
 
-int32_t opal_datatype_copy_content_same_ddt(const opal_datatype_t *datatype, int32_t count,
-                                            char *destination_base, char *source_base)
+int32_t opal_datatype_copy_content_same_ddt_stream(const opal_datatype_t *datatype, int32_t count,
+                                                   char *destination_base, char *source_base,
+                                                   opal_accelerator_stream_t *stream)
 {
     ptrdiff_t extent;
-    int32_t (*fct)(const opal_datatype_t *, int32_t, char *, char *);
+    int32_t (*fct)(const opal_datatype_t *, int32_t, char *, char *, opal_accelerator_stream_t*);
 
     DO_DEBUG(opal_output(0, "opal_datatype_copy_content_same_ddt( %p, %d, dst %p, src %p )\n",
                          (void *) datatype, count, (void *) destination_base,
@@ -157,5 +190,11 @@ int32_t opal_datatype_copy_content_same_ddt(const opal_datatype_t *datatype, int
             fct = overlap_accelerator_copy_content_same_ddt;
         }
     }
-    return fct(datatype, count, destination_base, source_base);
+    return fct(datatype, count, destination_base, source_base, stream);
+}
+
+int32_t opal_datatype_copy_content_same_ddt(const opal_datatype_t *datatype, int32_t count,
+                                            char *destination_base, char *source_base)
+{
+    return opal_datatype_copy_content_same_ddt_stream(datatype, count, destination_base, source_base, NULL);
 }

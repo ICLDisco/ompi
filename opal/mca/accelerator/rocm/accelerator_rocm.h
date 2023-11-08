@@ -55,7 +55,7 @@ struct opal_accelerator_rocm_event_t {
 typedef struct opal_accelerator_rocm_event_t opal_accelerator_rocm_event_t;
 OBJ_CLASS_DECLARATION(opal_accelerator_rocm_event_t);
 
-OPAL_DECLSPEC extern hipStream_t opal_accelerator_rocm_MemcpyStream;
+OPAL_DECLSPEC extern hipStream_t *opal_accelerator_rocm_MemcpyStream;
 OPAL_DECLSPEC extern int opal_accelerator_rocm_memcpy_async;
 OPAL_DECLSPEC extern int opal_accelerator_rocm_verbose;
 OPAL_DECLSPEC extern size_t opal_accelerator_rocm_memcpyH2D_limit;
@@ -63,4 +63,9 @@ OPAL_DECLSPEC extern size_t opal_accelerator_rocm_memcpyD2H_limit;
 
 OPAL_DECLSPEC extern int opal_accelerator_rocm_lazy_init(void);
 
+OPAL_DECLSPEC extern hipStream_t opal_accelerator_alloc_stream;
+OPAL_DECLSPEC extern opal_accelerator_rocm_stream_t opal_accelerator_rocm_default_stream;
+OPAL_DECLSPEC extern opal_mutex_t opal_accelerator_rocm_stream_lock;
+OPAL_DECLSPEC extern int opal_accelerator_rocm_num_devices;
+OPAL_DECLSPEC extern float *opal_accelerator_rocm_mem_bw;
 #endif

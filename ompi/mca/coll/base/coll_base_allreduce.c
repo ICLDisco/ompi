@@ -140,6 +140,7 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
     int ret, line, rank, size, adjsize, remote, distance;
     int newrank, newremote, extra_ranks;
     char *tmpsend = NULL, *tmprecv = NULL, *tmpswap = NULL, *inplacebuf_free = NULL, *inplacebuf;
+    char *recvbuf = NULL;
     ptrdiff_t span, gap = 0;
 
     size = ompi_comm_size(comm);
@@ -157,22 +158,64 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
         return MPI_SUCCESS;
     }
 
-    /* Allocate and initialize temporary send buffer */
+    /* get the device for sbuf and rbuf and where the op would like to execute */
+    int sendbuf_dev, recvbuf_dev, op_dev;
+    uint64_t sendbuf_flags, recvbuf_flags;
+    ompi_coll_base_select_device(op, sbuf, rbuf, count, dtype, &sendbuf_dev, &recvbuf_dev,
+                                 &sendbuf_flags, &recvbuf_flags, &op_dev);
     span = opal_datatype_span(&dtype->super, count, &gap);
-    inplacebuf_free = (char*) malloc(span);
+    inplacebuf_free = ompi_coll_base_allocate_on_device(op_dev, span, module);
     if (NULL == inplacebuf_free) { ret = -1; line = __LINE__; goto error_hndl; }
     inplacebuf = inplacebuf_free - gap;
+    //printf("allreduce ring count %d sbuf_dev %d rbuf_dev %d op_dev %d\n", count, sendbuf_dev, recvbuf_dev, op_dev);
 
-    if (MPI_IN_PLACE == sbuf) {
-        ret = ompi_datatype_copy_content_same_ddt(dtype, count, inplacebuf, (char*)rbuf);
-        if (ret < 0) { line = __LINE__; goto error_hndl; }
-    } else {
-        ret = ompi_datatype_copy_content_same_ddt(dtype, count, inplacebuf, (char*)sbuf);
-        if (ret < 0) { line = __LINE__; goto error_hndl; }
+    opal_accelerator_stream_t *stream = NULL;
+    if (op_dev >= 0) {
+        opal_accelerator.get_default_stream(op_dev, &stream);
     }
 
-    tmpsend = (char*) inplacebuf;
-    tmprecv = (char*) rbuf;
+    tmpsend = (char*) sbuf;
+    if (op_dev != recvbuf_dev) {
+        /* copy data to where the op wants it to be */
+        if (MPI_IN_PLACE == sbuf) {
+            ret = ompi_datatype_copy_content_same_ddt_stream(dtype, count, inplacebuf, (char*)rbuf, stream);
+            if (ret < 0) { line = __LINE__; goto error_hndl; }
+        }
+        /* only copy if op is on the device or we cannot access the sendbuf on the host */
+        else if (op_dev != MCA_ACCELERATOR_NO_DEVICE_ID ||
+                 0 == (sendbuf_flags & MCA_ACCELERATOR_FLAGS_UNIFIED_MEMORY)) {
+            ret = ompi_datatype_copy_content_same_ddt_stream(dtype, count, inplacebuf, (char*)sbuf, stream);
+            if (ret < 0) { line = __LINE__; goto error_hndl; }
+        }
+        tmpsend = (char*) inplacebuf;
+    } else if (MPI_IN_PLACE == sbuf) {
+        ret = ompi_datatype_copy_content_same_ddt_stream(dtype, count, inplacebuf, (char*)rbuf, stream);
+        if (ret < 0) { line = __LINE__; goto error_hndl; }
+        tmpsend = (char*) inplacebuf;
+    }
+
+    /* Handle MPI_IN_PLACE */
+    bool use_sbuf = (MPI_IN_PLACE != sbuf);
+    /* allocate temporary recv buffer if the tmpbuf above is on a different device than the rbuf
+     * and the op is on the device or we cannot access the recv buffer on the host */
+    recvbuf = rbuf;
+    bool free_recvbuf = false;
+    if (op_dev != recvbuf_dev &&
+        (op_dev != MCA_ACCELERATOR_NO_DEVICE_ID ||
+         0 == (recvbuf_flags & MCA_ACCELERATOR_FLAGS_UNIFIED_MEMORY))) {
+        recvbuf = ompi_coll_base_allocate_on_device(op_dev, span, module);
+        free_recvbuf = true;
+        if (use_sbuf) {
+            /* copy from rbuf */
+            ompi_datatype_copy_content_same_ddt_stream(dtype, count, (char*)recvbuf, (char*)sbuf, stream);
+        } else {
+            /* copy from sbuf */
+            ompi_datatype_copy_content_same_ddt_stream(dtype, count, (char*)recvbuf, (char*)rbuf, stream);
+        }
+        use_sbuf = false;
+    }
+
+    tmprecv = (char*) recvbuf;
 
     /* Determine nearest power of two less than or equal to size */
     adjsize = opal_next_poweroftwo (size);
@@ -188,6 +231,11 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
     extra_ranks = size - adjsize;
     if (rank <  (2 * extra_ranks)) {
         if (0 == (rank % 2)) {
+            /* wait for above copies to complete */
+            if (NULL != stream) {
+                opal_accelerator.wait_stream(stream);
+            }
+            /* wait for tmpsend to be copied */
             ret = MCA_PML_CALL(send(tmpsend, count, dtype, (rank + 1),
                                     MCA_COLL_BASE_TAG_ALLREDUCE,
                                     MCA_PML_BASE_SEND_STANDARD, comm));
@@ -198,8 +246,14 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
                                     MCA_COLL_BASE_TAG_ALLREDUCE, comm,
                                     MPI_STATUS_IGNORE));
             if (MPI_SUCCESS != ret) { line = __LINE__; goto error_hndl; }
-            /* tmpsend = tmprecv (op) tmpsend */
-            ompi_op_reduce(op, tmprecv, tmpsend, count, dtype);
+            if (tmpsend == sbuf) {
+                tmpsend = inplacebuf;
+                /* tmpsend = tmprecv (op) sbuf */
+                ompi_3buff_op_reduce_stream(op, sbuf, tmprecv, tmpsend, count, dtype, op_dev, stream);
+            } else {
+                /* tmpsend = tmprecv (op) tmpsend */
+                ompi_op_reduce_stream(op, tmprecv, tmpsend, count, dtype, op_dev, stream);
+            }
             newrank = rank >> 1;
         }
     } else {
@@ -218,6 +272,12 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
         remote = (newremote < extra_ranks)?
             (newremote * 2 + 1):(newremote + extra_ranks);
 
+        bool have_next_iter = ((distance << 1) < adjsize);
+
+        /* wait for previous ops to complete to complete */
+        if (NULL != stream) {
+            opal_accelerator.wait_stream(stream);
+        }
         /* Exchange the data */
         ret = ompi_coll_base_sendrecv_actual(tmpsend, count, dtype, remote,
                                              MCA_COLL_BASE_TAG_ALLREDUCE,
@@ -228,14 +288,47 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
 
         /* Apply operation */
         if (rank < remote) {
-            /* tmprecv = tmpsend (op) tmprecv */
-            ompi_op_reduce(op, tmpsend, tmprecv, count, dtype);
-            tmpswap = tmprecv;
-            tmprecv = tmpsend;
-            tmpsend = tmpswap;
+            if (tmpsend == sbuf) {
+                /* special case: 1st iteration takes one input from the sbuf */
+                /* tmprecv = sbuf (op) tmprecv */
+                ompi_op_reduce_stream(op, sbuf, tmprecv, count, dtype, op_dev, stream);
+                /* send the current recv buffer, and use the tmp buffer to receive */
+                tmpsend = tmprecv;
+                tmprecv = inplacebuf;
+            } else if (have_next_iter || tmprecv == recvbuf) {
+                /* All iterations, and the last if tmprecv is the recv buffer */
+                /* tmprecv = tmpsend (op) tmprecv */
+                ompi_op_reduce_stream(op, tmpsend, tmprecv, count, dtype, op_dev, stream);
+                /* swap send and receive buffers */
+                tmpswap = tmprecv;
+                tmprecv = tmpsend;
+                tmpsend = tmpswap;
+            } else {
+                /* Last iteration if tmprecv is not the recv buffer, then tmpsend is */
+                /* Make sure we reduce into the receive buffer
+                 * tmpsend = tmprecv (op) tmpsend */
+                ompi_op_reduce_stream(op, tmprecv, tmpsend, count, dtype, op_dev, stream);
+            }
         } else {
-            /* tmpsend = tmprecv (op) tmpsend */
-            ompi_op_reduce(op, tmprecv, tmpsend, count, dtype);
+            if (tmpsend == sbuf) {
+                /* First iteration: use input from sbuf */
+                /* tmpsend = tmprecv (op) sbuf */
+                tmpsend = inplacebuf;
+                if (have_next_iter || tmpsend == recvbuf) {
+                    ompi_3buff_op_reduce_stream(op, tmprecv, sbuf, tmpsend, count, dtype, op_dev, stream);
+                } else {
+                    ompi_op_reduce_stream(op, sbuf, tmprecv, count, dtype, op_dev, stream);
+                    tmpsend = tmprecv;
+                }
+            } else if (have_next_iter || tmpsend == recvbuf) {
+                /* All other iterations: reduce into tmpsend for next iteration */
+                /* tmpsend = tmprecv (op) tmpsend */
+                ompi_op_reduce_stream(op, tmprecv, tmpsend, count, dtype, op_dev, stream);
+            } else {
+                /* Last iteration: reduce into rbuf and set tmpsend to rbuf (needed at the end) */
+                ompi_op_reduce_stream(op, tmpsend, tmprecv, count, dtype, op_dev, stream);
+                tmpsend = tmprecv;
+            }
         }
     }
 
@@ -252,6 +345,10 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
             if (MPI_SUCCESS != ret) { line = __LINE__; goto error_hndl; }
             tmpsend = (char*)rbuf;
         } else {
+            /* wait for previous ops to complete */
+            if (NULL != stream) {
+                opal_accelerator.wait_stream(stream);
+            }
             ret = MCA_PML_CALL(send(tmpsend, count, dtype, (rank - 1),
                                     MCA_COLL_BASE_TAG_ALLREDUCE,
                                     MCA_PML_BASE_SEND_STANDARD, comm));
@@ -261,18 +358,31 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
 
     /* Ensure that the final result is in rbuf */
     if (tmpsend != rbuf) {
-        ret = ompi_datatype_copy_content_same_ddt(dtype, count, (char*)rbuf, tmpsend);
+        /* TODO: catch this case in the 3buf selection above. Maybe already caught? */
+        ret = ompi_datatype_copy_content_same_ddt_stream(dtype, count, (char*)rbuf, tmpsend, stream);
         if (ret < 0) { line = __LINE__; goto error_hndl; }
     }
 
-    if (NULL != inplacebuf_free) free(inplacebuf_free);
+    /* wait for previous ops to complete */
+    if (NULL != stream) {
+        opal_accelerator.wait_stream(stream);
+    }
+    ompi_coll_base_free_tmpbuf(inplacebuf_free, op_dev, module);
+
+    if (free_recvbuf) {
+        ompi_coll_base_free_tmpbuf(recvbuf, op_dev, module);
+    }
     return MPI_SUCCESS;
 
  error_hndl:
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output, "%s:%4d\tRank %d Error occurred %d\n",
                  __FILE__, line, rank, ret));
     (void)line;  // silence compiler warning
-    if (NULL != inplacebuf_free) free(inplacebuf_free);
+    ompi_coll_base_free_tmpbuf(inplacebuf_free, op_dev, module);
+
+    if (op_dev != recvbuf_dev) {
+        ompi_coll_base_free_tmpbuf(recvbuf, op_dev, module);
+    }
     return ret;
 }
 
@@ -351,6 +461,7 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
     int early_segcount, late_segcount, split_rank, max_segcount;
     size_t typelng;
     char *tmpsend = NULL, *tmprecv = NULL, *inbuf[2] = {NULL, NULL};
+    void *recvbuf = NULL;
     ptrdiff_t true_lb, true_extent, lb, extent;
     ptrdiff_t block_offset, max_real_segsize;
     ompi_request_t *reqs[2] = {MPI_REQUEST_NULL, MPI_REQUEST_NULL};
@@ -399,18 +510,37 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
     max_segcount = early_segcount;
     max_real_segsize = true_extent + (max_segcount - 1) * extent;
 
-
-    inbuf[0] = (char*)malloc(max_real_segsize);
-    if (NULL == inbuf[0]) { ret = -1; line = __LINE__; goto error_hndl; }
+    /* get the device for sbuf and rbuf and where the op would like to execute */
+    int sendbuf_dev, recvbuf_dev, op_dev;
+    uint64_t sendbuf_flags, recvbuf_flags;
+    ompi_coll_base_select_device(op, sbuf, rbuf, count, dtype, &sendbuf_dev, &recvbuf_dev,
+                                 &sendbuf_flags, &recvbuf_flags, &op_dev);
     if (size > 2) {
-        inbuf[1] = (char*)malloc(max_real_segsize);
-        if (NULL == inbuf[1]) { ret = -1; line = __LINE__; goto error_hndl; }
+        inbuf[0] = ompi_coll_base_allocate_on_device(op_dev, 2*max_real_segsize, module);
+        if (NULL == inbuf[0]) { ret = -1; line = __LINE__; goto error_hndl; }
+        inbuf[1] = inbuf[0] + max_real_segsize;
+    } else {
+        inbuf[0] = ompi_coll_base_allocate_on_device(op_dev, max_real_segsize, module);
+        if (NULL == inbuf[0]) { ret = -1; line = __LINE__; goto error_hndl; }
     }
+    //printf("allreduce ring count %d sbuf_dev %d rbuf_dev %d op_dev %d\n", count, sendbuf_dev, recvbuf_dev, op_dev);
 
     /* Handle MPI_IN_PLACE */
-    if (MPI_IN_PLACE != sbuf) {
-        ret = ompi_datatype_copy_content_same_ddt(dtype, count, (char*)rbuf, (char*)sbuf);
-        if (ret < 0) { line = __LINE__; goto error_hndl; }
+    bool use_sbuf = (MPI_IN_PLACE != sbuf);
+    /* allocate temporary recv buffer if the tmpbuf above is on a different device than the rbuf */
+    recvbuf = rbuf;
+    if (op_dev != recvbuf_dev &&
+        /* only copy if op is on the device or the recvbuffer cannot be accessed on the host */
+        (op_dev != MCA_ACCELERATOR_NO_DEVICE_ID || 0 == (MCA_ACCELERATOR_FLAGS_UNIFIED_MEMORY & recvbuf_flags))) {
+        recvbuf = ompi_coll_base_allocate_on_device(op_dev, typelng*count, module);
+        if (use_sbuf) {
+            /* copy from rbuf */
+            ompi_datatype_copy_content_same_ddt(dtype, count, (char*)recvbuf, (char*)sbuf);
+        } else {
+            /* copy from sbuf */
+            ompi_datatype_copy_content_same_ddt(dtype, count, (char*)recvbuf, (char*)rbuf);
+        }
+        use_sbuf = false;
     }
 
     /* Computation loop */
@@ -443,7 +573,7 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
                     ((ptrdiff_t)rank * (ptrdiff_t)early_segcount) :
                     ((ptrdiff_t)rank * (ptrdiff_t)late_segcount + split_rank));
     block_count = ((rank < split_rank)? early_segcount : late_segcount);
-    tmpsend = ((char*)rbuf) + block_offset * extent;
+    tmpsend = ((use_sbuf) ? ((char*)sbuf) : ((char*)recvbuf)) + block_offset * extent;
     ret = MCA_PML_CALL(send(tmpsend, block_count, dtype, send_to,
                             MCA_COLL_BASE_TAG_ALLREDUCE,
                             MCA_PML_BASE_SEND_STANDARD, comm));
@@ -465,13 +595,22 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
 
         /* Apply operation on previous block: result goes to rbuf
            rbuf[prevblock] = inbuf[inbi ^ 0x1] (op) rbuf[prevblock]
-        */
+         */
         block_offset = ((prevblock < split_rank)?
                         ((ptrdiff_t)prevblock * early_segcount) :
                         ((ptrdiff_t)prevblock * late_segcount + split_rank));
         block_count = ((prevblock < split_rank)? early_segcount : late_segcount);
-        tmprecv = ((char*)rbuf) + (ptrdiff_t)block_offset * extent;
-        ompi_op_reduce(op, inbuf[inbi ^ 0x1], tmprecv, block_count, dtype);
+        tmprecv = ((char*)recvbuf) + (ptrdiff_t)block_offset * extent;
+        if (use_sbuf) {
+            void *tmpsbuf = ((char*)sbuf) + (ptrdiff_t)block_offset * extent;
+            /* tmprecv = inbuf[inbi ^ 0x1] (op) sbuf */
+            ompi_3buff_op_reduce_stream(op, inbuf[inbi ^ 0x1], tmpsbuf, tmprecv, block_count,
+                                        dtype, op_dev, NULL);
+        } else {
+            /* tmprecv = inbuf[inbi ^ 0x1] (op) tmprecv */
+            ompi_op_reduce_stream(op, inbuf[inbi ^ 0x1], tmprecv, block_count,
+                                  dtype, op_dev, NULL);
+        }
 
         /* send previous block to send_to */
         ret = MCA_PML_CALL(send(tmprecv, block_count, dtype, send_to,
@@ -491,8 +630,8 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
                     ((ptrdiff_t)recv_from * early_segcount) :
                     ((ptrdiff_t)recv_from * late_segcount + split_rank));
     block_count = ((recv_from < split_rank)? early_segcount : late_segcount);
-    tmprecv = ((char*)rbuf) + (ptrdiff_t)block_offset * extent;
-    ompi_op_reduce(op, inbuf[inbi], tmprecv, block_count, dtype);
+    tmprecv = ((char*)recvbuf) + (ptrdiff_t)block_offset * extent;
+    ompi_op_reduce_stream(op, inbuf[inbi], tmprecv, block_count, dtype, op_dev, NULL);
 
     /* Distribution loop - variation of ring allgather */
     send_to = (rank + 1) % size;
@@ -511,8 +650,8 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
         block_count = ((send_data_from < split_rank)?
                        early_segcount : late_segcount);
 
-        tmprecv = (char*)rbuf + (ptrdiff_t)recv_block_offset * extent;
-        tmpsend = (char*)rbuf + (ptrdiff_t)send_block_offset * extent;
+        tmprecv = (char*)recvbuf + (ptrdiff_t)recv_block_offset * extent;
+        tmpsend = (char*)recvbuf + (ptrdiff_t)send_block_offset * extent;
 
         ret = ompi_coll_base_sendrecv(tmpsend, block_count, dtype, send_to,
                                        MCA_COLL_BASE_TAG_ALLREDUCE,
@@ -520,11 +659,14 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
                                        MCA_COLL_BASE_TAG_ALLREDUCE,
                                        comm, MPI_STATUS_IGNORE, rank);
         if (MPI_SUCCESS != ret) { line = __LINE__; goto error_hndl;}
-
     }
 
-    if (NULL != inbuf[0]) free(inbuf[0]);
-    if (NULL != inbuf[1]) free(inbuf[1]);
+    ompi_coll_base_free_tmpbuf(inbuf[0], op_dev, module);
+    if (recvbuf != rbuf) {
+        /* copy to final rbuf and release temporary recvbuf */
+        ompi_datatype_copy_content_same_ddt(dtype, count, (char*)rbuf, (char*)recvbuf);
+        ompi_coll_base_free_tmpbuf(recvbuf, op_dev, module);
+    }
 
     return MPI_SUCCESS;
 
@@ -533,8 +675,12 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
                  __FILE__, line, rank, ret));
     ompi_coll_base_free_reqs(reqs, 2);
     (void)line;  // silence compiler warning
-    if (NULL != inbuf[0]) free(inbuf[0]);
-    if (NULL != inbuf[1]) free(inbuf[1]);
+    ompi_coll_base_free_tmpbuf(inbuf[0], op_dev, module);
+    if (NULL != recvbuf && recvbuf != rbuf) {
+        /* copy to final rbuf and release temporary recvbuf */
+        ompi_datatype_copy_content_same_ddt(dtype, count, (char*)rbuf, (char*)recvbuf);
+        ompi_coll_base_free_tmpbuf(recvbuf, op_dev, module);
+    }
     return ret;
 }
 
@@ -687,16 +833,21 @@ ompi_coll_base_allreduce_intra_ring_segmented(const void *sbuf, void *rbuf, int 
     if (MPI_SUCCESS != ret) { line = __LINE__; goto error_hndl; }
      max_real_segsize = opal_datatype_span(&dtype->super, max_segcount, &gap);
 
+    int sendbuf_dev, recvbuf_dev, op_dev;
+    uint64_t sendbuf_flags, recvbuf_flags;
+    ompi_coll_base_select_device(op, sbuf, rbuf, count, dtype, &sendbuf_dev, &recvbuf_dev,
+                                 &sendbuf_flags, &recvbuf_flags, &op_dev);
     /* Allocate and initialize temporary buffers */
-    inbuf[0] = (char*)malloc(max_real_segsize);
+    inbuf[0] = ompi_coll_base_allocate_on_device(op_dev, max_real_segsize, module);
     if (NULL == inbuf[0]) { ret = -1; line = __LINE__; goto error_hndl; }
     if (size > 2) {
-        inbuf[1] = (char*)malloc(max_real_segsize);
+        inbuf[1] = ompi_coll_base_allocate_on_device(op_dev, max_real_segsize, module);
         if (NULL == inbuf[1]) { ret = -1; line = __LINE__; goto error_hndl; }
     }
 
     /* Handle MPI_IN_PLACE */
     if (MPI_IN_PLACE != sbuf) {
+        /* TODO: can we avoid this copy? */
         ret = ompi_datatype_copy_content_same_ddt(dtype, count, (char*)rbuf, (char*)sbuf);
         if (ret < 0) { line = __LINE__; goto error_hndl; }
     }
@@ -782,7 +933,8 @@ ompi_coll_base_allreduce_intra_ring_segmented(const void *sbuf, void *rbuf, int 
                             ((ptrdiff_t)phase * (ptrdiff_t)early_phase_segcount) :
                             ((ptrdiff_t)phase * (ptrdiff_t)late_phase_segcount + split_phase));
             tmprecv = ((char*)rbuf) + (ptrdiff_t)(block_offset + phase_offset) * extent;
-            ompi_op_reduce(op, inbuf[inbi ^ 0x1], tmprecv, phase_count, dtype);
+            ompi_op_reduce_stream(op, inbuf[inbi ^ 0x1], tmprecv, phase_count,
+                                  dtype, op_dev, NULL);
 
             /* send previous block to send_to */
             ret = MCA_PML_CALL(send(tmprecv, phase_count, dtype, send_to,
@@ -811,7 +963,8 @@ ompi_coll_base_allreduce_intra_ring_segmented(const void *sbuf, void *rbuf, int 
                         ((ptrdiff_t)phase * (ptrdiff_t)early_phase_segcount) :
                         ((ptrdiff_t)phase * (ptrdiff_t)late_phase_segcount + split_phase));
         tmprecv = ((char*)rbuf) + (ptrdiff_t)(block_offset + phase_offset) * extent;
-        ompi_op_reduce(op, inbuf[inbi], tmprecv, phase_count, dtype);
+        ompi_op_reduce_stream(op, inbuf[inbi], tmprecv, phase_count,
+                              dtype, op_dev, NULL);
     }
 
     /* Distribution loop - variation of ring allgather */
@@ -843,8 +996,8 @@ ompi_coll_base_allreduce_intra_ring_segmented(const void *sbuf, void *rbuf, int 
 
     }
 
-    if (NULL != inbuf[0]) free(inbuf[0]);
-    if (NULL != inbuf[1]) free(inbuf[1]);
+    ompi_coll_base_free_tmpbuf(inbuf[0], op_dev, module);
+    ompi_coll_base_free_tmpbuf(inbuf[1], op_dev, module);
 
     return MPI_SUCCESS;
 
@@ -853,8 +1006,8 @@ ompi_coll_base_allreduce_intra_ring_segmented(const void *sbuf, void *rbuf, int 
                  __FILE__, line, rank, ret));
     ompi_coll_base_free_reqs(reqs, 2);
     (void)line;  // silence compiler warning
-    if (NULL != inbuf[0]) free(inbuf[0]);
-    if (NULL != inbuf[1]) free(inbuf[1]);
+    ompi_coll_base_free_tmpbuf(inbuf[0], op_dev, module);
+    ompi_coll_base_free_tmpbuf(inbuf[1], op_dev, module);
     return ret;
 }
 
@@ -1004,18 +1157,30 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
     ompi_datatype_get_extent(dtype, &lb, &extent);
     dsize = opal_datatype_span(&dtype->super, count, &gap);
 
+    /* get the device for sbuf and rbuf and where the op would like to execute */
+    int sendbuf_dev, recvbuf_dev, op_dev;
+    uint64_t sendbuf_flags, recvbuf_flags;
+    ompi_coll_base_select_device(op, sbuf, rbuf, count, dtype, &sendbuf_dev, &recvbuf_dev,
+                                 &sendbuf_flags, &recvbuf_flags, &op_dev);
+
     /* Temporary buffer for receiving messages */
     char *tmp_buf = NULL;
-    char *tmp_buf_raw = (char *)malloc(dsize);
+    char *tmp_buf_raw = ompi_coll_base_allocate_on_device(op_dev, dsize, module);
     if (NULL == tmp_buf_raw)
         return OMPI_ERR_OUT_OF_RESOURCE;
     tmp_buf = tmp_buf_raw - gap;
 
-    if (sbuf != MPI_IN_PLACE) {
-        err = ompi_datatype_copy_content_same_ddt(dtype, count, (char *)rbuf,
-                                                  (char *)sbuf);
-        if (MPI_SUCCESS != err) { goto cleanup_and_return; }
+    char *recvbuf = rbuf;
+    if (op_dev != recvbuf_dev && 0 == (MCA_ACCELERATOR_FLAGS_UNIFIED_MEMORY & recvbuf_flags)) {
+        recvbuf = ompi_coll_base_allocate_on_device(op_dev, dsize, module);
     }
+    if (op_dev != sendbuf_dev && 0 == (MCA_ACCELERATOR_FLAGS_UNIFIED_MEMORY & sendbuf_flags) && sbuf != MPI_IN_PLACE) {
+        /* move the data into the recvbuf and set sbuf to MPI_IN_PLACE */
+        ompi_datatype_copy_content_same_ddt(dtype, count, (char*)recvbuf, (char*)sbuf);
+        sbuf = MPI_IN_PLACE;
+    }
+
+    //printf("redscat: count %d sbuf %p dev %d recvbuf %p dev %d tmp_buf %p dev %d\n", count, sbuf, sendbuf_dev, recvbuf, recvbuf_dev, tmp_buf_raw, op_dev);
 
     /*
      * Step 1. Reduce the number of processes to the nearest lower power of two
@@ -1037,9 +1202,18 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
     int vrank, step, wsize;
     int nprocs_rem = comm_size - nprocs_pof2;
 
+    opal_accelerator_stream_t *stream = NULL;
+    if (op_dev >= 0) {
+        opal_accelerator.get_default_stream(op_dev, &stream);
+    }
+
     if (rank < 2 * nprocs_rem) {
         int count_lhalf = count / 2;
         int count_rhalf = count - count_lhalf;
+        const void *send_buf = sbuf;
+        if (MPI_IN_PLACE == sbuf) {
+            send_buf = recvbuf;
+        }
 
         if (rank % 2 != 0) {
             /*
@@ -1047,7 +1221,7 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
              * Send the left half of the input vector to the left neighbor,
              * Recv the right half of the input vector from the left neighbor
              */
-            err = ompi_coll_base_sendrecv(rbuf, count_lhalf, dtype, rank - 1,
+            err = ompi_coll_base_sendrecv((void*)send_buf, count_lhalf, dtype, rank - 1,
                                           MCA_COLL_BASE_TAG_ALLREDUCE,
                                           (char *)tmp_buf + (ptrdiff_t)count_lhalf * extent,
                                           count_rhalf, dtype, rank - 1,
@@ -1055,12 +1229,24 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
                                           MPI_STATUS_IGNORE, rank);
             if (MPI_SUCCESS != err) { goto cleanup_and_return; }
 
-            /* Reduce on the right half of the buffers (result in rbuf) */
-            ompi_op_reduce(op, (char *)tmp_buf + (ptrdiff_t)count_lhalf * extent,
-                           (char *)rbuf + count_lhalf * extent, count_rhalf, dtype);
+            /* Reduce on the right half of the buffers (result in rbuf)
+             * We're not using a stream here, the reduction will make sure that the result is available upon return */
+            if (MPI_IN_PLACE != sbuf) {
+                /* rbuf = sbuf (op) tmp_buf */
+                ompi_3buff_op_reduce_stream(op,
+                                            (char *)tmp_buf + (ptrdiff_t)count_lhalf * extent,
+                                            (char *)sbuf + (ptrdiff_t)count_lhalf * extent,
+                                            (char *)recvbuf + count_lhalf * extent,
+                                            count_rhalf, dtype, op_dev, NULL);
+            } else {
+                /* rbuf = rbuf (op) tmp_buf */
+                ompi_op_reduce_stream(op, (char *)tmp_buf + (ptrdiff_t)count_lhalf * extent,
+                                      (char *)recvbuf + count_lhalf * extent, count_rhalf,
+                                      dtype, op_dev, NULL);
+            }
 
             /* Send the right half to the left neighbor */
-            err = MCA_PML_CALL(send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+            err = MCA_PML_CALL(send((char *)recvbuf + (ptrdiff_t)count_lhalf * extent,
                                     count_rhalf, dtype, rank - 1,
                                     MCA_COLL_BASE_TAG_ALLREDUCE,
                                     MCA_PML_BASE_SEND_STANDARD, comm));
@@ -1075,7 +1261,7 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
              * Send the right half of the input vector to the right neighbor,
              * Recv the left half of the input vector from the right neighbor
              */
-            err = ompi_coll_base_sendrecv((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+            err = ompi_coll_base_sendrecv((char *)send_buf + (ptrdiff_t)count_lhalf * extent,
                                           count_rhalf, dtype, rank + 1,
                                           MCA_COLL_BASE_TAG_ALLREDUCE,
                                           tmp_buf, count_lhalf, dtype, rank + 1,
@@ -1084,20 +1270,34 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
             if (MPI_SUCCESS != err) { goto cleanup_and_return; }
 
             /* Reduce on the right half of the buffers (result in rbuf) */
-            ompi_op_reduce(op, tmp_buf, rbuf, count_lhalf, dtype);
+            if (MPI_IN_PLACE != sbuf) {
+                /* rbuf = sbuf (op) tmp_buf */
+                ompi_3buff_op_reduce_stream(op, sbuf, tmp_buf, recvbuf, count_lhalf, dtype, op_dev, stream);
+            } else {
+                /* rbuf = rbuf (op) tmp_buf */
+                ompi_op_reduce_stream(op, tmp_buf, recvbuf, count_lhalf, dtype, op_dev, stream);
+            }
+
 
             /* Recv the right half from the right neighbor */
-            err = MCA_PML_CALL(recv((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+            err = MCA_PML_CALL(recv((char *)recvbuf + (ptrdiff_t)count_lhalf * extent,
                                     count_rhalf, dtype, rank + 1,
                                     MCA_COLL_BASE_TAG_ALLREDUCE, comm,
                                     MPI_STATUS_IGNORE));
             if (MPI_SUCCESS != err) { goto cleanup_and_return; }
+
+            /* wait for the op to complete */
+            if (NULL != stream) {
+                opal_accelerator.wait_stream(stream);
+            }
 
             vrank = rank / 2;
         }
     } else { /* rank >= 2 * nprocs_rem */
         vrank = rank - nprocs_rem;
     }
+
+    /* At this point the input data has been accumulated into the rbuf */
 
     /*
      * Step 2. Reduce-scatter implemented with recursive vector halving and
@@ -1155,7 +1355,7 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
             }
 
             /* Send part of data from the rbuf, recv into the tmp_buf */
-            err = ompi_coll_base_sendrecv((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
+            err = ompi_coll_base_sendrecv((char *)recvbuf + (ptrdiff_t)sindex[step] * extent,
                                           scount[step], dtype, dest,
                                           MCA_COLL_BASE_TAG_ALLREDUCE,
                                           (char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
@@ -1165,9 +1365,9 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
             if (MPI_SUCCESS != err) { goto cleanup_and_return; }
 
             /* Local reduce: rbuf[] = tmp_buf[] <op> rbuf[] */
-            ompi_op_reduce(op, (char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
-                           (char *)rbuf + (ptrdiff_t)rindex[step] * extent,
-                           rcount[step], dtype);
+            ompi_op_reduce_stream(op, (char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
+                                  (char *)recvbuf + (ptrdiff_t)rindex[step] * extent,
+                                  rcount[step], dtype, op_dev, NULL);
 
             /* Move the current window to the received message */
             if (step + 1 < nsteps) {
@@ -1201,10 +1401,10 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
              * Send rcount[step] elements from rbuf[rindex[step]...]
              * Recv scount[step] elements to rbuf[sindex[step]...]
              */
-            err = ompi_coll_base_sendrecv((char *)rbuf + (ptrdiff_t)rindex[step] * extent,
+            err = ompi_coll_base_sendrecv((char *)recvbuf + (ptrdiff_t)rindex[step] * extent,
                                           rcount[step], dtype, dest,
                                           MCA_COLL_BASE_TAG_ALLREDUCE,
-                                          (char *)rbuf + (ptrdiff_t)sindex[step] * extent,
+                                          (char *)recvbuf + (ptrdiff_t)sindex[step] * extent,
                                           scount[step], dtype, dest,
                                           MCA_COLL_BASE_TAG_ALLREDUCE, comm,
                                           MPI_STATUS_IGNORE, rank);
@@ -1216,6 +1416,7 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
     /*
      * Step 4. Send total result to excluded odd ranks.
      */
+    bool recvbuf_need_copy = true;
     if (rank < 2 * nprocs_rem) {
         if (rank % 2 != 0) {
             /* Odd process -- recv result from rank - 1 */
@@ -1223,19 +1424,28 @@ int ompi_coll_base_allreduce_intra_redscat_allgather(
                                     MCA_COLL_BASE_TAG_ALLREDUCE, comm,
                                     MPI_STATUS_IGNORE));
             if (OMPI_SUCCESS != err) { goto cleanup_and_return; }
+            recvbuf_need_copy = false;
 
         } else {
             /* Even process -- send result to rank + 1 */
-            err = MCA_PML_CALL(send(rbuf, count, dtype, rank + 1,
+            err = MCA_PML_CALL(send(recvbuf, count, dtype, rank + 1,
                                     MCA_COLL_BASE_TAG_ALLREDUCE,
                                     MCA_PML_BASE_SEND_STANDARD, comm));
             if (MPI_SUCCESS != err) { goto cleanup_and_return; }
         }
     }
 
+    if (recvbuf != rbuf) {
+        /* copy into final rbuf */
+        if (recvbuf_need_copy) {
+            ompi_datatype_copy_content_same_ddt(dtype, count, (char*)rbuf, (char*)recvbuf);
+        }
+        ompi_coll_base_free_tmpbuf(recvbuf, op_dev, module);
+    }
+
   cleanup_and_return:
-    if (NULL != tmp_buf_raw)
-        free(tmp_buf_raw);
+
+    ompi_coll_base_free_tmpbuf(tmp_buf_raw, op_dev, module);
     if (NULL != rindex)
         free(rindex);
     if (NULL != sindex)

@@ -1,7 +1,7 @@
 # -*- shell-script -*-
 #
 # Copyright (c) 2011-2013 NVIDIA Corporation.  All rights reserved.
-# Copyright (c) 2013      The University of Tennessee and The University
+# Copyright (c) 2023      The University of Tennessee and The University
 #                         of Tennessee Research Foundation.  All rights
 #                         reserved.
 # Copyright (c) 2022      Amazon.com, Inc. or its affiliates.
@@ -19,23 +19,23 @@
 # opal_check_cuda.m4 code. It also copies the flags and libs under
 # opal_cuda_CPPFLAGS, opal_cuda_LDFLAGS, and opal_cuda_LIBS
 
-AC_DEFUN([MCA_opal_accelerator_cuda_CONFIG],[
+AC_DEFUN([MCA_ompi_op_cuda_CONFIG],[
 
-    AC_CONFIG_FILES([opal/mca/accelerator/cuda/Makefile])
+    AC_CONFIG_FILES([ompi/mca/op/cuda/Makefile])
 
-    OPAL_CHECK_CUDA([accelerator_cuda])
-    OPAL_CHECK_CUDART([accelerator_cudart])
+    OPAL_CHECK_CUDA([op_cuda])
+    OPAL_CHECK_CUDART([op_cudart])
 
     AS_IF([test "x$CUDA_SUPPORT" = "x1"],
           [$1],
           [$2])
 
-    AC_SUBST([accelerator_cuda_CPPFLAGS])
-    AC_SUBST([accelerator_cuda_LDFLAGS])
-    AC_SUBST([accelerator_cuda_LIBS])
+    AC_SUBST([op_cuda_CPPFLAGS])
+    AC_SUBST([op_cuda_LDFLAGS])
+    AC_SUBST([op_cuda_LIBS])
 
-    AC_SUBST([accelerator_cudart_CPPFLAGS])
-    AC_SUBST([accelerator_cudart_LDFLAGS])
-    AC_SUBST([accelerator_cudart_LIBS])
+    AC_SUBST([op_cudart_CPPFLAGS])
+    AC_SUBST([op_cudart_LDFLAGS])
+    AC_SUBST([op_cudart_LIBS])
 
 ])dnl
