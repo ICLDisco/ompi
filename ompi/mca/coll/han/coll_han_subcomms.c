@@ -174,8 +174,9 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
     rc = comm->c_coll->coll_allgather(&vrank, 1, MPI_INT,
                                  vranks, 1, MPI_INT,
                                  comm, comm->c_coll->coll_allgather_module);
-    if( OMPI_SUCCESS != rc ) {
-        /* cannot create subcommunicators. Return the error upstream */
+    int flag = (OMPI_SUCCESS == rc);
+    comm->c_coll->coll_agree(comm, &flag);
+    if (!flag) {
         goto return_with_error;
     }
 
