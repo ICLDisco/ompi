@@ -32,10 +32,9 @@ mca_coll_han_barrier_intra_simple(struct ompi_communicator_t *comm,
 {
     mca_coll_han_module_t *han_module = (mca_coll_han_module_t *)module;
     ompi_communicator_t *low_comm, *up_comm;
-    int err;
+    int rc = OMPI_SUCCESS;
 
     /* create the subcommunicators */
-    //TODO: what if error in subcomm creation? maybe needs an agreement :(
     if( OMPI_SUCCESS != mca_coll_han_comm_create_new(comm, han_module) ) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle barrier with this communicator. Fall back on another component\n"));
@@ -51,20 +50,23 @@ mca_coll_han_barrier_intra_simple(struct ompi_communicator_t *comm,
     int root_low_rank = 0; /* rank leader will be 0 on each node */
 
     /* TODO: extend coll interface with half barrier */
-    err = low_comm->c_coll->coll_barrier(low_comm,low_comm->c_coll->coll_barrier_module);
-
+    rc = low_comm->c_coll->coll_barrier(low_comm,low_comm->c_coll->coll_barrier_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        //TODO only if ERR_PF/REVOKED, otherwise do some other fallback
+        //TODO double check that return valid error codes for collectives (no PF_PENDING)
+        goto exit;
+    }
+    
     if (low_rank == root_low_rank) {
-        if( OMPI_SUCCESS != err ) {
-            //TODO only if ERR_PF/REVOKED, otherwise do some other fallback
-            MCA_PML_CALL(revoke_comm(up_comm, true));
-            //TODO double check that return valid error codes for collectives (no PF_PENDING)
-            return err;
+        rc = up_comm->c_coll->coll_barrier(up_comm, up_comm->c_coll->coll_barrier_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit;
         }
-        err = up_comm->c_coll->coll_barrier(up_comm, up_comm->c_coll->coll_barrier_module);
-        if( OMPI_SUCCESS != err ) {
-            MCA_PML_CALL(revoke_comm(low_comm, true));
-        return err;
     }
 
-    return low_comm->c_coll->coll_barrier(low_comm,low_comm->c_coll->coll_barrier_module);
+    rc = low_comm->c_coll->coll_barrier(low_comm,low_comm->c_coll->coll_barrier_module);
+    
+exit:
+REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }

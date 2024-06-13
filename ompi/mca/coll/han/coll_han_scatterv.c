@@ -71,13 +71,12 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
     mca_coll_han_module_t *han_module = (mca_coll_han_module_t *) module;
     int w_rank, w_size;              /* information about the global communicator */
     int root_low_rank, root_up_rank; /* root ranks for both sub-communicators */
-    int err, *vranks, low_rank, low_size, up_rank, up_size, *topo;
+    int rc = OMPI_SUCCESS, *vranks, low_rank, low_size, up_rank, up_size, *topo;
     int *low_scounts = NULL, *low_displs = NULL;
     ompi_request_t *iscatterv_req = NULL;
 
     /* Create the subcommunicators */
-    err = mca_coll_han_comm_create(comm, han_module);
-    if (OMPI_SUCCESS != err) {
+    if (OMPI_SUCCESS != mca_coll_han_comm_create(comm, han_module)) {
         OPAL_OUTPUT_VERBOSE((
             30, mca_coll_han_component.han_output,
             "han cannot handle scatterv with this communicator. Fall back on another component\n"));
@@ -89,7 +88,10 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
 
     /* Topo must be initialized to know rank distribution which then is used to determine if han can
      * be used */
-    topo = mca_coll_han_topo_init(comm, han_module, 2);
+    topo = mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
     if (han_module->are_ppn_imbalanced) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle scatterv with this communicator (imbalance). Fall "
@@ -133,7 +135,6 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
                          "[%d]: Han scatterv root %d root_low_rank %d root_up_rank %d\n", w_rank,
                          root, root_low_rank, root_up_rank));
 
-    err = OMPI_SUCCESS;
     /* #################### Root ########################### */
     if (root == w_rank) {
         int low_peer, up_peer, w_peer;
@@ -143,10 +144,6 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
 
         low_scounts = malloc(low_size * sizeof(int));
         low_displs = malloc(low_size * sizeof(int));
-        if (!low_scounts || !low_displs) {
-            err = OMPI_ERR_OUT_OF_RESOURCE;
-            goto root_out;
-        }
 
         for (w_peer = 0; w_peer < w_size; ++w_peer) {
             mca_coll_han_get_ranks(vranks, w_peer, low_size, &low_peer, &up_peer);
@@ -161,10 +158,6 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
         up_scounts = calloc(up_size, sizeof(int));
         up_displs = malloc(up_size * sizeof(int));
         up_peer_ub = calloc(up_size, sizeof(int));
-        if (!up_scounts || !up_displs || !up_peer_ub) {
-            err = OMPI_ERR_OUT_OF_RESOURCE;
-            goto root_out;
-        }
 
         for (up_peer = 0; up_peer < up_size; ++up_peer) {
             up_displs[up_peer] = INT_MAX;
@@ -216,10 +209,6 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
             ptrdiff_t ssize, sgap;
             ssize = opal_datatype_span(&rdtype->super, total_up_scounts, &sgap);
             bounce_buf = malloc(ssize);
-            if (!bounce_buf) {
-                err = OMPI_ERR_OUT_OF_RESOURCE;
-                goto root_out;
-            }
             reorder_sbuf = bounce_buf - sgap;
 
             /* Calculate displacements for the inter-node scatterv */
@@ -249,16 +238,20 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
         }
 
         /* Up Iscatterv */
-        up_comm->c_coll->coll_iscatterv((const char *) reorder_sbuf, up_scounts, up_displs, sdtype,
+        rc = up_comm->c_coll->coll_iscatterv((const char *) reorder_sbuf, up_scounts, up_displs, sdtype,
                                         rbuf, rcount, rdtype, root_up_rank, up_comm, &iscatterv_req,
                                         up_comm->c_coll->coll_iscatterv_module);
-
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto root_out;
+        }
         /* Low Scatterv */
-        low_comm->c_coll->coll_scatterv(sbuf, low_scounts, low_displs, sdtype, rbuf, rcount, rdtype,
+        rc = low_comm->c_coll->coll_scatterv(sbuf, low_scounts, low_displs, sdtype, rbuf, rcount, rdtype,
                                         root_low_rank, low_comm,
                                         low_comm->c_coll->coll_scatterv_module);
-
-        ompi_request_wait(&iscatterv_req, MPI_STATUS_IGNORE);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto root_out;
+        }
+        rc = ompi_request_wait(&iscatterv_req, MPI_STATUS_IGNORE);
 
     root_out:
         if (low_displs) {
@@ -282,15 +275,21 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
         if (bounce_buf) {
             free(bounce_buf);
         }
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
 
-        return err;
+        return OMPI_SUCCESS;
     }
 
     /* #################### Root's local peers ########################### */
     if (root_up_rank == up_rank) {
         /* Low Scatterv */
-        low_comm->c_coll->coll_scatterv(NULL, NULL, NULL, NULL, rbuf, rcount, rdtype, root_low_rank,
+        rc = low_comm->c_coll->coll_scatterv(NULL, NULL, NULL, NULL, rbuf, rcount, rdtype, root_low_rank,
                                         low_comm, low_comm->c_coll->coll_scatterv_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
         return OMPI_SUCCESS;
     }
 
@@ -303,12 +302,18 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
     /* #################### Other node followers ########################### */
     if (root_low_rank != low_rank) {
         /* Low Gather - Gather each local peer's receive data size */
-        low_comm->c_coll->coll_gather((const void *) &receive_size, 1, MPI_UINT64_T, NULL, 1,
+        rc = low_comm->c_coll->coll_gather((const void *) &receive_size, 1, MPI_UINT64_T, NULL, 1,
                                       MPI_UINT64_T, root_low_rank, low_comm,
                                       low_comm->c_coll->coll_gather_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
         /* Low Scatterv */
-        low_comm->c_coll->coll_scatterv(NULL, NULL, NULL, NULL, rbuf, rcount, rdtype, root_low_rank,
+        rc = low_comm->c_coll->coll_scatterv(NULL, NULL, NULL, NULL, rbuf, rcount, rdtype, root_low_rank,
                                         low_comm, low_comm->c_coll->coll_scatterv_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
         return OMPI_SUCCESS;
     }
 
@@ -321,15 +326,14 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
     /* Allocate a temporary array to gather the data size, i.e. data type size x count,
      * in bytes from local peers */
     low_data_size = malloc(low_size * sizeof(uint64_t));
-    if (!low_data_size) {
-        err = OMPI_ERR_OUT_OF_RESOURCE;
-        goto node_leader_out;
-    }
 
     /* Low Gather -  Gather local peers' receive data sizes */
-    low_comm->c_coll->coll_gather((const void *) &receive_size, 1, MPI_UINT64_T,
+    rc = low_comm->c_coll->coll_gather((const void *) &receive_size, 1, MPI_UINT64_T,
                                   (void *) low_data_size, 1, MPI_UINT64_T, root_low_rank, low_comm,
                                   low_comm->c_coll->coll_gather_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto node_leader_out;
+    }
 
     /* Determine if we need to create a custom datatype instead of MPI_BYTE,
      * to avoid count(type int) overflow
@@ -350,11 +354,6 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
     low_scounts = malloc(low_size * sizeof(int));
     low_displs = malloc(low_size * sizeof(int));
     tmp_buf = (char *) malloc(rsize); /* tmp_buf is still valid if rsize is 0 */
-    if (!tmp_buf || !low_scounts || !low_displs) {
-        err = OMPI_ERR_OUT_OF_RESOURCE;
-        goto node_leader_out;
-    }
-
     for (int i = 0; i < low_size; ++i) {
         low_scounts[i] = (int) ((size_t) low_data_size[i] / datatype_size);
         low_displs[i] = i > 0 ? low_displs[i - 1] + low_scounts[i - 1] : 0;
@@ -362,22 +361,31 @@ int mca_coll_han_scatterv_intra(const void *sbuf, const int *scounts, const int 
     }
 
     if (1 < datatype_size) {
-        coll_han_utils_create_contiguous_datatype(datatype_size, MPI_BYTE, &temptype);
+        rc = coll_han_utils_create_contiguous_datatype(datatype_size, MPI_BYTE, &temptype);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto node_leader_out;
+        }
+        //TODO ompi_datatype_commit function currently returns only OPAL_SUCCESS. If this changes in the future, we will need to address it.
         ompi_datatype_commit(&temptype);
     }
 
     /* Up Iscatterv */
-    up_comm->c_coll->coll_iscatterv(NULL, NULL, NULL, NULL, (void *) tmp_buf, total_up_scount,
+    rc = up_comm->c_coll->coll_iscatterv(NULL, NULL, NULL, NULL, (void *) tmp_buf, total_up_scount,
                                     temptype, root_up_rank, up_comm, &iscatterv_req,
                                     up_comm->c_coll->coll_iscatterv_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto node_leader_out;
+    }
 
-    ompi_request_wait(&iscatterv_req, MPI_STATUS_IGNORE);
+    rc = ompi_request_wait(&iscatterv_req, MPI_STATUS_IGNORE);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto node_leader_out;
+    }
 
     /* Low Scatterv */
-    low_comm->c_coll->coll_scatterv((void *) tmp_buf, low_scounts, low_displs, temptype, rbuf,
+    rc = low_comm->c_coll->coll_scatterv((void *) tmp_buf, low_scounts, low_displs, temptype, rbuf,
                                     rcount, rdtype, root_low_rank, low_comm,
                                     low_comm->c_coll->coll_scatterv_module);
-
 node_leader_out:
     if (low_scounts) {
         free(low_scounts);
@@ -394,6 +402,13 @@ node_leader_out:
     if (MPI_BYTE != temptype) {
         ompi_datatype_destroy(&temptype);
     }
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto exit_with_error;
+    }
 
-    return err;
+    return OMPI_SUCCESS;
+
+exit_with_error:
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }

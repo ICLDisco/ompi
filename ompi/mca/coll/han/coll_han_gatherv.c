@@ -67,12 +67,11 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
     mca_coll_han_module_t *han_module = (mca_coll_han_module_t *) module;
     int w_rank, w_size;              /* information about the global communicator */
     int root_low_rank, root_up_rank; /* root ranks for both sub-communicators */
-    int err, *vranks, low_rank, low_size, up_rank, up_size, *topo;
+    int rc = OMPI_SUCCESS, *vranks, low_rank, low_size, up_rank, up_size, *topo;
     int *low_rcounts = NULL, *low_displs = NULL;
 
     /* Create the subcommunicators */
-    err = mca_coll_han_comm_create(comm, han_module);
-    if (OMPI_SUCCESS != err) {
+    if (OMPI_SUCCESS != mca_coll_han_comm_create(comm, han_module)) {
         OPAL_OUTPUT_VERBOSE(
             (30, mca_coll_han_component.han_output,
              "han cannot handle gatherv with this communicator. Fall back on another component\n"));
@@ -84,7 +83,11 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
 
     /* Topo must be initialized to know rank distribution which then is used to determine if han can
      * be used */
-    topo = mca_coll_han_topo_init(comm, han_module, 2);
+    topo = mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
+    
     if (han_module->are_ppn_imbalanced) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle gatherv with this communicator (imbalance). Fall "
@@ -120,7 +123,6 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
                          "[%d]: Han Gatherv root %d root_low_rank %d root_up_rank %d\n", w_rank,
                          root, root_low_rank, root_up_rank));
 
-    err = OMPI_SUCCESS;
     /* #################### Root ########################### */
     if (root == w_rank) {
         int need_bounce_buf = 0, total_up_rcounts = 0, *up_displs = NULL, *up_rcounts = NULL,
@@ -129,10 +131,6 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
 
         low_rcounts = malloc(low_size * sizeof(int));
         low_displs = malloc(low_size * sizeof(int));
-        if (!low_rcounts || !low_displs) {
-            err = OMPI_ERR_OUT_OF_RESOURCE;
-            goto root_out;
-        }
 
         int low_peer, up_peer, w_peer;
         for (w_peer = 0; w_peer < w_size; ++w_peer) {
@@ -146,19 +144,18 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
         }
 
         /* Low Gatherv */
-        low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, rbuf, low_rcounts, low_displs, rdtype,
+        rc = low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, rbuf, low_rcounts, low_displs, rdtype,
                                        root_low_rank, low_comm,
                                        low_comm->c_coll->coll_gatherv_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto root_out;
+        }
 
         char *tmp_rbuf = rbuf;
 
         up_rcounts = calloc(up_size, sizeof(int));
         up_displs = malloc(up_size * sizeof(int));
         up_peer_ub = calloc(up_size, sizeof(int));
-        if (!up_rcounts || !up_displs || !up_peer_ub) {
-            err = OMPI_ERR_OUT_OF_RESOURCE;
-            goto root_out;
-        }
 
         for (up_peer = 0; up_peer < up_size; ++up_peer) {
             up_displs[up_peer] = INT_MAX;
@@ -211,10 +208,6 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
             ptrdiff_t rsize, rgap;
             rsize = opal_datatype_span(&rdtype->super, total_up_rcounts, &rgap);
             bounce_buf = malloc(rsize);
-            if (!bounce_buf) {
-                err = OMPI_ERR_OUT_OF_RESOURCE;
-                goto root_out;
-            }
 
             /* Calculate displacements for the inter-node gatherv */
             for (up_peer = 0; up_peer < up_size; ++up_peer) {
@@ -226,8 +219,11 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
         }
 
         /* Up Gatherv */
-        up_comm->c_coll->coll_gatherv(sbuf, 0, sdtype, tmp_rbuf, up_rcounts, up_displs, rdtype,
+        rc = up_comm->c_coll->coll_gatherv(sbuf, 0, sdtype, tmp_rbuf, up_rcounts, up_displs, rdtype,
                                       root_up_rank, up_comm, up_comm->c_coll->coll_gatherv_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto root_out;
+        }
 
         /* Use a temp buffer to reorder the output buffer if needed */
         if (need_bounce_buf) {
@@ -271,15 +267,22 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
         if (bounce_buf) {
             free(bounce_buf);
         }
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
 
-        return err;
+        return OMPI_SUCCESS;
     }
 
     /* #################### Root's local peers ########################### */
     if (root_up_rank == up_rank) {
         /* Low Gatherv */
-        low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, NULL, NULL, NULL, NULL, root_low_rank,
+        rc = low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, NULL, NULL, NULL, NULL, root_low_rank,
                                        low_comm, low_comm->c_coll->coll_gatherv_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
+
         return OMPI_SUCCESS;
     }
 
@@ -292,12 +295,20 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
     /* #################### Other node followers ########################### */
     if (root_low_rank != low_rank) {
         /* Low Gather - Gather each local peer's send data size */
-        low_comm->c_coll->coll_gather((const void *) &send_size, 1, MPI_UINT64_T, NULL, 1,
+        rc = low_comm->c_coll->coll_gather((const void *) &send_size, 1, MPI_UINT64_T, NULL, 1,
                                       MPI_UINT64_T, root_low_rank, low_comm,
                                       low_comm->c_coll->coll_gather_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
+
         /* Low Gatherv */
-        low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, NULL, NULL, NULL, NULL, root_low_rank,
+        rc = low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, NULL, NULL, NULL, NULL, root_low_rank,
                                        low_comm, low_comm->c_coll->coll_gatherv_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit_with_error;
+        }
+
         return OMPI_SUCCESS;
     }
 
@@ -311,14 +322,17 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
      * in bytes from local peers */
     low_data_size = malloc(low_size * sizeof(uint64_t));
     if (!low_data_size) {
-        err = OMPI_ERR_OUT_OF_RESOURCE;
+        rc = OMPI_ERR_OUT_OF_RESOURCE;
         goto node_leader_out;
     }
 
     /* Low Gather -  Gather local peers' send data sizes */
-    low_comm->c_coll->coll_gather((const void *) &send_size, 1, MPI_UINT64_T,
+    rc = low_comm->c_coll->coll_gather((const void *) &send_size, 1, MPI_UINT64_T,
                                   (void *) low_data_size, 1, MPI_UINT64_T, root_low_rank, low_comm,
                                   low_comm->c_coll->coll_gather_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto node_leader_out;
+    }
 
     /* Determine if we need to create a custom datatype instead of MPI_BYTE,
      * to avoid count(type int) overflow
@@ -339,10 +353,6 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
     low_rcounts = malloc(low_size * sizeof(int));
     low_displs = malloc(low_size * sizeof(int));
     tmp_buf = (char *) malloc(rsize); /* tmp_buf is still valid if rsize is 0 */
-    if (!tmp_buf || !low_rcounts || !low_displs) {
-        err = OMPI_ERR_OUT_OF_RESOURCE;
-        goto node_leader_out;
-    }
 
     for (int i = 0; i < low_size; ++i) {
         low_rcounts[i] = (int) ((size_t) low_data_size[i] / datatype_size);
@@ -351,35 +361,49 @@ int mca_coll_han_gatherv_intra(const void *sbuf, int scount, struct ompi_datatyp
     }
 
     if (1 < datatype_size) {
-        coll_han_utils_create_contiguous_datatype(datatype_size, MPI_BYTE, &temptype);
+        rc = coll_han_utils_create_contiguous_datatype(datatype_size, MPI_BYTE, &temptype);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto node_leader_out;
+        }
+        //TODO ompi_datatype_commit function currently returns only OPAL_SUCCESS. If this changes in the future, we will need to address it.
         ompi_datatype_commit(&temptype);
     }
 
     /* Low Gatherv */
-    low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, (void *) tmp_buf, low_rcounts, low_displs,
+    rc = low_comm->c_coll->coll_gatherv(sbuf, scount, sdtype, (void *) tmp_buf, low_rcounts, low_displs,
                                    temptype, root_low_rank, low_comm,
                                    low_comm->c_coll->coll_gatherv_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto node_leader_out;
+    }
 
     /* Up Gatherv */
-    up_comm->c_coll->coll_gatherv(tmp_buf, total_up_scount, temptype, NULL, NULL, NULL, NULL,
+    rc = up_comm->c_coll->coll_gatherv(tmp_buf, total_up_scount, temptype, NULL, NULL, NULL, NULL,
                                   root_up_rank, up_comm, up_comm->c_coll->coll_gatherv_module);
 
 node_leader_out:
-    if (low_rcounts) {
+    if (NULL != low_rcounts) {
         free(low_rcounts);
     }
-    if (low_displs) {
+    if (NULL != low_displs) {
         free(low_displs);
     }
-    if (low_data_size) {
+    if (NULL != low_data_size) {
         free(low_data_size);
     }
-    if (tmp_buf) {
+    if (NULL != tmp_buf) {
         free(tmp_buf);
     }
     if (MPI_BYTE != temptype) {
         ompi_datatype_destroy(&temptype);
     }
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto exit_with_error;
+    }
 
-    return err;
+    return OMPI_SUCCESS;
+
+exit_with_error:
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }

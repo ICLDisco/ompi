@@ -70,7 +70,7 @@ mca_coll_han_topo_print(int *topo,
 int*
 mca_coll_han_topo_init(struct ompi_communicator_t *comm,
                        mca_coll_han_module_t *han_module,
-                       int num_topo_level)
+                       int num_topo_level, int *rc)
 {
     if ( NULL != han_module->cached_topo ) {
         return han_module->cached_topo;
@@ -80,6 +80,7 @@ mca_coll_han_topo_init(struct ompi_communicator_t *comm,
     ompi_request_t *request = MPI_REQUEST_NULL;
     int *my_low_rank_map = NULL;
     int *ranks_map = NULL;
+    int err = OMPI_SUCCESS;
 
     int size = ompi_comm_size(comm);
 
@@ -125,9 +126,12 @@ mca_coll_han_topo_init(struct ompi_communicator_t *comm,
 
         int reduce_vals[] = {ranks_non_consecutive, low_size, -low_size, is_heterogeneous};
 
-        up_comm->c_coll->coll_allreduce(MPI_IN_PLACE, &reduce_vals, 4,
+        err = up_comm->c_coll->coll_allreduce(MPI_IN_PLACE, &reduce_vals, 4,
                                         MPI_INT, MPI_MAX, up_comm,
                                         up_comm->c_coll->coll_allreduce_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != err)) {
+            goto return_with_error;
+        }
 
         /* is the distribution of processes balanced per node? */
         is_imbalanced = (reduce_vals[1] == -reduce_vals[2]) ? 0 : 1;
@@ -137,17 +141,24 @@ mca_coll_han_topo_init(struct ompi_communicator_t *comm,
         if ( ranks_non_consecutive && !is_imbalanced ) {
             /* kick off up_comm allgather to collect non-consecutive rank information at node leaders */
             ranks_map = malloc(sizeof(int)*size);
-            up_comm->c_coll->coll_iallgather(my_low_rank_map, low_size, MPI_INT,
+            err = up_comm->c_coll->coll_iallgather(my_low_rank_map, low_size, MPI_INT,
                                              ranks_map, low_size, MPI_INT, up_comm, &request,
                                              up_comm->c_coll->coll_iallgather_module);
+            if(OPAL_UNLIKELY(OMPI_SUCCESS != err)) {
+                goto return_with_error;
+            }
         }
     }
 
 
     /* broadcast balanced, consecutive and homogeneity properties from node leaders to remaining ranks */
     int bcast_vals[] = {is_imbalanced, ranks_non_consecutive, is_heterogeneous};
-    low_comm->c_coll->coll_bcast(bcast_vals, 3, MPI_INT, 0,
+    err = low_comm->c_coll->coll_bcast(bcast_vals, 3, MPI_INT, 0,
                                  low_comm, low_comm->c_coll->coll_bcast_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != err)) {
+        goto return_with_error;
+    }
+
     is_imbalanced = bcast_vals[0];
     ranks_non_consecutive = bcast_vals[1];
     han_module->is_heterogeneous = bcast_vals[2];
@@ -159,6 +170,7 @@ mca_coll_han_topo_init(struct ompi_communicator_t *comm,
         free(topo);
         if( NULL != my_low_rank_map ) free(my_low_rank_map);
         if( NULL != ranks_map ) free(ranks_map);
+        *rc = OMPI_SUCCESS;
         return NULL;
     }
 
@@ -188,7 +200,10 @@ mca_coll_han_topo_init(struct ompi_communicator_t *comm,
          *     hid0 0 hid0 2 hid1 1 hid1 3
          */
         if (0 == low_rank) {
-            ompi_request_wait(&request, MPI_STATUS_IGNORE);
+            err = ompi_request_wait(&request, MPI_STATUS_IGNORE);
+            if(OPAL_UNLIKELY(OMPI_SUCCESS != err)) {
+                goto return_with_error;
+            }
             /* fill topology */
             for (int i = 0; i < size; ++i) {
                 topo[2*i]   = ranks_map[(i/low_size)*low_size]; // node leader is node ID
@@ -199,13 +214,33 @@ mca_coll_han_topo_init(struct ompi_communicator_t *comm,
     }
 
     /* broadcast topology from node leaders to remaining ranks */
-    low_comm->c_coll->coll_bcast(topo, num_topo_level*size, MPI_INT, 0,
+    err = low_comm->c_coll->coll_bcast(topo, num_topo_level*size, MPI_INT, 0,
                                 low_comm, low_comm->c_coll->coll_bcast_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != err)) {
+        goto return_with_error;
+    }
+
     free(my_low_rank_map);
     han_module->cached_topo = topo;
 #if OPAL_ENABLE_DEBUG
     mca_coll_han_topo_print(topo, comm, num_topo_level);
 #endif  /* OPAL_ENABLE_DEBUG */
 
+    *rc = OMPI_SUCCESS;
     return topo;
+
+return_with_error:
+    *rc = err;
+    if(han_module->cached_topo != topo && NULL != topo) {
+        free(topo);
+    }
+    if(NULL != my_low_rank_map) {
+        free(my_low_rank_map);
+    }
+    if(NULL != ranks_map) {
+        free(ranks_map);
+    }
+    
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(err, low_comm, up_comm);
+    return NULL;
 }

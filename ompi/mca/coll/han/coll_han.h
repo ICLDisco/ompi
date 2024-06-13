@@ -428,6 +428,15 @@ OBJ_CLASS_DECLARATION(mca_coll_han_module_t);
         han_module->enabled = false;  /* entire module set to pass-through from now on */ \
     } while(0)
 
+ /* macro to check if the error code is required revoke */
+#define REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(_ERR_CODE, LOW_COMM, UP_COMM)                          \
+    do                                                                                              \
+    {                                                                                               \
+        if(OPAL_UNLIKELY(MPI_ERR_PROC_FAILED == _ERR_CODE || MPI_ERR_REVOKED == _ERR_CODE)) {       \
+            ompi_comm_revoke_internal(LOW_COMM);                                                    \
+            ompi_comm_revoke_internal(UP_COMM);                                                     \
+        }                                                                                           \
+    } while (0)
 
 /**
  * Global component instance
@@ -452,12 +461,12 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm, mca_coll_han_
  *
  * Returns a pointer to the (potentially already cached) topology.
  * NOTE: if the rank distribution is imbalanced, no effort will be made to gather
- *       the topology at all ranks and instead NULL is returned and han_module->is_mapbycore
- *       is set to false.
+ *       the topology at all ranks and instead NULL is returned and han_module->are_ppn_imbalanced
+ *       is set to true.
  *       If HAN ever learns to deal with imbalanced topologies, this needs fixing!
  */
 int *mca_coll_han_topo_init(struct ompi_communicator_t *comm, mca_coll_han_module_t * han_module,
-                            int num_topo_level);
+                            int num_topo_level, int *rc);
 
 /* Utils */
 static inline void

@@ -93,7 +93,12 @@ mca_coll_han_allgather_intra(const void *sbuf, size_t scount,
     int w_rank = ompi_comm_rank(comm);
 
     /* Init topo */
-    int *topo = mca_coll_han_topo_init(comm, han_module, 2);
+    int rc = OMPI_SUCCESS;
+    int *topo = mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
+
     /* unbalanced case needs algo adaptation */
     if (han_module->are_ppn_imbalanced) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
@@ -123,11 +128,25 @@ mca_coll_han_allgather_intra(const void *sbuf, size_t scount,
                                     temp_request);
     /* Init and issue lg task */
     init_task(lg, mca_coll_han_allgather_lg_task, (void *) (lg_args));
-    issue_task(lg);
+    rc = issue_task(lg);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+    rc = ompi_request_wait(&temp_request, MPI_STATUS_IGNORE);
 
-    ompi_request_wait(&temp_request, MPI_STATUS_IGNORE);
+cleanup_and_exit:
+    if(OPAL_LIKELY(NULL != lg_args)) {
+        if(OPAL_LIKELY(NULL != lg_args->sbuf_inter_free)) {
+            free(lg_args->sbuf_inter_free);
+        }
+        free(lg_args);
+    }
+    if(OPAL_LIKELY(NULL != lg)) {
+        OBJ_RELEASE(lg);
+    }
 
-    return OMPI_SUCCESS;
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }
 
 /* lg: lower level gather task */
@@ -136,6 +155,7 @@ int mca_coll_han_allgather_lg_task(void *task_args)
     mca_coll_han_allgather_t *t = (mca_coll_han_allgather_t *) task_args;
     char *tmp_buf = NULL, *tmp_rbuf = NULL;
     char *tmp_send = NULL;
+    int rc = OMPI_SUCCESS;
 
     OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output, "[%d] HAN Allgather:  lg\n",
                          t->w_rank));
@@ -161,21 +181,27 @@ int mca_coll_han_allgather_lg_task(void *task_args)
     /* Lower level (shared memory or intra-node) gather */
     if (MPI_IN_PLACE == t->sbuf) {
         if (!t->noop) {
-            t->low_comm->c_coll->coll_gather(MPI_IN_PLACE, t->scount, t->sdtype, 
+            rc = t->low_comm->c_coll->coll_gather(MPI_IN_PLACE, t->scount, t->sdtype, 
                                              tmp_rbuf, t->rcount, t->rdtype, t->root_low_rank, 
                                              t->low_comm, t->low_comm->c_coll->coll_gather_module);
         }
         else {
             tmp_send = ((char*)t->rbuf) + (ptrdiff_t)t->w_rank * (ptrdiff_t)t->rcount * rext;
-            t->low_comm->c_coll->coll_gather(tmp_send, t->rcount, t->rdtype, 
+            rc = t->low_comm->c_coll->coll_gather(tmp_send, t->rcount, t->rdtype, 
                                              NULL, t->rcount, t->rdtype, t->root_low_rank, 
                                              t->low_comm, t->low_comm->c_coll->coll_gather_module);
         }
     }
     else {
-        t->low_comm->c_coll->coll_gather((char *) t->sbuf, t->scount, t->sdtype, tmp_rbuf, t->rcount,
+        rc = t->low_comm->c_coll->coll_gather((char *) t->sbuf, t->scount, t->sdtype, tmp_rbuf, t->rcount,
                                          t->rdtype, t->root_low_rank, t->low_comm,
                                          t->low_comm->c_coll->coll_gather_module);
+    }
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        if(NULL != tmp_buf) {
+            free(tmp_buf);
+        }
+        return rc;
     }
 
     t->sbuf = tmp_rbuf;
@@ -185,15 +211,15 @@ int mca_coll_han_allgather_lg_task(void *task_args)
     mca_coll_task_t *uag = t->cur_task;
     /* Init and issue uag task */
     init_task(uag, mca_coll_han_allgather_uag_task, (void *) t);
-    issue_task(uag);
-
-    return OMPI_SUCCESS;
+    return issue_task(uag);
 }
 
 /* uag: upper level (inter-node) all-gather task */
 int mca_coll_han_allgather_uag_task(void *task_args)
 {
     mca_coll_han_allgather_t *t = (mca_coll_han_allgather_t *) task_args;
+    int rc = OMPI_SUCCESS;
+    char *reorder_buf = NULL;
 
     if (t->noop) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
@@ -201,7 +227,6 @@ int mca_coll_han_allgather_uag_task(void *task_args)
     } else {
         int low_size = ompi_comm_size(t->low_comm);
         int up_size = ompi_comm_size(t->up_comm);
-        char *reorder_buf = NULL;
         char *reorder_rbuf = NULL;
         if (t->is_mapbycore) {
             OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
@@ -218,14 +243,16 @@ int mca_coll_han_allgather_uag_task(void *task_args)
         }
 
         /* Inter node allgather */
-        t->up_comm->c_coll->coll_allgather((char *) t->sbuf, t->scount * low_size, t->sdtype,
+        rc = t->up_comm->c_coll->coll_allgather((char *) t->sbuf, t->scount * low_size, t->sdtype,
                                            reorder_rbuf, t->rcount * low_size, t->rdtype,
                                            t->up_comm, t->up_comm->c_coll->coll_allgather_module);
-
-        if (t->sbuf_inter_free != NULL) {
-            free(t->sbuf_inter_free);
-            t->sbuf_inter_free = NULL;
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            if(NULL != reorder_buf) {
+                free(reorder_buf);
+            }
+            return rc;
         }
+
 
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "[%d] HAN Allgather:  ug allgather finish\n", t->w_rank));
@@ -253,39 +280,35 @@ int mca_coll_han_allgather_uag_task(void *task_args)
                                                         (ptrdiff_t) t->rcount);
                 }
             }
-            free(reorder_buf);
-            reorder_buf = NULL;
         }
     }
-
 
     /* Create lb (low level broadcast) task */
     mca_coll_task_t *lb = t->cur_task;
     /* Init and issue lb task */
     init_task(lb, mca_coll_han_allgather_lb_task, (void *) t);
-    issue_task(lb);
-
-    return OMPI_SUCCESS;
+    return issue_task(lb);
 }
 
 /* lb: low level broadcast task */
 int mca_coll_han_allgather_lb_task(void *task_args)
 {
+    int rc = OMPI_SUCCESS;
     mca_coll_han_allgather_t *t = (mca_coll_han_allgather_t *) task_args;
     OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output, "[%d] HAN Allgather:  uag noop\n",
                          t->w_rank));
-    OBJ_RELEASE(t->cur_task);
+
     int low_size = ompi_comm_size(t->low_comm);
     int up_size = ompi_comm_size(t->up_comm);
-    t->low_comm->c_coll->coll_bcast((char *) t->rbuf, t->rcount * low_size * up_size, t->rdtype,
+    rc = t->low_comm->c_coll->coll_bcast((char *) t->rbuf, t->rcount * low_size * up_size, t->rdtype,
                                     t->root_low_rank, t->low_comm,
                                     t->low_comm->c_coll->coll_bcast_module);
 
-    ompi_request_t *temp_req = t->req;
-    free(t);
-    ompi_request_complete(temp_req, 1);
-    return OMPI_SUCCESS;
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
 
+    return ompi_request_complete(t->req, 1);
 }
 
 /**
@@ -311,8 +334,13 @@ mca_coll_han_allgather_intra_simple(const void *sbuf, size_t scount,
         return han_module->previous_allgather(sbuf, scount, sdtype, rbuf, rcount, rdtype,
                                               comm, han_module->previous_allgather_module);
     }
+    char *reorder_buf = NULL;
+    int rc = OMPI_SUCCESS;
     /* discovery topology */
-    int *topo = mca_coll_han_topo_init(comm, han_module, 2);
+    int *topo = mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
 
     /* unbalanced case needs algo adaptation */
     if (han_module->are_ppn_imbalanced) {
@@ -363,22 +391,26 @@ mca_coll_han_allgather_intra_simple(const void *sbuf, size_t scount,
     /* 1. low gather on node leaders into tmp_buf */
     if (MPI_IN_PLACE == sbuf) {
         if (low_rank == root_low_rank) {
-            low_comm->c_coll->coll_gather(MPI_IN_PLACE, scount, sdtype,
+            rc = low_comm->c_coll->coll_gather(MPI_IN_PLACE, scount, sdtype,
                                           tmp_buf_start, rcount, rdtype, root_low_rank,
                                           low_comm, low_comm->c_coll->coll_gather_module);
         }
         else {
             tmp_send = ((char*)rbuf) + (ptrdiff_t)w_rank * (ptrdiff_t)rcount * rext;
-            low_comm->c_coll->coll_gather(tmp_send, rcount, rdtype,
+            rc = low_comm->c_coll->coll_gather(tmp_send, rcount, rdtype,
                                           NULL, rcount, rdtype, root_low_rank,
                                           low_comm, low_comm->c_coll->coll_gather_module);
         }
     }
     else {
-        low_comm->c_coll->coll_gather((char *)sbuf, scount, sdtype,
+        rc = low_comm->c_coll->coll_gather((char *)sbuf, scount, sdtype,
                                       tmp_buf_start, rcount, rdtype, root_low_rank,
                                       low_comm, low_comm->c_coll->coll_gather_module);
     }
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+
     /* 2. allgather between node leaders, from tmp_buf to reorder_buf */
     if (low_rank == root_low_rank) {
         /* allocate buffer to store unordered result on node leaders
@@ -386,7 +418,6 @@ mca_coll_han_allgather_intra_simple(const void *sbuf, size_t scount,
          * distribution of ranks on core first and node next,
          * in a increasing order for both patterns.
          */
-        char *reorder_buf = NULL;
         char *reorder_buf_start = NULL;
         if (han_module->is_mapbycore) {
             reorder_buf_start = rbuf;
@@ -402,14 +433,12 @@ mca_coll_han_allgather_intra_simple(const void *sbuf, size_t scount,
         }
 
         /* 2a. inter node allgather */
-        up_comm->c_coll->coll_allgather(tmp_buf_start, scount*low_size, sdtype,
+        rc = up_comm->c_coll->coll_allgather(tmp_buf_start, scount*low_size, sdtype,
                                         reorder_buf_start, rcount*low_size, rdtype,
                                         up_comm, up_comm->c_coll->coll_allgather_module);
 
-        if (tmp_buf != NULL) {
-            free(tmp_buf);
-            tmp_buf = NULL;
-            tmp_buf_start = NULL;
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto cleanup_and_exit;
         }
 
         /* 2b. reorder the node leader's into rbuf.
@@ -420,17 +449,23 @@ mca_coll_han_allgather_intra_simple(const void *sbuf, size_t scount,
             ompi_coll_han_reorder_gather(reorder_buf_start,
                                          rbuf, rcount, rdtype,
                                          comm, topo);
-            free(reorder_buf);
-            reorder_buf = NULL;
         }
 
     }
-
+        
     /* 3. up broadcast: leaders broadcast on their nodes */
-    low_comm->c_coll->coll_bcast(rbuf, rcount*low_size*up_size, rdtype,
+    rc = low_comm->c_coll->coll_bcast(rbuf, rcount*low_size*up_size, rdtype,
                                  root_low_rank, low_comm,
                                  low_comm->c_coll->coll_bcast_module);
 
+cleanup_and_exit:
+    if(NULL != tmp_buf) {
+        free(tmp_buf);
+    }
+    if(NULL != reorder_buf) {
+        free(reorder_buf);
+    }
 
-    return OMPI_SUCCESS;
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }

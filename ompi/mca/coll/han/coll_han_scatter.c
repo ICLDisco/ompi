@@ -94,7 +94,11 @@ mca_coll_han_scatter_intra(const void *sbuf, size_t scount,
 
     /* Topo must be initialized to know rank distribution which then is used to
      * determine if han can be used */
-    int* topo = mca_coll_han_topo_init(comm, han_module, 2);
+    int rc = OMPI_SUCCESS;
+    int* topo = mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
     if (han_module->are_ppn_imbalanced) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle scatter with this communicator (imbalance). Fall back on another component\n"));
@@ -131,7 +135,7 @@ mca_coll_han_scatter_intra(const void *sbuf, size_t scount,
                          "[%d]: Han Scatter root %d root_low_rank %d root_up_rank %d\n", w_rank,
                          root, root_low_rank, root_up_rank));
 
-    /* Reorder sbuf based on rank.
+        /* Reorder sbuf based on rank.
      * Suppose, message is 0 1 2 3 4 5 6 7
      * and the processes are mapped on 2 nodes (the processes on the node 0 is 0 2 4 6 and the processes on the node 1 is 1 3 5 7),
      * so the message needs to be reordered to 0 2 4 6 1 3 5 7
@@ -181,11 +185,29 @@ mca_coll_han_scatter_intra(const void *sbuf, size_t scount,
     /* Init us task */
     init_task(us, mca_coll_han_scatter_us_task, (void *) (us_args));
     /* Issure us task */
-    issue_task(us);
+    rc = issue_task(us);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
 
-    ompi_request_wait(&temp_request, MPI_STATUS_IGNORE);
-    return OMPI_SUCCESS;
+    rc = ompi_request_wait(&temp_request, MPI_STATUS_IGNORE);
 
+cleanup_and_exit:
+    if(OPAL_LIKELY(NULL != us_args)) {
+        if(OPAL_LIKELY(NULL != us_args->sbuf_inter_free)) {
+            free(us_args->sbuf_inter_free);
+        }
+        if(OPAL_UNLIKELY(NULL != us_args->sbuf_reorder_free)) {
+            free(us_args->sbuf_reorder_free);
+        }
+        free(us_args);
+    }
+    if(OPAL_LIKELY(NULL != us)) {
+        OBJ_RELEASE(us);
+    }
+
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }
 
 /* us: upper level (inter-node) scatter task */
@@ -214,9 +236,13 @@ int mca_coll_han_scatter_us_task(void *task_args)
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "[%d] Han Scatter:  us scatter\n", t->w_rank));
         /* Inter node scatter */
-        t->up_comm->c_coll->coll_scatter((char *) t->sbuf, t->scount * low_size, t->sdtype,
+        int rc = t->up_comm->c_coll->coll_scatter((char *) t->sbuf, t->scount * low_size, t->sdtype,
                                          tmp_rbuf, count * low_size, dtype, t->root_up_rank,
                                          t->up_comm, t->up_comm->c_coll->coll_scatter_module);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            free(tmp_buf);
+            return rc;
+        }
         t->sbuf = tmp_rbuf;
         t->sbuf_inter_free = tmp_buf;
         t->sdtype = dtype;
@@ -232,9 +258,7 @@ int mca_coll_han_scatter_us_task(void *task_args)
     /* Init ls task */
     init_task(ls, mca_coll_han_scatter_ls_task, (void *) t);
     /* Issure ls task */
-    issue_task(ls);
-
-    return OMPI_SUCCESS;
+    return issue_task(ls);
 }
 
 /* ls: lower level (shared memory or intra-node) scatter task */
@@ -243,11 +267,13 @@ int mca_coll_han_scatter_ls_task(void *task_args)
     mca_coll_han_scatter_args_t *t = (mca_coll_han_scatter_args_t *) task_args;
     OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output, "[%d] Han Scatter:  ls\n",
                          t->w_rank));
-    OBJ_RELEASE(t->cur_task);
 
-    t->low_comm->c_coll->coll_scatter((char *) t->sbuf, t->scount, t->sdtype, (char *) t->rbuf,
+    int rc = t->low_comm->c_coll->coll_scatter((char *) t->sbuf, t->scount, t->sdtype, (char *) t->rbuf,
                                       t->rcount, t->rdtype, t->root_low_rank, t->low_comm,
                                       t->low_comm->c_coll->coll_scatter_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
 
     if (t->sbuf_inter_free != NULL && t->noop != true) {
         free(t->sbuf_inter_free);
@@ -255,10 +281,7 @@ int mca_coll_han_scatter_ls_task(void *task_args)
     }
     OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output, "[%d] Han Scatter:  ls finish\n",
                          t->w_rank));
-    ompi_request_t *temp_req = t->req;
-    free(t);
-    ompi_request_complete(temp_req, 1);
-    return OMPI_SUCCESS;
+    return ompi_request_complete(t->req, 1);
 }
 
 
@@ -291,7 +314,11 @@ mca_coll_han_scatter_intra_simple(const void *sbuf, size_t scount,
     }
     /* Topo must be initialized to know rank distribution which then is used to
      * determine if han can be used */
-    int *topo = mca_coll_han_topo_init(comm, han_module, 2);
+    int rc = OMPI_SUCCESS;
+    int *topo = mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
     if (han_module->are_ppn_imbalanced){
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle scatter with this communicator. It needs to fall back on another component\n"));
@@ -318,7 +345,7 @@ mca_coll_han_scatter_intra_simple(const void *sbuf, size_t scount,
         dtype = rdtype;
         count = rcount;
     }
-
+    
     /* allocate buffer to store unordered result on root
      * if the processes are mapped-by core, no need to reorder:
      * distribution of ranks on core first and node next,
@@ -343,9 +370,6 @@ mca_coll_han_scatter_intra_simple(const void *sbuf, size_t scount,
                                  "[%d]: Han scatter: needs reordering or compacting: ", w_rank));
 
             reorder_buf = malloc(block_size * w_size);
-            if ( NULL == reorder_buf){
-                return OMPI_ERROR;
-            }
 
             /** Reorder and packing:
              * Suppose, the message is 0 1 2 3 4 5 6 7 but the processes are
@@ -374,7 +398,7 @@ mca_coll_han_scatter_intra_simple(const void *sbuf, size_t scount,
         tmp_buf = (char *) malloc(block_size * low_size);
 
         /* 1. up scatter (internode) between node leaders */
-        up_comm->c_coll->coll_scatter((char*) reorder_buf,
+        rc = up_comm->c_coll->coll_scatter((char*) reorder_buf,
                     count * low_size,
                     dtype,
                     (char *)tmp_buf,
@@ -383,10 +407,14 @@ mca_coll_han_scatter_intra_simple(const void *sbuf, size_t scount,
                     root_up_rank,
                     up_comm,
                     up_comm->c_coll->coll_scatter_module);
+        
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto cleanup_and_return;
+        }
     }
 
     /* 2. low scatter on nodes leaders */
-    low_comm->c_coll->coll_scatter((char *)tmp_buf,
+    rc = low_comm->c_coll->coll_scatter((char *)tmp_buf,
                      block_size,
                      MPI_BYTE,
                      (char*)rbuf,
@@ -396,14 +424,14 @@ mca_coll_han_scatter_intra_simple(const void *sbuf, size_t scount,
                      low_comm,
                      low_comm->c_coll->coll_scatter_module);
 
-    if (low_rank == root_low_rank) {
+cleanup_and_return:
+    if (NULL != tmp_buf) {
         free(tmp_buf);
-        tmp_buf = NULL;
     }
-    if (reorder_buf != sbuf) {
+    if (NULL != reorder_buf && reorder_buf != sbuf) {
         free(reorder_buf);
     }
 
-    return OMPI_SUCCESS;
-
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }

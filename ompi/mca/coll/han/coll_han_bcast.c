@@ -71,14 +71,13 @@ mca_coll_han_bcast_intra(void *buf,
                          struct ompi_communicator_t *comm, mca_coll_base_module_t * module)
 {
     mca_coll_han_module_t *han_module = (mca_coll_han_module_t *)module;
-    int err, seg_count = count, w_rank = ompi_comm_rank(comm);
+    int rc = OMPI_SUCCESS, seg_count = count, w_rank = ompi_comm_rank(comm);
     ompi_communicator_t *low_comm, *up_comm;
     ptrdiff_t extent, lb;
     size_t dtype_size;
 
     /* Create the subcommunicators */
-    err = mca_coll_han_comm_create(comm, han_module);
-    if( OMPI_SUCCESS != err ) {
+    if( OMPI_SUCCESS != mca_coll_han_comm_create(comm, han_module) ) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle bcast with this communicator. Fall back on another component\n"));
         /* Put back the fallback collective support and call it once. All
@@ -90,7 +89,10 @@ mca_coll_han_bcast_intra(void *buf,
     }
     /* Topo must be initialized to know rank distribution which then is used to
      * determine if han can be used */
-    mca_coll_han_topo_init(comm, han_module, 2);
+    mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
     if (han_module->are_ppn_imbalanced) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle bcast with this communicator (imbalance). Fall back on another component\n"));
@@ -136,7 +138,10 @@ mca_coll_han_bcast_intra(void *buf,
                                 low_rank != root_low_rank);
     /* Init the first task */
     init_task(t0, mca_coll_han_bcast_t0_task, (void *) t);
-    issue_task(t0);
+    rc = issue_task(t0);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
 
     /* Create t1 task */
     mca_coll_task_t *t1 = OBJ_NEW(mca_coll_task_t);
@@ -144,7 +149,10 @@ mca_coll_han_bcast_intra(void *buf,
     t->cur_task = t1;
     /* Init the t1 task */
     init_task(t1, mca_coll_han_bcast_t1_task, (void *) t);
-    issue_task(t1);
+    rc = issue_task(t1);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
 
     while (t->cur_seg <= t->num_segments - 2) {
         /* Create t1 task */
@@ -153,12 +161,19 @@ mca_coll_han_bcast_intra(void *buf,
         t->cur_seg = t->cur_seg + 1;
         /* Init the t1 task */
         init_task(t1, mca_coll_han_bcast_t1_task, (void *) t);
-        issue_task(t1);
+        rc = issue_task(t1);
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto cleanup_and_exit;
+        }
     }
 
-    free(t);
+cleanup_and_exit:
+    if(OPAL_LIKELY(NULL != t)) {
+        free(t);
+    }
 
-    return OMPI_SUCCESS;
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }
 
 /* t0 task: issue and wait for the upper level ibcast of segment 0 */
@@ -172,9 +187,8 @@ int mca_coll_han_bcast_t0_task(void *task_args)
     if (t->noop) {
         return OMPI_SUCCESS;
     }
-    t->up_comm->c_coll->coll_bcast((char *) t->buff, t->seg_count, t->dtype, t->root_up_rank,
+    return t->up_comm->c_coll->coll_bcast((char *) t->buff, t->seg_count, t->dtype, t->root_up_rank,
                                    t->up_comm, t->up_comm->c_coll->coll_bcast_module);
-    return OMPI_SUCCESS;
 }
 
 /* t1 task:
@@ -193,26 +207,36 @@ int mca_coll_han_bcast_t1_task(void *task_args)
                          t->cur_seg));
     OBJ_RELEASE(t->cur_task);
     ompi_datatype_get_extent(t->dtype, &lb, &extent);
+    int rc = OMPI_SUCCESS;
     if (!t->noop) {
         if (t->cur_seg <= t->num_segments - 2 ) {
             if (t->cur_seg == t->num_segments - 2) {
                 tmp_count = t->last_seg_count;
             }
-            t->up_comm->c_coll->coll_ibcast((char *) t->buff + extent * t->seg_count,
+            rc = t->up_comm->c_coll->coll_ibcast((char *) t->buff + extent * t->seg_count,
                                             tmp_count, t->dtype, t->root_up_rank,
                                             t->up_comm, &ibcast_req,
                                             t->up_comm->c_coll->coll_ibcast_module);
+            if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+                return rc;
+            }
         }
     }
 
     /* are we the last segment to be pushed downstream ? */
     tmp_count = (t->cur_seg == (t->num_segments - 1)) ? t->last_seg_count : t->seg_count;
-    t->low_comm->c_coll->coll_bcast((char *) t->buff,
+    rc = t->low_comm->c_coll->coll_bcast((char *) t->buff,
                                     tmp_count, t->dtype, t->root_low_rank, t->low_comm,
                                     t->low_comm->c_coll->coll_bcast_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        if(OPAL_LIKELY(NULL != ibcast_req)) {
+            OBJ_RELEASE(ibcast_req);
+        }
+        return rc;
+    }
 
     if (NULL != ibcast_req) {
-        ompi_request_wait(&ibcast_req, MPI_STATUS_IGNORE);
+        return ompi_request_wait(&ibcast_req, MPI_STATUS_IGNORE);
     }
 
     return OMPI_SUCCESS;
@@ -233,14 +257,13 @@ mca_coll_han_bcast_intra_simple(void *buf,
     /* create the subcommunicators */
     mca_coll_han_module_t *han_module = (mca_coll_han_module_t *)module;
     ompi_communicator_t *low_comm, *up_comm;
-    int err;
+    int rc = OMPI_SUCCESS;
 #if OPAL_ENABLE_DEBUG
     int w_rank = ompi_comm_rank(comm);
 #endif
 
     /* Create the subcommunicators */
-    err = mca_coll_han_comm_create_new(comm, han_module);
-    if( OMPI_SUCCESS != err ) {
+    if( OMPI_SUCCESS != mca_coll_han_comm_create_new(comm, han_module) ) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle bcast with this communicator. Fall back on another component\n"));
         /* Put back the fallback collective support and call it once. All
@@ -252,7 +275,10 @@ mca_coll_han_bcast_intra_simple(void *buf,
     }
     /* Topo must be initialized to know rank distribution which then is used to
      * determine if han can be used */
-    mca_coll_han_topo_init(comm, han_module, 2);
+    mca_coll_han_topo_init(comm, han_module, 2, &rc);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        return rc;
+    }
     if (han_module->are_ppn_imbalanced) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output,
                              "han cannot handle bcast with this communicator (imbalance). Fall back on another component\n"));
@@ -278,9 +304,12 @@ mca_coll_han_bcast_intra_simple(void *buf,
                          w_rank, root_low_rank, root_up_rank));
 
     if (low_rank == root_low_rank) {
-        up_comm->c_coll->coll_bcast(buf, count, dtype, root_up_rank,
+        rc = up_comm->c_coll->coll_bcast(buf, count, dtype, root_up_rank,
                                     up_comm, up_comm->c_coll->coll_bcast_module);
 
+        if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+            goto exit;
+        }
         /* To remove when han has better sub-module selection.
            For now switching to ibcast enables to make runs with libnbc. */
         //ompi_request_t req;
@@ -289,8 +318,10 @@ mca_coll_han_bcast_intra_simple(void *buf,
         //ompi_request_wait(&req, MPI_STATUS_IGNORE);
 
     }
-    low_comm->c_coll->coll_bcast(buf, count, dtype, root_low_rank,
-                                 low_comm, low_comm->c_coll->coll_bcast_module);
 
-    return OMPI_SUCCESS;
+    rc = low_comm->c_coll->coll_bcast(buf, count, dtype, root_low_rank,
+                                 low_comm, low_comm->c_coll->coll_bcast_module);
+exit:
+    REVOKE_INTERNAL_COMM_IF_ERR_REQUIRES(rc, low_comm, up_comm);
+    return rc;
 }

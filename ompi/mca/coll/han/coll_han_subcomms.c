@@ -57,7 +57,7 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
     ompi_communicator_t **low_comm = &(han_module->sub_comm[INTRA_NODE]);
     ompi_communicator_t **up_comm = &(han_module->sub_comm[INTER_NODE]);
     mca_coll_han_collectives_fallback_t fallbacks;
-    int rc = OMPI_SUCCESS, vrank, *vranks;
+    int rc = OMPI_SUCCESS, vrank, *vranks = NULL;
     opal_info_t comm_info;
 
     /* The sub communicators have already been created */
@@ -87,6 +87,7 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
     HAN_SUBCOM_SAVE_COLLECTIVE(fallbacks, comm, han_module, scatter);
     HAN_SUBCOM_SAVE_COLLECTIVE(fallbacks, comm, han_module, scatterv);
 
+    OBJ_CONSTRUCT(&comm_info, opal_info_t);
     /**
      * HAN is not yet optimized for a single process per node case, we should
      * avoid selecting it for collective communication support in such cases.
@@ -102,25 +103,14 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
     rc = comm->c_coll->coll_allreduce(MPI_IN_PLACE, &local_procs, 1, MPI_INT,
                                       MPI_MAX, comm,
                                       comm->c_coll->coll_allreduce_module);
-    if( OMPI_SUCCESS != rc ) {
-        goto return_with_error;
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
     }
+    
     if( local_procs == 1 ) {
-        han_module->enabled = false;  /* entire module set to pass-through from now on */
-        /* restore saved collectives */
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgatherv);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgather);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allreduce);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, bcast);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, reduce);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, gather);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, gatherv);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, scatter);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, scatterv);
-         return OMPI_ERR_NOT_SUPPORTED;
+        rc = OMPI_ERR_NOT_SUPPORTED;
+        goto cleanup_and_exit;
     }
-
-    OBJ_CONSTRUCT(&comm_info, opal_info_t);
 
     /* Create topological sub-communicators */
     w_rank = ompi_comm_rank(comm);
@@ -129,13 +119,19 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
     /*
      * This sub-communicator contains the ranks that share my node.
      */
-    opal_info_set(&comm_info, "ompi_comm_coll_preference", "han");
-    opal_info_set(&comm_info, "ompi_comm_coll_han_topo_level", "INTRA_NODE");
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_preference", "han");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_han_topo_level", "INTRA_NODE");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
     rc = ompi_comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0,
                               &comm_info, low_comm);
-    if( OMPI_SUCCESS != rc ) {
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
         /* cannot create subcommunicators. Return the error upstream */
-        goto return_with_error;
+        goto cleanup_and_exit;
     }
 
     /*
@@ -148,11 +144,14 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
      * This sub-communicator contains one process per node: processes with the
      * same intra-node rank id share such a sub-communicator
      */
-    opal_info_set(&comm_info, "ompi_comm_coll_han_topo_level", "INTER_NODE");
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_han_topo_level", "INTER_NODE");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
     rc = ompi_comm_split_with_info(comm, low_rank, w_rank, &comm_info, up_comm, false);
-    if( OMPI_SUCCESS != rc ) {
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
         /* cannot create subcommunicators. Return the error upstream */
-        goto return_with_error;
+        goto cleanup_and_exit;
     }
 
     up_rank = ompi_comm_rank(*up_comm);
@@ -175,9 +174,25 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
                                  vranks, 1, MPI_INT,
                                  comm, comm->c_coll->coll_allgather_module);
     int flag = (OMPI_SUCCESS == rc);
-    comm->c_coll->coll_agree(comm, &flag);
-    if (!flag) {
-        goto return_with_error;
+
+    ompi_group_t *failed_group = NULL;
+    rc = ompi_comm_failure_get_acked_internal(comm, &failed_group);
+    if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        if(NULL != failed_group) {
+            OBJ_RELEASE(failed_group);
+        }
+        goto cleanup_and_exit;
+    }
+    rc = comm->c_coll->coll_agree( &flag,
+                                    1,
+                                    &ompi_mpi_int.dt,
+                                    &ompi_mpi_op_band.op,
+                                    &failed_group, false, // pass NULL
+                                    comm,
+                                    comm->c_coll->coll_agree_module);
+    OBJ_RELEASE(failed_group);
+    if (OPAL_UNLIKELY(!flag || OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
     }
 
     /*
@@ -185,6 +200,7 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
      */
     han_module->cached_vranks = vranks;
 
+cleanup_and_exit:
     /* Restore the saved collectives */
     HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgatherv);
     HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgather);
@@ -197,17 +213,22 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
     HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, scatterv);
 
     OBJ_DESTRUCT(&comm_info);
-    return OMPI_SUCCESS;
 
-return_with_error:
-    han_module->enabled = false;  /* entire module set to pass-through from now on */
-    if( NULL != *low_comm ) {
-        ompi_comm_free(low_comm);
-        *low_comm = NULL;  /* don't leave the MPI_COMM_NULL set by ompi_comm_free */
+    if(OPAL_UNLIKELY(MPI_ERR_PROC_FAILED == rc || MPI_ERR_REVOKED == rc)) {
+        han_module->enabled = false;  /* entire module set to pass-through from now on */
+        if(NULL != *low_comm) {
+            ompi_comm_revoke_internal(*low_comm);
+            ompi_comm_free(low_comm);
+            *low_comm = NULL;  /* don't leave the MPI_COMM_NULL set by ompi_comm_free */
+        }
+        if(NULL != *up_comm) {
+            ompi_comm_revoke_internal(*up_comm);
+            ompi_comm_free(up_comm);
+            *up_comm = NULL;  /* don't leave the MPI_COMM_NULL set by ompi_comm_free */
+        }
     }
-    if( NULL != *up_comm ) {
-        ompi_comm_free(up_comm);
-        *up_comm = NULL;  /* don't leave the MPI_COMM_NULL set by ompi_comm_free */
+    if(NULL != vranks && han_module->cached_vranks != vranks) {
+        free(vranks);
     }
     return rc;
 }
@@ -222,9 +243,9 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
 {
     int low_rank, low_size, up_rank, w_rank, w_size;
     mca_coll_han_collectives_fallback_t fallbacks;
-    ompi_communicator_t **low_comms;
-    ompi_communicator_t **up_comms;
-    int vrank, *vranks;
+    ompi_communicator_t **low_comms = NULL;
+    ompi_communicator_t **up_comms = NULL;
+    int vrank, *vranks = NULL;
     opal_info_t comm_info;
 
     /* use cached communicators if possible */
@@ -265,22 +286,15 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
      * all participants.
      */
     int local_procs = ompi_group_count_local_peers(comm->c_local_group);
-    comm->c_coll->coll_allreduce(MPI_IN_PLACE, &local_procs, 1, MPI_INT,
+    int rc = comm->c_coll->coll_allreduce(MPI_IN_PLACE, &local_procs, 1, MPI_INT,
                                  MPI_MAX, comm,
                                  comm->c_coll->coll_allreduce_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
     if( local_procs == 1 ) {
-        /* restore saved collectives */
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgatherv);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgather);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allreduce);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, bcast);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, reduce);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, gather);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, gatherv);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, scatter);
-        HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, scatterv);
-        han_module->enabled = false;  /* entire module set to pass-through from now on */
-        return OMPI_ERR_NOT_SUPPORTED;
+        rc = OMPI_ERR_NOT_SUPPORTED;
+        goto cleanup_and_exit;
     }
 
     /* create communicators if there is no cached communicator */
@@ -297,9 +311,15 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
      * Upgrade sm module priority to set up low_comms[0] with sm module
      * This sub-communicator contains the ranks that share my node.
      */
-    opal_info_set(&comm_info, "ompi_comm_coll_preference", "tuned,^han");
-    ompi_comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0,
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_preference", "tuned,^han");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+    rc = ompi_comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0,
                          &comm_info, &(low_comms[0]));
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
     assert(OMPI_COMM_IS_DISJOINT_SET(low_comms[0]) && !OMPI_COMM_IS_DISJOINT(low_comms[0]));
 
     /*
@@ -312,22 +332,40 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
      * Upgrade shared module priority to set up low_comms[1] with shared module
      * This sub-communicator contains the ranks that share my node.
      */
-    opal_info_set(&comm_info, "ompi_comm_coll_preference", "sm,^han");
-    ompi_comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0,
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_preference", "sm,^han");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+    rc = ompi_comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0,
                          &comm_info, &(low_comms[1]));
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
     assert(OMPI_COMM_IS_DISJOINT_SET(low_comms[1]) && !OMPI_COMM_IS_DISJOINT(low_comms[1]));
 
-    opal_info_set(&comm_info, "ompi_comm_coll_preference", "xhc,^han");
-    ompi_comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0,
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_preference", "xhc,^han");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+    rc = ompi_comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0,
                          &comm_info, &(low_comms[2]));
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
 
     /*
      * Upgrade libnbc module priority to set up up_comms[0] with libnbc module
      * This sub-communicator contains one process per node: processes with the
      * same intra-node rank id share such a sub-communicator
      */
-    opal_info_set(&comm_info, "ompi_comm_coll_preference", "libnbc,^han");
-    ompi_comm_split_with_info(comm, low_rank, w_rank, &comm_info, &(up_comms[0]), false);
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_preference", "libnbc,^han");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+    rc = ompi_comm_split_with_info(comm, low_rank, w_rank, &comm_info, &(up_comms[0]), false);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
     up_rank = ompi_comm_rank(up_comms[0]);
     assert(OMPI_COMM_IS_DISJOINT_SET(up_comms[0]) && OMPI_COMM_IS_DISJOINT(up_comms[0]));
 
@@ -335,8 +373,14 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
      * Upgrade adapt module priority to set up up_comms[0] with adapt module
      * This sub-communicator contains one process per node.
      */
-    opal_info_set(&comm_info, "ompi_comm_coll_preference", "adapt,^han");
-    ompi_comm_split_with_info(comm, low_rank, w_rank, &comm_info, &(up_comms[1]), false);
+    rc = opal_info_set(&comm_info, "ompi_comm_coll_preference", "adapt,^han");
+    if(OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+    rc = ompi_comm_split_with_info(comm, low_rank, w_rank, &comm_info, &(up_comms[1]), false);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
     assert(OMPI_COMM_IS_DISJOINT_SET(up_comms[1]) && OMPI_COMM_IS_DISJOINT(up_comms[1]));
 
     /*
@@ -353,8 +397,32 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
      * gather vrank from each process so every process will know other processes
      * vrank
      */
-    comm->c_coll->coll_allgather(&vrank, 1, MPI_INT, vranks, 1, MPI_INT, comm,
+    rc = comm->c_coll->coll_allgather(&vrank, 1, MPI_INT, vranks, 1, MPI_INT, comm,
                                  comm->c_coll->coll_allgather_module);
+    if(OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
+
+    int flag = (OMPI_SUCCESS == rc);
+    ompi_group_t *failed_group = NULL;
+    rc = ompi_comm_failure_get_acked_internal(comm, &failed_group);
+    if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
+        if(NULL != failed_group) {
+            OBJ_RELEASE(failed_group);
+        }
+        goto cleanup_and_exit;
+    }
+    rc = comm->c_coll->coll_agree(&flag,
+                                    1,
+                                    &ompi_mpi_int.dt,
+                                    &ompi_mpi_op_band.op,
+                                    &failed_group, false,
+                                    comm,
+                                    comm->c_coll->coll_agree_module);
+    OBJ_RELEASE(failed_group);
+    if (OPAL_UNLIKELY(!flag || OMPI_SUCCESS != rc)) {
+        goto cleanup_and_exit;
+    }
 
     /*
      * Set the cached info
@@ -363,6 +431,7 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
     han_module->cached_up_comms = up_comms;
     han_module->cached_vranks = vranks;
 
+cleanup_and_exit:
     /* Reset the saved collectives to point back to HAN */
     HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgatherv);
     HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, allgather);
@@ -375,5 +444,33 @@ int mca_coll_han_comm_create(struct ompi_communicator_t *comm,
     HAN_SUBCOM_RESTORE_COLLECTIVE(fallbacks, comm, han_module, scatterv);
 
     OBJ_DESTRUCT(&comm_info);
-    return OMPI_SUCCESS;
+
+    if(OPAL_UNLIKELY(MPI_ERR_PROC_FAILED == rc || MPI_ERR_REVOKED == rc)) {
+        han_module->enabled = false;  /* entire module set to pass-through from now on */
+        if(NULL != up_comms) {
+            for(int i=0;i<COLL_HAN_UP_MODULES;i++) {
+                if(NULL != up_comms[i]) {
+                    ompi_comm_revoke_internal(up_comms[i]);
+                    ompi_comm_free(&up_comms[i]);
+                    up_comms[i] = NULL; /* don't leave the MPI_COMM_NULL set by ompi_comm_free */
+                }
+            }
+            free(up_comms);
+        }
+        if(NULL != low_comms) {
+            for(int i=0;i<COLL_HAN_LOW_MODULES;i++) {
+                han_module->cached_low_comms = NULL;
+                if(NULL != low_comms[i]) {
+                    ompi_comm_revoke_internal(low_comms[i]);
+                    ompi_comm_free(&low_comms[i]);
+                    low_comms[i] = NULL; /* don't leave the MPI_COMM_NULL set by ompi_comm_free */
+                }
+            }
+            free(low_comms);
+        }
+    }
+    if(OPAL_UNLIKELY(vranks != vranks && han_module->cached_vranks != vranks)) {
+        free(vranks);
+    }
+    return rc;
 }
